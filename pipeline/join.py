@@ -230,8 +230,13 @@ def main() -> int:
         caps = [e["capital"] for e in known if e["capital"]]
         ests = [e["established"] for e in known if e["established"]]
         out_rows.append({
+            # ⚠ county_only 一定要帶出來。少了它，下游的 rank.py 分不出
+            #   「同一個縣市」與「兩家都是勞保局裁處」——
+            #   後者在地理上完全不代表任何事。實測漏帶的後果是
+            #   身分分層的 A 層與 C 層變成 0 組，而且不會報錯。
             **{k: s[k] for k in ("principal", "companies", "records", "score",
-                                 "same_unit", "unit", "kind", "company_list")},
+                                 "same_unit", "county_only", "unit", "kind",
+                                 "company_list")},
             "gcis_matched": len(known),
             "same_address": int(same_addr),
             "shared_service_address": int(shared_addr),

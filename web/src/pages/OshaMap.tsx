@@ -36,13 +36,18 @@ export const SEVERITY_COLOR: Record<string, string> = {
 };
 
 /**
- * 罹災人數 → 圓點半徑（公尺）。
- * 用平方根是因為人眼看的是「面積」不是「半徑」，
- * 直接用人數當半徑的話，10 人的點會比 1 人的點大 100 倍，整張圖只剩一顆球。
- * casualties 是 0 也要畫，所以有一個最小值。
+ * 罹災人數 → 圓點半徑（**像素**）。
+ *
+ * ⚠ CircleMarker 的 radius 單位是像素，Circle 才是公尺。
+ *   這兩個很容易搞混：如果你把公尺的數字（幾千）餵給 CircleMarker，
+ *   會得到一個半徑三千像素、蓋滿整個畫面的藍色圓。
+ *
+ * 用平方根是因為人眼看的是「面積」不是「半徑」。直接用人數當半徑的話，
+ * 10 人的點會比 1 人的點大 100 倍，整張圖只剩一顆球。
+ * casualties 是 0 也要畫得出來，所以有一個最小值。
  */
 export function radiusFor(casualties: number): number {
-  return 800 + Math.sqrt(Math.max(0, casualties)) * 2200;
+  return 5 + Math.sqrt(Math.max(0, casualties)) * 3.5;
 }
 
 export default function OshaMap() {
@@ -98,9 +103,11 @@ export default function OshaMap() {
           {/* ──────────────────────────────────────────────
               TODO 1：在這裡把 plottable 畫成圓點。
 
-              提示：用 CircleMarker 不要用 Marker。
-              Marker 需要圖釘圖片，那個東西在 Vite 打包後會破圖，
-              CircleMarker 完全沒有這個問題，而且半徑可以依人數變化。
+              提示：用 CircleMarker，不要用 Marker、也不要用 Circle。
+                · Marker 需要圖釘圖片，那個東西在 Vite 打包後會破圖
+                · Circle 的半徑單位是公尺，會隨縮放變大變小，
+                  縮到全台時小案子的圓會消失
+                · CircleMarker 的半徑是像素，不管縮放都看得見 ← 我們要這個
 
               大概像這樣：
                 {plottable.map((i) => (
