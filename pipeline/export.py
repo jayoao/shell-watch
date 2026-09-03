@@ -71,6 +71,38 @@ def severity_of(fine, violation: str) -> str:
     return "輕微"
 
 
+# ⚠ 備註欄是個大雜燴。實測 14,039 筆非空值分成 557 種，其中：
+#       '0'            7,672 筆  ← 佔位值，不是資料
+#       '訴願駁回'      1,325 筆
+#       '職業災害'        613 筆  ← 跟訴願無關
+#       '行政救濟中'      494 筆  ← **本案尚未確定**
+#       '訴願中'          214 筆  ← **本案尚未確定**
+#   把整個備註直接塞進 appeal 欄位，畫面上會出現「訴願：0」這種東西 ——
+#   訴願有沒有進行是法律上有意義的資訊，顯示一個「0」是雜訊，
+#   而且會讓人以為那是某種結果。只認訴願／行政救濟相關的字樣。
+_APPEAL_SETTLED = ("駁回", "不受理", "原處分維持")
+_APPEAL_PENDING = ("訴願中", "行政救濟中", "提起訴願", "訴訟中", "審理中")
+
+
+def appeal_of(remark: str) -> str | None:
+    """備註 → 訴願狀態。認不出來的一律回 None，不要硬塞。
+
+    回傳的字串會直接顯示在畫面上，所以要寫成完整、不會被誤讀的句子。
+    ⚠ 「尚未確定」的案子一定要標出來 —— 那是紅線，不是體貼。
+    """
+    t = (remark or "").strip()
+    if not t or t == "0" or t.isdigit():
+        return None
+    if any(k in t for k in _APPEAL_PENDING):
+        return f"{t}（本案尚未確定）"
+    if "訴願" in t and any(k in t for k in _APPEAL_SETTLED):
+        # 已經寫了「原處分維持」就不要再加一次
+        return t if "原處分維持" in t else f"{t}（原處分維持）"
+    if "訴願" in t:
+        return t
+    return None          # 「職業災害」「專案檢查」這些不是訴願，不放這一欄
+
+
 def mask(name: str) -> str:
     """去識別化。紅線：demo、截圖、影片一律遮罩。"""
     if len(name) <= 1:
@@ -119,7 +151,7 @@ def violations_of(rows: list[dict]) -> list[dict]:
                        else f"處分字號 {r.get('doc_no', '')}",
             "fine": fine,
             "severity": severity_of(fine, content),
-            "appeal": (r.get("remark") or "").strip() or None,
+            "appeal": appeal_of(r.get("remark", "")),
             "source_url": SOURCE_URL,
         })
     out.sort(key=lambda v: v["date"], reverse=True)

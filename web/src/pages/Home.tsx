@@ -42,7 +42,13 @@ function money(n: number): string {
   return n > 0 ? `${n.toLocaleString("zh-TW")} 元` : "未公告金額";
 }
 
+/** 這一筆是不是還在爭議中（訴願／行政救濟尚未確定）。 */
+function isPending(v: ViolationRef): boolean {
+  return !!v.appeal && v.appeal.includes("尚未確定");
+}
+
 function Violation({ v }: { v: ViolationRef }) {
+  const pending = isPending(v);
   return (
     <li style={{ marginBottom: 10, lineHeight: 1.6 }}>
       <span
@@ -56,16 +62,40 @@ function Violation({ v }: { v: ViolationRef }) {
         }}
       />
       <b>{v.date}</b>{"　"}{v.law}
+      {/* 爭議中的案子要在最顯眼的位置標出來 —— 這是紅線不是體貼。
+          原處分還沒確定，把它跟已確定的案子混在一起呈現，
+          對被列的公司不公平，對使用者也是誤導。 */}
+      {pending && (
+        <span
+          style={{
+            marginLeft: 8,
+            fontSize: 12,
+            fontWeight: 600,
+            background: "var(--warn-soft)",
+            color: "var(--on-warn-soft)",
+            border: "1px solid var(--warn)",
+            borderRadius: 20,
+            padding: "1px 9px",
+          }}
+        >
+          尚未確定
+        </span>
+      )}
       <div style={{ color: "var(--ink-2)", fontSize: 13, marginLeft: 16 }}>
         {v.content}
         <div style={{ marginTop: 2 }}>
           罰鍰 {money(v.fine)}
-          {v.appeal ? `\u3000訴願：${v.appeal}` : ""}
+          {v.appeal ? `\u3000${v.appeal}` : ""}
           {"　"}
           <a href={v.source_url} target="_blank" rel="noreferrer">
             官方公告查詢
           </a>
         </div>
+        {pending && (
+          <div style={{ marginTop: 4, fontSize: 12, color: "var(--ink-3)" }}>
+            本案的行政救濟程序尚未終結，原處分是否維持仍待確定。
+          </div>
+        )}
       </div>
     </li>
   );
