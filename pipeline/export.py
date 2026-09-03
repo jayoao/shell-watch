@@ -40,6 +40,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from common import use_utf8_stdout                          # noqa: E402
+from pipeline.hazard import HAZARDS, classify, is_fatal     # noqa: E402
 from pipeline.join import norm_addr, norm_name              # noqa: E402
 from pipeline.refine import load_facts                      # noqa: E402
 
@@ -55,6 +56,18 @@ SOURCE_URL = "https://announcement.mol.gov.tw/"
 
 WEIGHTS = {"same_address": 0.40, "rare_name": 0.35, "same_county": 0.25}
 SEVERITY_BY_FINE = ((300_000, "重大"), (50_000, "中度"))
+
+# 危害型態 → 名稱與法規義務。來源是 pipeline/hazard.py，不在這裡重寫一份。
+_HAZ = {code: (name, duty) for code, name, _pat, duty in HAZARDS}
+
+
+def hazards_of(law: str, violation: str) -> list[dict]:
+    """只對職安法歸類。其他法規（勞基法、性平法…）的危害型態是另一套，
+    現在沒有規則就不要硬歸 —— 回空陣列，UI 那邊寫「未指明」。"""
+    if "職業安全衛生" not in (law or ""):
+        return []
+    return [{"code": c, "name": _HAZ[c][0], "duty": _HAZ[c][1]}
+            for c in classify(violation)]
 
 
 def severity_of(fine, violation: str) -> str:
@@ -153,9 +166,32 @@ def violations_of(rows: list[dict]) -> list[dict]:
             "severity": severity_of(fine, content),
             "appeal": appeal_of(r.get("remark", "")),
             "source_url": SOURCE_URL,
+            "hazards": hazards_of(r.get("law") or "", content),
+            # ⚠ 這是「公告文字提到死亡災害」，不是「造成死亡」。
+            #   UI 的措辭已經配合這一點寫死，不要在別處改寫。
+            "fatal": is_fatal(content),
         })
     out.sort(key=lambda v: v["date"], reverse=True)
     return out
+
+
+def _summarise_hazards(own: list[dict], linked: list[dict]) -> list[dict]:
+    """把本公司＋所有關聯公司的危害型態合併計數。
+
+    ⚠ 這個清單會被讀成「在這個人底下工作要注意什麼」，所以：
+      · 「未指明的設備措施不足」不排除 —— 它是最常見的一類，
+        藏起來反而讓數字對不上。
+      · 一筆公告可能同時屬於多類，所以各類加總會大於公告筆數，
+        UI 不要拿它當分母。
+    """
+    from collections import Counter
+    c: Counter = Counter()
+    names: dict[str, str] = {}
+    for v in own + [x for co in linked for x in co["violations"]]:
+        for h in v.get("hazards", []):
+            c[h["code"]] += 1
+            names[h["code"]] = h["name"]
+    return [{"code": k, "name": names[k], "count": n} for k, n in c.most_common()]
 
 
 def build(company: str, by_company, principal_of, by_principal,
@@ -249,6 +285,11 @@ def build(company: str, by_company, principal_of, by_principal,
                 if "職業安全" in v["law"]),
             "highest_confidence": max((c["confidence"] for c in linked_all),
                                       default=0.0),
+            # 防災：這個負責人名下（含本公司）被罰過哪幾種危害，多到少。
+            "hazards": _summarise_hazards(own, linked_all),
+            "fatal_count": (sum(1 for v in own if v["fatal"])
+                            + sum(1 for c in linked_all
+                                  for v in c["violations"] if v["fatal"])),
         },
     }
 

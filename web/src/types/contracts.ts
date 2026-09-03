@@ -63,6 +63,15 @@ export interface Evidence {
   detail: string;
 }
 
+/** 危害型態。由 `pipeline/hazard.py` 用**規則**歸類（不是模型判的），
+ *  每一類都附上法規要求雇主做什麼 —— 這是「素養提升」的那一塊。 */
+export interface Hazard {
+  code: string;                // fall / helmet / machine …
+  name: string;                // 墜落、頭部防護、機械設備防護…
+  /** 法規要求雇主做什麼。會直接顯示給使用者看，是完整句子 */
+  duty: string;
+}
+
 export interface ViolationRef {
   date: string;
   law: string;
@@ -72,6 +81,13 @@ export interface ViolationRef {
   appeal: string | null;
   /** 官方公告連結。⚠ 每一筆都必須有，這是法律風險的防線 */
   source_url: string;
+  /** ⚠ 選填。只有職安法的公告才歸類；空陣列代表「公告文字未指明危害型態」，
+   *  那跟「沒有危害」是兩件事，UI 不能寫成後者。 */
+  hazards?: Hazard[];
+  /** ⚠ 選填。**公告文字裡提到**死亡災害。
+   *  不等於這家公司造成死亡 —— 有些是「未於八小時內通報死亡災害」，
+   *  罰的是通報義務。措辭一定要寫「本筆公告涉及死亡災害」。 */
+  fatal?: boolean;
 }
 
 export interface LinkedCompany {
@@ -108,5 +124,10 @@ export interface LookupResult {
     linked_violation_count: number;
     linked_osha_count: number;
     highest_confidence: number;
+    /** ⚠ 選填。這個負責人名下所有公司被罰過的危害型態，多到少排序。
+     *  這是「防災」的那一塊：告訴求職者該注意什麼，而不只是「有違規」。 */
+    hazards?: { code: string; name: string; count: number }[];
+    /** ⚠ 選填。上述紀錄裡有幾筆的公告文字提到死亡災害 */
+    fatal_count?: number;
   };
 }
