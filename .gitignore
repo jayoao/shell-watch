@@ -1,0 +1,41 @@
+# 環境與密鑰 —— 永遠不進 git
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Node
+node_modules/
+web/dist/
+web/.vite/
+
+# ──────────────────────────────────────────────────────────────
+# 資料：預設全擋，要進 git 的用 ! 明確放行
+#
+# ⚠ 這裡刻意用「白名單」而不是一條一條擋，因為兩件事：
+#   1. data/ 裡的東西**含真實公司名與真實人名**。漏擋一個檔案
+#      就是把個資推上公開的 repo，而且 git 歷史刪不乾淨。
+#   2. 檔案很大：data/gcis/ 583 MB、data/gcis.duckdb 800 MB、
+#      data/records.csv 201 MB。GitHub 單檔上限 100 MB，
+#      漏擋會讓 push 直接失敗，然後要重寫歷史才能救。
+#
+#   新增任何 data/ 底下要進 git 的檔案時，在這裡加一行 !，
+#   並且先確認它**不含真實姓名**。
+# ──────────────────────────────────────────────────────────────
+data/*
+!data/.gitkeep
+!data/README.md
+
+# 標註工作檔（含真實姓名，絕對不進 git）
+*_review.csv
+unparsed.csv
+
+# 其他
+.DS_Store
+*.log

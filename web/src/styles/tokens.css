@@ -1,0 +1,137 @@
+/* ============================================================
+   顏色 token —— 全專案唯一的顏色來源。
+   元件只准用 var(--xxx)，禁止在任何地方寫死色碼。
+
+   為什麼：寫死的顏色在深色模式下會看不見，而且無障礙對比檢查過不了。
+   改完顏色記得兩個主題都看一次。
+   ============================================================ */
+
+:root {
+  color-scheme: light;
+
+  /* 版面 */
+  --bg:            #F4F6F8;
+  --surface:       #FFFFFF;
+  --surface-2:     #EBEFF3;
+  --surface-3:     #DDE4EA;
+
+  /* 文字 */
+  --ink:           #16202A;   /* 主要文字 */
+  --ink-2:         #3D4C58;   /* 次要文字 */
+  --ink-3:         #5C6D7A;   /* 輔助說明，仍須達 AA */
+
+  /* 線條（非文字，對比門檻 3.0） */
+  --line:          #D3DBE2;
+  --line-strong:   #7E8E9B;
+
+  /* 主色 */
+  --accent:        #1F5F8B;
+  --accent-fill:   #1F5F8B;
+  --on-accent:     #FFFFFF;
+  --accent-soft:   #DCEAF4;
+  --on-accent-soft:#134563;
+
+  /* 語意色 */
+  --good:          #1E6640;
+  --good-soft:     #DEEFE5;
+  --on-good-soft:  #144A2D;
+
+  --warn:          #8A5A08;
+  --warn-soft:     #F8EBD4;
+  --on-warn-soft:  #664204;
+
+  --danger:        #A3271E;
+  --danger-soft:   #F7E1DD;
+  --on-danger-soft:#7A1C15;
+
+  /* 嚴重度（對應資料的 severity 欄位） */
+  --sev-low:       #5C6D7A;
+  --sev-mid:       #8A5A08;
+  --sev-high:      #A3271E;
+
+  --shadow: 0 1px 2px rgba(22,32,42,.06), 0 8px 24px -14px rgba(22,32,42,.22);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg:            #0D1318;
+    --surface:       #161F27;
+    --surface-2:     #1E2A33;
+    --surface-3:     #28363F;
+    --ink:           #E4EBF1;
+    --ink-2:         #AFC0CC;
+    --ink-3:         #8C9DAA;
+    --line:          #28363F;
+    --line-strong:   #6C7F8C;
+    --accent:        #6FB4DC;
+    --accent-fill:   #2C6E9B;
+    --on-accent:     #FFFFFF;
+    --accent-soft:   #12303F;
+    --on-accent-soft:#BEDFF2;
+    --good:          #6BBF8E;
+    --good-soft:     #12301F;
+    --on-good-soft:  #B6E3C8;
+    --warn:          #DBA94E;
+    --warn-soft:     #382A11;
+    --on-warn-soft:  #F2DCAE;
+    --danger:        #E8836F;
+    --danger-soft:   #3A1B16;
+    --on-danger-soft:#F6C4B8;
+    --sev-low:       #8C9DAA;
+    --sev-mid:       #DBA94E;
+    --sev-high:      #E8836F;
+    --shadow: 0 1px 2px rgba(0,0,0,.5), 0 10px 30px -16px rgba(0,0,0,.85);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg:#0D1318; --surface:#161F27; --surface-2:#1E2A33; --surface-3:#28363F;
+  --ink:#E4EBF1; --ink-2:#AFC0CC; --ink-3:#8C9DAA;
+  --line:#28363F; --line-strong:#6C7F8C;
+  --accent:#6FB4DC; --accent-fill:#2C6E9B; --on-accent:#FFFFFF;
+  --accent-soft:#12303F; --on-accent-soft:#BEDFF2;
+  --good:#6BBF8E; --good-soft:#12301F; --on-good-soft:#B6E3C8;
+  --warn:#DBA94E; --warn-soft:#382A11; --on-warn-soft:#F2DCAE;
+  --danger:#E8836F; --danger-soft:#3A1B16; --on-danger-soft:#F6C4B8;
+  --sev-low:#8C9DAA; --sev-mid:#DBA94E; --sev-high:#E8836F;
+  --shadow: 0 1px 2px rgba(0,0,0,.5), 0 10px 30px -16px rgba(0,0,0,.85);
+}
+
+/* ── 基礎版面 ───────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--accent); }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+.sw-shell { max-width: 1080px; margin: 0 auto; padding: 24px 20px 64px; }
+
+.sw-nav {
+  display: flex; gap: 18px; align-items: baseline;
+  padding: 14px 20px; border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+.sw-nav .brand { font-weight: 800; font-size: 18px; letter-spacing: -.01em; }
+.sw-nav a { text-decoration: none; font-size: 15px; color: var(--ink-2); }
+.sw-nav a.on { color: var(--accent); font-weight: 700; }
+
+.sw-card {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: 14px; padding: 20px; box-shadow: var(--shadow);
+}
+.sw-muted { color: var(--ink-3); font-size: 14px; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}

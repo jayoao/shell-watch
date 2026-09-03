@@ -1,0 +1,20 @@
+# 資料層
+duckdb>=1.1.0
+pandas>=2.2.0
+
+# 爬蟲
+requests>=2.32.0
+# 註：crawler/mol.py 只用 requests。
+#     下載回來的是 CSV，不需要解析 HTML，所以沒有用到 bs4/lxml。
+beautifulsoup4>=4.12.0
+lxml>=5.0.0
+
+# 讀取政府網站下載的 ODS
+odfpy>=1.4.1
+openpyxl>=3.1.0
+
+# 實體解析
+rapidfuzz>=3.9.0
+
+# 統計（Cohen's kappa 等評估數字）
+scikit-learn>=1.5.0
