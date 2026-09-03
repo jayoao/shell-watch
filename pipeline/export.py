@@ -34,6 +34,7 @@ import argparse
 import csv
 import json
 import random
+import re
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -125,6 +126,36 @@ def mask(name: str) -> str:
     return name[0] + "○" * (len(name) - 2) + name[-1]
 
 
+def mask_addr(addr: str) -> str:
+    """去識別化樣本裡的地址。
+
+    ⚠ 這個補丁的由來：原本的「去識別化」只遮公司名與人名，
+      **統一編號和完整門牌原封不動留在 web/src/data/lookup.sample.json**，
+      而那個檔案是進 git 的。統編一查商工登記就是公司全名和負責人本名，
+      門牌也一樣 —— 遮名字等於沒遮，而且更糟：
+      檔案上寫著「已去識別化」，等於給了一個假的安全感。
+
+      商工登記是公開資料，這些欄位本身不是秘密。問題在於我們把
+      「這家公司的負責人涉嫌換殼」這個**本系統明確拒絕做的認定**，
+      跟一個可以直接查到人的鍵值放在同一個檔案裡。
+
+    留到路名為止，門牌號之後全部遮掉：
+      · 「同地址」這個證據的說服力還在（看得出是同一條路）
+      · 但拿不到可以回查商工登記的鍵值
+
+    ⚠ 必須是**決定性**的：同一個輸入永遠得到同一個輸出，
+      否則同組公司的地址會遮成不一樣，畫面上自相矛盾。
+    """
+    if not addr:
+        return addr
+    m = re.search(r"[路街道]", addr)
+    if m:
+        return addr[:m.end()] + "○○○"
+    # 沒有路名（例如「○○鄉○○村」）就只留到縣市區鄉鎮
+    m = re.search(r"[區鄉鎮市]", addr[3:])
+    return addr[:3 + m.end()] + "○○○" if m else "○○○"
+
+
 def mask_company(name: str) -> str:
     return ("○" * min(2, len(name))) + name[2:] if len(name) > 2 else name
 
@@ -148,7 +179,23 @@ def load() -> tuple[dict, dict, dict]:
     return by_company, principal_of, by_principal
 
 
-def violations_of(rows: list[dict]) -> list[dict]:
+def mask_doc_no(doc_no: str) -> str:
+    """處分字號在遮罩模式也要遮。
+
+    ⚠ 這跟「每一筆都要能查回官方公告」不衝突 ——
+      那條紅線管的是**正式產品**：使用者查的是真公司，就要給真字號。
+      這裡是 demo 樣本，公司名已經遮掉了，字號留著等於留一把鑰匙：
+      在勞動部查詢系統輸入字號，公司全名和負責人本名就出來了。
+      遮了名字卻留字號，遮罩只是做給自己看的。
+    """
+    t = (doc_no or "").strip()
+    if not t:
+        return t
+    m = re.search(r"[0-9０-９]", t)
+    return (t[:m.start()] + "○" * 6 + "號") if m else t
+
+
+def violations_of(rows: list[dict], anonymize: bool = False) -> list[dict]:
     out = []
     for r in rows:
         try:
@@ -156,12 +203,13 @@ def violations_of(rows: list[dict]) -> list[dict]:
         except ValueError:
             fine = 0
         content = (r.get("violation") or "").strip()
+        doc = mask_doc_no(r.get("doc_no", "")) if anonymize else r.get("doc_no", "")
         out.append({
             "date": r.get("disposition_date", ""),
             "law": r.get("law_article") or r.get("law") or "",
             # 處分字號一定要放進來 —— 沒有永久連結，這是唯一能查回原始公告的線索
-            "content": f"{content}（處分字號 {r.get('doc_no', '')}）" if content
-                       else f"處分字號 {r.get('doc_no', '')}",
+            "content": f"{content}（處分字號 {doc}）" if content
+                       else f"處分字號 {doc}",
             "fine": fine,
             "severity": severity_of(fine, content),
             "appeal": appeal_of(r.get("remark", "")),
@@ -226,7 +274,8 @@ def build(company: str, by_company, principal_of, by_principal,
                 if (my_addr and my_addr == other_addr
                         and addr_users.get(my_addr, 0) <= 10):
                     ev.append({"kind": "same_address",
-                               "detail": f"兩家公司都登記在「{my_addr}」。"
+                               "detail": f"兩家公司都登記在"
+                                         f"「{mask_addr(my_addr) if anonymize else my_addr}」。"
                                          "全國隨機兩家公司同地址的機率是 0.0158%。"})
                     conf += WEIGHTS["same_address"]
                 if tier.startswith(("A", "B")):
@@ -245,7 +294,8 @@ def build(company: str, by_company, principal_of, by_principal,
                                      "⚠ 姓名相同不等於同一人，這只是查詢的起點。"})
 
                 linked.append({
-                    "tax_id": of.get("id", ""),
+                    # ⚠ 統編是回查商工登記的鍵值，遮罩模式一定要拿掉
+                    "tax_id": "" if anonymize else of.get("id", ""),
                     "name": mask_company(other) if anonymize else other,
                     "status": of.get("status", ""),
                     "established": str(of["established"]) if of.get("established") else None,
@@ -256,7 +306,7 @@ def build(company: str, by_company, principal_of, by_principal,
                     "dissolved": None,
                     "confidence": round(min(1.0, conf), 2),
                     "evidence": ev,
-                    "violations": violations_of(by_company.get(other, [])),
+                    "violations": violations_of(by_company.get(other, []), anonymize),
                 })
         principals.append({
             "name": mask(principal) if anonymize else principal,
@@ -264,16 +314,17 @@ def build(company: str, by_company, principal_of, by_principal,
             "linked_companies": linked,
         })
 
-    own = violations_of(rows)
+    own = violations_of(rows, anonymize)
     linked_all = [c for p in principals for c in p["linked_companies"]]
     return {
         "query": mask_company(company) if anonymize else company,
         "company": {
-            "tax_id": fact.get("id", ""),
+            "tax_id": "" if anonymize else fact.get("id", ""),
             "name": mask_company(company) if anonymize else company,
             "status": fact.get("status", ""),
             "established": str(fact["established"]) if fact.get("established") else None,
-            "address": fact.get("addr") or None,
+            "address": (mask_addr(fact["addr"]) if anonymize else fact["addr"]) \
+                       if fact.get("addr") else None,
             "own_violations": own,
         },
         "principals": principals,
@@ -344,7 +395,11 @@ def main(argv=None) -> int:
     SAMPLE_OUT.parent.mkdir(parents=True, exist_ok=True)
     SAMPLE_OUT.write_text(json.dumps(
         {"generated_at": "2026-09-03",
-         "note": "去識別化樣本。公司名與人名都已遮罩，僅供前端開發與展示。",
+         "note": "去識別化樣本，僅供前端開發與展示。"
+                 "公司名、人名、統一編號、門牌號皆已遮罩；"
+                 "保留縣市與路名，是為了讓「同地址」這項證據看得出來。"
+                 "處分字號亦已遮罩（它在勞動部查詢系統可直接查回公司名）。"
+                 "裁處日期、罰鍰金額與違規內容為真實公告內容。",
          "results": out}, ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"{len(out)} 筆去識別化樣本 → {SAMPLE_OUT}")
     if out:

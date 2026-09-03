@@ -290,7 +290,7 @@ function HazardPanel({ hit }: { hit: LookupResult }) {
         {list.map((h) => (
           <HazardChip
             key={h.code}
-            name={`${h.name}　${h.count}`}
+            name={`${h.name}\u3000${h.count}`}
             active={open === h.code}
             onClick={() => setOpen(open === h.code ? null : h.code)}
           />
