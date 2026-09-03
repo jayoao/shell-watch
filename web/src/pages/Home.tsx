@@ -22,9 +22,11 @@
  *     死亡災害的措辭是「本筆公告涉及死亡災害」——
  *     不能寫成「造成死亡」，因為有些是罰未依規定通報。
  */
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { LookupResult, LinkedCompany, ViolationRef } from "../types/contracts";
 import sample from "../data/lookup.sample.json";
+import { getMeta, hashMismatch, lookup } from "../lib/lookup";
+import type { LookupOutcome, Meta } from "../lib/lookup";
 
 const DATA = sample as unknown as { generated_at: string; note: string; results: LookupResult[] };
 
@@ -321,14 +323,44 @@ function HazardPanel({ hit }: { hit: LookupResult }) {
 
 export default function Home() {
   const [q, setQ] = useState("");
+  // undefined = 還在確認有沒有完整資料；null = 只有展示樣本
+  const [meta, setMeta] = useState<Meta | null | undefined>(undefined);
+  const [outcome, setOutcome] = useState<LookupOutcome | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  const hit = useMemo<LookupResult | null>(() => {
-    const t = q.trim();
-    if (!t) return null;
-    return (
-      DATA.results.find((r) => r.query.includes(t) || r.company.name.includes(t)) ?? null
-    );
-  }, [q]);
+  useEffect(() => {
+    void getMeta().then(setMeta);
+  }, []);
+
+  /**
+   * ⚠ 查詢是**按下 Enter 才送**，不是邊打邊查。
+   *   分片是完整名稱的精確比對，打到一半的字串永遠查不到，
+   *   邊打邊查只會讓畫面在「查無」和結果之間閃爍，
+   *   而且每按一個鍵就抓一次分片。
+   */
+  const run = useCallback(async (name: string) => {
+    const t = name.trim();
+    if (!t) {
+      setOutcome(null);
+      return;
+    }
+    setBusy(true);
+    try {
+      if (meta) {
+        setOutcome(await lookup(t));
+      } else {
+        // 沒有完整資料時走內建的去識別化樣本
+        const r = DATA.results.find(
+          (x) => x.query.includes(t) || x.company.name.includes(t)) ?? null;
+        setOutcome(r ? { kind: "hit", result: r } : { kind: "miss" });
+      }
+    } finally {
+      setBusy(false);
+    }
+  }, [meta]);
+
+  const hit = useMemo<LookupResult | null>(
+    () => (outcome?.kind === "hit" ? outcome.result : null), [outcome]);
 
   return (
     <div>
@@ -337,24 +369,76 @@ export default function Home() {
         <p style={{ color: "var(--ink-2)", marginBottom: 14 }}>
           輸入一家公司，查它的負責人是否曾在其他公司留下違反勞動法令的公開紀錄。
         </p>
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="輸入公司名稱"
-          style={{
-            width: "100%",
-            padding: "10px 14px",
-            fontSize: 15,
-            borderRadius: 10,
-            border: "1px solid var(--line-strong)",
-            background: "var(--surface)",
-            color: "var(--ink)",
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void run(q);
           }}
-        />
+          style={{ display: "flex", gap: 8 }}
+        >
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder={meta ? "輸入公司名稱，按 Enter 查詢" : "輸入公司名稱"}
+            style={{
+              flex: 1,
+              minWidth: 0,
+              padding: "10px 14px",
+              fontSize: 15,
+              borderRadius: 10,
+              border: "1px solid var(--line-strong)",
+              background: "var(--surface)",
+              color: "var(--ink)",
+            }}
+          />
+          <button
+            type="submit"
+            disabled={busy || !q.trim()}
+            style={{
+              padding: "10px 18px",
+              fontSize: 15,
+              fontWeight: 600,
+              borderRadius: 10,
+              border: "1px solid var(--accent)",
+              background: "var(--accent-soft)",
+              color: "var(--on-accent-soft)",
+              cursor: busy || !q.trim() ? "default" : "pointer",
+              opacity: busy || !q.trim() ? 0.55 : 1,
+            }}
+          >
+            {busy ? "查詢中" : "查詢"}
+          </button>
+        </form>
+
+        {/* 資料涵蓋範圍要寫在畫面上。使用者有權知道「查無」代表什麼。 */}
         <p className="sw-muted" style={{ fontSize: 12, marginTop: 8, marginBottom: 0 }}>
-          目前是去識別化的展示資料（{DATA.results.length} 筆）。
-          試著輸入「○」看看結果長什麼樣。
+          {meta === undefined
+            ? "載入資料中…"
+            : meta
+              ? `資料涵蓋 ${meta.companies.toLocaleString("zh-TW")} 家事業單位、` +
+                `${meta.violations.toLocaleString("zh-TW")} 筆公開裁處紀錄` +
+                `（產生於 ${meta.generated_at}）。請輸入完整公司名稱。`
+              : `目前是去識別化的展示資料（${DATA.results.length} 筆），完整資料尚未載入。` +
+                "試著輸入「○」看看結果長什麼樣。"}
         </p>
+
+        {hashMismatch && (
+          <p
+            style={{
+              fontSize: 13,
+              lineHeight: 1.7,
+              background: "var(--warn-soft)",
+              color: "var(--on-warn-soft)",
+              border: "1px solid var(--warn)",
+              borderRadius: 8,
+              padding: "8px 12px",
+              margin: "10px 0 0",
+            }}
+          >
+            <b>資料索引不一致，查詢結果可能不完整。</b>
+            {"\u3000"}{hashMismatch}
+          </p>
+        )}
       </div>
 
       {hit && (
@@ -443,14 +527,54 @@ export default function Home() {
         </div>
       )}
 
-      {q.trim() && !hit && (
+      {/* 核心名對到多家：⚠ 絕對不能自己挑一家。
+          挑錯就是把 A 公司的裁處紀錄顯示成 B 公司的，那是名譽損害。 */}
+      {outcome?.kind === "choose" && (
+        <div className="sw-card" style={{ marginTop: 16 }}>
+          <p style={{ marginTop: 0 }}>
+            有 {outcome.candidates.length} 家公司的名稱是「{q.trim()}」開頭，
+            請選擇你要查的那一家：
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {outcome.candidates.map((c) => (
+              <button
+                key={c}
+                onClick={() => {
+                  setQ(c);
+                  void run(c);
+                }}
+                style={{
+                  textAlign: "left",
+                  padding: "9px 12px",
+                  fontSize: 14,
+                  borderRadius: 8,
+                  border: "1px solid var(--line)",
+                  background: "var(--surface-2)",
+                  color: "var(--ink)",
+                  cursor: "pointer",
+                }}
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {outcome?.kind === "miss" && (
         <div className="sw-card" style={{ marginTop: 16 }}>
           <p style={{ margin: 0 }}>查無「{q.trim()}」。</p>
           <p className="sw-muted" style={{ marginBottom: 0 }}>
             查無紀錄<b>不代表這家公司沒有問題</b> ——
-            可能是名稱寫法不同，也可能是該縣市的資料尚未公開。
-            各縣市的資料保存期間差異很大。
+            可能是名稱寫法不同（本系統比對的是完整的法定名稱），
+            也可能是該縣市的資料尚未公開。各縣市的資料保存期間差異很大。
           </p>
+        </div>
+      )}
+
+      {outcome?.kind === "nodata" && (
+        <div className="sw-card" style={{ marginTop: 16 }}>
+          <p style={{ margin: 0 }}>完整資料尚未載入，目前只能查展示樣本。</p>
         </div>
       )}
     </div>

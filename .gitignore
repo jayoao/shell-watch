@@ -39,3 +39,6 @@ unparsed.csv
 # 其他
 .DS_Store
 *.log
+
+# 靜態分片是衍生資料（159 MB），本機產生、部署時直接上傳，不進 git
+web/public/data/

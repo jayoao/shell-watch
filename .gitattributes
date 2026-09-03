@@ -1,0 +1,26 @@
+# repo 裡一律 LF，簽出也一律 LF。
+#
+# ⚠ 這個檔案的由來：`core.autocrlf` 沒有設，所以 git 存的是檔案原樣。
+#   Linux 那邊寫的是 LF、Windows 的工具寫的是 CRLF，結果同一個檔案
+#   會整份被標成「全部改過」—— CLAUDE.md 一度是 1,196 行的 diff，
+#   而真正的改動只有幾十行，全部埋在雜訊裡。
+#
+#   後果不只是難看：review 時看不出真正改了什麼，
+#   而且兩個人同時改同一個檔案時，整份衝突會蓋掉對方的修改。
+* text=auto eol=lf
+
+# 二進位檔不要做任何換行符轉換
+*.png     binary
+*.jpg     binary
+*.jpeg    binary
+*.gif     binary
+*.pdf     binary
+*.ico     binary
+*.woff    binary
+*.woff2   binary
+*.gz      binary
+*.zip     binary
+*.duckdb  binary
+*.xlsx    binary
+*.pptx    binary
+*.docx    binary
