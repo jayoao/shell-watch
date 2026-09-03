@@ -1,0 +1,1315 @@
+{
+ "generated_at": "2026-09-03",
+ "note": "去識別化樣本，僅供前端開發與展示。公司名、人名、統一編號、門牌號皆已遮罩；保留縣市與路名，是為了讓「同地址」這項證據看得出來。處分字號亦已遮罩（它在勞動部查詢系統可直接查回公司名）。裁處日期、罰鍰金額與違規內容為真實公告內容。",
+ "results": [
+  {
+   "query": "○○商店",
+   "company": {
+    "tax_id": "",
+    "name": "○○商店",
+    "status": "歇業",
+    "established": "2021",
+    "address": "新北市林口區文化二路○○○",
+    "own_violations": [
+     {
+      "date": "113/04/11",
+      "law": "勞工職業災害保險及保護法第12條",
+      "content": "未為所屬勞工辦理投保、退保手續。（處分字號 勞局納字第○○○○○○號）",
+      "fine": 20000,
+      "severity": "輕微",
+      "appeal": null,
+      "source_url": "https://announcement.mol.gov.tw/",
+      "hazards": [],
+      "fatal": false
+     }
+    ]
+   },
+   "principals": [
+    {
+     "name": "譚○",
+     "role": "負責人（勞動部公告）",
+     "linked_companies": [
+      {
+       "tax_id": "",
+       "name": "○○源商店",
+       "status": "核准設立",
+       "established": "2024",
+       "dissolved": null,
+       "confidence": 0.75,
+       "evidence": [
+        {
+         "kind": "same_address",
+         "detail": "兩家公司都登記在「新北市林口區文化二路○○○」。全國隨機兩家公司同地址的機率是 0.0158%。"
+        },
+        {
+         "kind": "rare_name",
+         "detail": "「譚○」在全國公司負責人裡屬於罕見姓名，同名巧合的機率低於千分之一。"
+        },
+        {
+         "kind": "same_name",
+         "detail": "勞動部公告的負責人姓名相同。⚠ 姓名相同不等於同一人，這只是查詢的起點。"
+        }
+       ],
+       "violations": [
+        {
+         "date": "115/02/26",
+         "law": "勞工退休金條例第19條第1項",
+         "content": "雇主未按時繳納勞工退休金致加徵滯納金。（處分字號 保退一字第○○○○○○號）",
+         "fine": 1199,
+         "severity": "輕微",
+         "appeal": null,
+         "source_url": "https://announcement.mol.gov.tw/",
+         "hazards": [],
+         "fatal": false
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "summary": {
+    "own_violation_count": 1,
+    "linked_violation_count": 1,
+    "linked_osha_count": 0,
+    "highest_confidence": 0.75,
+    "hazards": [],
+    "fatal_count": 0
+   }
+  },
+  {
+   "query": "○○化學有限公司",
+   "company": {
+    "tax_id": "",
+    "name": "○○化學有限公司",
+    "status": "核准設立",
+    "established": "2014",
+    "address": "新北市泰山區明志路○○○",
+    "own_violations": [
+     {
+      "date": "111/08/24",
+      "law": "勞工退休金條例第19條第1項",
+      "content": "雇主未按時繳納勞工退休金致加徵滯納金。（處分字號 保退一字第○○○○○○號）",
+      "fine": 3030,
+      "severity": "輕微",
+      "appeal": null,
+      "source_url": "https://announcement.mol.gov.tw/",
+      "hazards": [],
+      "fatal": false
+     },
+     {
+      "date": "110/12/23",
+      "law": "勞工退休金條例第19條第1項",
+      "content": "雇主未按時繳納勞工退休金致加徵滯納金。（處分字號 保退一字第○○○○○○號）",
+      "fine": 1253,
+      "severity": "輕微",
+      "appeal": null,
+      "source_url": "https://announcement.mol.gov.tw/",
+      "hazards": [],
+      "fatal": false
+     },
+     {
+      "date": "109/12/22",
+      "law": "勞工退休金條例第19條第1項",
+      "content": "雇主未按時繳納勞工退休金致加徵滯納金。（處分字號 保退一字第○○○○○○號）",
+      "fine": 1114,
+      "severity": "輕微",
+      "appeal": null,
+      "source_url": "https://announcement.mol.gov.tw/",
+      "hazards": [],
+      "fatal": false
+     }
+    ]
+   },
+   "principals": [
+    {
+     "name": "蔡○偉",
+     "role": "負責人（勞動部公告）",
+     "linked_companies": [
+      {
+       "tax_id": "",
+       "name": "○○實業有限公司",
+       "status": "核准設立",
+       "established": "2021",
+       "dissolved": null,
+       "confidence": 0.75,
+       "evidence": [
+        {
+         "kind": "same_address",
+         "detail": "兩家公司都登記在「新北市泰山區明志路○○○」。全國隨機兩家公司同地址的機率是 0.0158%。"
+        },
+        {
+         "kind": "rare_name",
+         "detail": "「蔡○偉」在全國公司負責人裡屬於罕見姓名，同名巧合的機率低於千分之一。"
+        },
+        {
+         "kind": "same_name",
+         "detail": "勞動部公告的負責人姓名相同。⚠ 姓名相同不等於同一人，這只是查詢的起點。"
+        }
+       ],
+       "violations": [
+        {
+         "date": "112/10/26",
+         "law": "勞工退休金條例第19條第1項",
+         "content": "雇主未按時繳納勞工退休金致加徵滯納金。（處分字號 保退一字第○○○○○○號）",
+         "fine": 1283,
+         "severity": "輕微",
+         "appeal": null,
+         "source_url": "https://announcement.mol.gov.tw/",
+         "hazards": [],
+         "fatal": false
+        },
+        {
+         "date": "112/08/24",
+         "law": "勞工退休金條例第19條第1項",
+         "content": "雇主未按時繳納勞工退休金致加徵滯納金。（處分字號 保退一字第○○○○○○號）",
+         "fine": 3010,
+         "severity": "輕微",
+         "appeal": null,
+         "source_url": "https://announcement.mol.gov.tw/",
+         "hazards": [],
+         "fatal": false
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "summary": {
+    "own_violation_count": 3,
+    "linked_violation_count": 2,
+    "linked_osha_count": 0,
+    "highest_confidence": 0.75,
+    "hazards": [],
+    "fatal_count": 0
+   }
+  },
+  {
+   "query": "○○小館有限公司",
+   "company": {
+    "tax_id": "",
+    "name": "○○小館有限公司",
+    "status": "",
+    "established": null,
+    "address": null,
+    "own_violations": [
+     {
+      "date": "106/04/18",
+      "law": "勞動基準法第23條第2項;勞動基準法第30條第5項",
+      "content": "未依規定置備勞工工資清冊。\n未依規定置備勞工出勤紀錄表。（處分字號 府勞條字第○○○○○○號）",
+      "fine": 0,
+      "severity": "輕微",
+      "appeal": null,
+      "source_url": "https://announcement.mol.gov.tw/",
+      "hazards": [],
+      "fatal": false
+     }
+    ]
+   },
+   "principals": [
+    {
+     "name": "時○中",
+     "role": "負責人（勞動部公告）",
+     "linked_companies": [
+      {
+       "tax_id": "",
+       "name": "○○有限公司",
+       "status": "核准設立",
+       "established": "2016",
+       "dissolved": null,
+       "confidence": 0.6,
+       "evidence": [
+        {
+         "kind": "rare_name",
+         "detail": "「時○中」在全國公司負責人裡屬於罕見姓名，同名巧合的機率低於千分之一。"
+        },
+        {
+         "kind": "same_county",
+         "detail": "兩家公司的裁處都出自台南市，屬於同一個縣市的管轄範圍。"
+        },
+        {
+         "kind": "same_name",
+         "detail": "勞動部公告的負責人姓名相同。⚠ 姓名相同不等於同一人，這只是查詢的起點。"
+        }
+       ],
+       "violations": [
+        {
+         "date": "112/12/21",
+         "law": "勞工退休金條例第19條第1項",
+         "content": "雇主未按時繳納勞工退休金致加徵滯納金。（處分字號 保退一字第○○○○○○號）",
+         "fine": 104,
+         "severity": "輕微",
+         "appeal": null,
+         "source_url": "https://announcement.mol.gov.tw/",
+         "hazards": [],
+         "fatal": false
+        },
+        {
+         "date": "111/12/27",
+         "law": "勞工退休金條例第19條第1項",
+         "content": "雇主未按時繳納勞工退休金致加徵滯納金。（處分字號 保退一字第○○○○○○號）",
+         "fine": 500,
+         "severity": "輕微",
+         "appeal": null,
+         "source_url": "https://announcement.mol.gov.tw/",
+         "hazards": [],
+         "fatal": false
+        },
+        {
+         "date": "108/02/26",
+         "law": "勞動基準法第23條第2項",
+         "content": "未依規定置備勞工工資清冊。（處分字號 府勞檢字第○○○○○○號）",
+         "fine": 0,
+         "severity": "輕微",
+         "appeal": null,
+         "source_url": "https://announcement.mol.gov.tw/",
+         "hazards": [],
+         "fatal": false
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "summary": {
+    "own_violation_count": 1,
+    "linked_violation_count": 3,
+    "linked_osha_count": 0,
+    "highest_confidence": 0.6,
+    "hazards": [],
+    "fatal_count": 0
+   }
+  },
+  {
+   "query": "○○室內裝修企業有限公司",
+   "company": {
+    "tax_id": "",
+    "name": "○○室內裝修企業有限公司",
+    "status": "核准設立",
+    "established": "2012",
+    "address": "高雄市三民區光裕路○○○",
+    "own_violations": [
+     {
+      "date": "114/09/24",
+      "law": "勞工退休金條例第15條第2項",
+      "content": "雇主未依規定覈實申報調整勞工退休金提繳工資。（處分字號 保退三字第○○○○○○號）",
+      "fine": 5000,
+      "severity": "輕微",
+      "appeal": null,
+      "source_url": "https://announcement.mol.gov.tw/",
+      "hazards": [],
+      "fatal": false
+     },
+     {
+      "date": "114/09/19",
+      "law": "勞工職業災害保險及保護法第17條",
+      "content": "投保薪資金額以多報少或以少報多，或未於期限內通知月投保薪資之調整。（處分字號 勞局納字第○○○○○○號）",
+      "fine": 20000,
+      "severity": "輕微",
+      "appeal": null,
+      "source_url": "https://announcement.mol.gov.tw/",
+      "hazards": [],
+      "fatal": false
+     },
+     {
+      "date": "114/02/25",
+      "law": "勞工退休金條例第19條第1項",
+      "content": "雇主未按時繳納勞工退休金致加徵滯納金。（處分字號 保退一字第○○○○○○號）",
+      "fine": 23801,
+      "severity": "輕微",
+      "appeal": null,
+      "source_url": "https://announcement.mol.gov.tw/",
+      "hazards": [],
+      "fatal": false
+     },
+     {
+      "date": "111/05/11",
+      "law": "勞動基準法第22條第2項",
+      "content": "工資未全額直接給付勞工（處分字號 高市勞條字第○○○○○○號）",
+      "fine": 20000,
+      "severity": "輕微",
+      "appeal": null,
+      "source_url": "https://announcement.mol.gov.tw/",
+      "hazards": [],
+      "fatal": false
+     }
+    ]
+   },
+   "principals": [
+    {
+     "name": "盧○",
+     "role": "負責人（勞動部公告）",
+     "linked_companies": [
+      {
+       "tax_id": "",
+       "name": "○○機電工程有限公司",
+       "status": "核准設立",
+       "established": "2023",
+       "dissolved": null,
+       "confidence": 0.75,
+       "evidence": [
+        {
+         "kind": "same_address",
+         "detail": "兩家公司都登記在「高雄市三民區光裕路○○○」。全國隨機兩家公司同地址的機率是 0.0158%。"
+        },
+        {
+         "kind": "rare_name",
+         "detail": "「盧○」在全國公司負責人裡屬於罕見姓名，同名巧合的機率低於千分之一。"
+        },
+        {
+         "kind": "same_name",
+         "detail": "勞動部公告的負責人姓名相同。⚠ 姓名相同不等於同一人，這只是查詢的起點。"
+        }
+       ],
+       "violations": [
+        {
+         "date": "115/06/25",
+         "law": "勞工退休金條例第19條第1項",
+         "content": "雇主未按時繳納勞工退休金致加徵滯納金。（處分字號 保退一字第○○○○○○號）",
+         "fine": 20572,
+         "severity": "輕微",
+         "appeal": null,
+         "source_url": "https://announcement.mol.gov.tw/",
+         "hazards": [],
+         "fatal": false
+        },
+        {
+         "date": "115/06/01",
+         "law": "勞動基準法第36條第1項",
+         "content": "每七日中未有一日之休息作為例假（處分字號 南市勞安字第○○○○○○號）",
+         "fine": 20000,
+         "severity": "輕微",
+         "appeal": null,
+         "source_url": "https://announcement.mol.gov.tw/",
+         "hazards": [],
+         "fatal": false
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "summary": {
+    "own_violation_count": 4,
+    "linked_violation_count": 2,
+    "linked_osha_count": 0,
+    "highest_confidence": 0.75,
+    "hazards": [],
+    "fatal_count": 0
+   }
+  },
+  {
+   "query": "○○現烘咖啡有限公司",
+   "company": {
+    "tax_id": "",
+    "name": "○○現烘咖啡有限公司",
+    "status": "解散",
+    "established": "2011",
+    "address": "臺北市大安區敦化南路○○○",
+    "own_violations": [
+     {
+      "date": "105/06/14",
+      "law": "勞動基準法第38條",
+      "content": "未依規定給予特別休假（處分字號 北市勞動字第○○○○○○號）",
+      "fine": 0,
+      "severity": "輕微",
+      "appeal": null,
+      "source_url": "https://announcement.mol.gov.tw/",
+      "hazards": [],
+      "fatal": false
+     }
+    ]
+   },
+   "principals": [
+    {
+     "name": "何○霖",
+     "role": "負責人（勞動部公告）",
+     "linked_companies": [
+      {
+       "tax_id": "",
+       "name": "○○股份有限公司",
+       "status": "核准設立",
+       "established": "2011",
+       "dissolved": null,
+       "confidence": 0.6,
+       "evidence": [
+        {
+         "kind": "rare_name",
+         "detail": "「何○霖」在全國公司負責人裡屬於罕見姓名，同名巧合的機率低於千分之一。"
+        },
+        {
+         "kind": "same_county",
+         "detail": "兩家公司的裁處都出自台北市，屬於同一個縣市的管轄範圍。"
+        },
+        {
+         "kind": "same_name",
+         "detail": "勞動部公告的負責人姓名相同。⚠ 姓名相同不等於同一人，這只是查詢的起點。"
+        }
+       ],
+       "violations": [
+        {
+         "date": "112/06/16",
+         "law": "勞動基準法第22條第2項;勞動基準法第34條第2項",
+         "content": "工資未依法給付給勞工;輪班制勞工於更換班次時，雇主未給予輪班勞工適當之休息時間（處分字號 府勞動字第○○○○○○號）",
+         "fine": 70000,
+         "severity": "中度",
+         "appeal": "訴願駁回（原處分維持）",
+         "source_url": "https://announcement.mol.gov.tw/",
+         "hazards": [],
+         "fatal": false
+        },
+        {
+         "date": "105/04/27",
+         "law": "勞動基準法第22條第2項",
+         "content": "工資未全額給付給勞工（處分字號 北市勞動字第○○○○○○號）",
+         "fine": 0,
+         "severity": "輕微",
+         "appeal": null,
+         "source_url": "https://announcement.mol.gov.tw/",
+         "hazards": [],
+         "fatal": false
+        },
+        {
+         "date": "105/03/03",
+         "law": "勞動基準法第30條第5項",
+         "content": "未依規定置備勞工出勤紀錄（處分字號 北市勞動字第○○○○○○號）",
+         "fine": 0,
+         "severity": "輕微",
+         "appeal": null,
+         "source_url": "https://announcement.mol.gov.tw/",
+         "hazards": [],
+         "fatal": false
+        },
+        {
+         "date": "104/08/20",
+         "law": "勞動基準法第70條",
+         "content": "雇主應訂立工作規則報請主管機關核備（處分字號 府勞資字第○○○○○○號）",
+         "fine": 0,
+         "severity": "輕微",
+         "appeal": null,
+         "source_url": "https://announcement.mol.gov.tw/",
+         "hazards": [],
+         "fatal": false
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "summary": {
+    "own_violation_count": 1,
+    "linked_violation_count": 4,
+    "linked_osha_count": 0,
+    "highest_confidence": 0.6,
+    "hazards": [],
+    "fatal_count": 0
+   }
+  },
+  {
+   "query": "○○市私立聖心老人養護所",
+   "company": {
+    "tax_id": "",
+    "name": "○○市私立聖心老人養護所",
+    "status": "",
+    "established": null,
+    "address": null,
+    "own_violations": [
+     {
+      "date": "104/12/25",
+      "law": "勞動基準法第30條第1項",
+      "content": "正常工時超過法令規定（處分字號 北市勞動字第○○○○○○號）",
+      "fine": 0,
+      "severity": "輕微",
+      "appeal": null,
+      "source_url": "https://announcement.mol.gov.tw/",
+      "hazards": [],
+      "fatal": false
+     }
+    ]
+   },
+   "principals": [
+    {
+     "name": "陸○真",
+     "role": "負責人（勞動部公告）",
+     "linked_companies": [
+      {
+       "tax_id": "",
+       "name": "○○市私立天下知老人長期照顧中心養護型",
+       "status": "",
+       "established": null,
+       "dissolved": null,
+       "confidence": 0.6,
+       "evidence": [
+        {
+         "kind": "rare_name",
+         "detail": "「陸○真」在全國公司負責人裡屬於罕見姓名，同名巧合的機率低於千分之一。"
+        },
+        {
+         "kind": "same_county",
+         "detail": "兩家公司的裁處都出自台北市，屬於同一個縣市的管轄範圍。"
+        },
+        {
+         "kind": "same_name",
+         "detail": "勞動部公告的負責人姓名相同。⚠ 姓名相同不等於同一人，這只是查詢的起點。"
+        }
+       ],
+       "violations": [
+        {
+         "date": "107/06/05",
+         "law": "勞動基準法第24條第2項",
+         "content": "未依法給付休息日工作之工資（處分字號 北市勞動字第○○○○○○號）",
+         "fine": 0,
+         "severity": "輕微",
+         "appeal": "訴願駁回原處分維持",
+         "source_url": "https://announcement.mol.gov.tw/",
+         "hazards": [],
+         "fatal": false
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "summary": {
+    "own_violation_count": 1,
+    "linked_violation_count": 1,
+    "linked_osha_count": 0,
+    "highest_confidence": 0.6,
+    "hazards": [],
+    "fatal_count": 0
+   }
+  },
+  {
+   "query": "○○興業有限公司",
+   "company": {
+    "tax_id": "",
+    "name": "○○興業有限公司",
+    "status": "核准設立",
+    "established": "2017",
+    "address": "臺中市大雅區員林里大林路○○○",
+    "own_violations": [
+     {
+      "date": "113/02/26",
+      "law": "勞工職業災害保險及保護法第21條第1項",
+      "content": "保險費經加徵滯納金至應納費額百分之二十，仍未繳納且情節重大。（處分字號 勞局費字第○○○○○○號）",
+      "fine": 20000,
+      "severity": "輕微",
+      "appeal": null,
+      "source_url": "https://announcement.mol.gov.tw/",
+      "hazards": [],
+      "fatal": false
+     },
+     {
+      "date": "112/06/26",
+      "law": "勞工退休金條例第19條第1項",
+      "content": "雇主未按時繳納勞工退休金致加徵滯納金。（處分字號 保退一字第○○○○○○號）",
+      "fine": 5808,
+      "severity": "輕微",
+      "appeal": null,
+      "source_url": "https://announcement.mol.gov.tw/",
+      "hazards": [],
+      "fatal": false
+     },
+     {
+      "date": "112/04/26",
+      "law": "勞工退休金條例第19條第1項",
+      "content": "雇主未按時繳納勞工退休金致加徵滯納金。（處分字號 保退一字第○○○○○○號）",
+      "fine": 4545,
+      "severity": "輕微",
+      "appeal": null,
+      "source_url": "https://announcement.mol.gov.tw/",
+      "hazards": [],
+      "fatal": false
+     },
+     {
+      "date": "111/10/26",
+      "law": "勞工退休金條例第19條第1項",
+      "content": "雇主未按時繳納勞工退休金致加徵滯納金。（處分字號 保退一字第○○○○○○號）",
+      "fine": 5808,
+      "severity": "輕微",
+      "appeal": null,
+      "source_url": "https://announcement.mol.gov.tw/",
+      "hazards": [],
+      "fatal": false
+     },
+     {
+      "date": "111/08/24",
+      "law": "勞工退休金條例第19條第1項",
+      "content": "雇主未按時繳納勞工退休金致加徵滯納金。（處分字號 保退一字第○○○○○○號）",
+      "fine": 12120,
+      "severity": "輕微",
+      "appeal": null,
+      "source_url": "https://announcement.mol.gov.tw/",
+      "hazards": [],
+      "fatal": false
+     },
+     {
+      "date": "111/06/27",
+      "law": "勞工退休金條例第19條第1項",
+      "content": "雇主未按時繳納勞工退休金致加徵滯納金。（處分字號 保退一字第○○○○○○號）",
+      "fine": 13260,
+      "severity": "輕微",
+      "appeal": null,
+      "source_url": "https://announcement.mol.gov.tw/",
+      "hazards": [],
+      "fatal": false
+     },
+     {
+      "date": "111/04/27",
+      "law": "勞工退休金條例第19條第1項",
+      "content": "雇主未按時繳納勞工退休金致加徵滯納金。（處分字號 保退一字第○○○○○○號）",
+      "fine": 7966,
+      "severity": "輕微",
+      "appeal": null,
+      "source_url": "https://announcement.mol.gov.tw/",
+      "hazards": [],
+      "fatal": false
+     }
+    ]
+   },
+   "principals": [
+    {
+     "name": "杜○",
+     "role": "負責人（勞動部公告）",
+     "linked_companies": [
+      {
+       "tax_id": "",
+       "name": "○○盛營造有限公司",
+       "status": "核准設立",
+       "established": "2024",
+       "dissolved": null,
+       "confidence": 0.75,
+       "evidence": [
+        {
+         "kind": "same_address",
+         "detail": "兩家公司都登記在「台中市大雅區員林里大林路○○○」。全國隨機兩家公司同地址的機率是 0.0158%。"
+        },
+        {
+         "kind": "rare_name",
+         "detail": "「杜○」在全國公司負責人裡屬於罕見姓名，同名巧合的機率低於千分之一。"
+        },
+        {
+         "kind": "same_name",
+         "detail": "勞動部公告的負責人姓名相同。⚠ 姓名相同不等於同一人，這只是查詢的起點。"
+        }
+       ],
+       "violations": [
+        {
+         "date": "115/06/25",
+         "law": "勞工退休金條例第19條第1項",
+         "content": "雇主未按時繳納勞工退休金致加徵滯納金。（處分字號 保退一字第○○○○○○號）",
+         "fine": 116942,
+         "severity": "中度",
+         "appeal": null,
+         "source_url": "https://announcement.mol.gov.tw/",
+         "hazards": [],
+         "fatal": false
+        },
+        {
+         "date": "115/04/24",
+         "law": "勞工退休金條例第19條第1項",
+         "content": "雇主未按時繳納勞工退休金致加徵滯納金。（處分字號 保退一字第○○○○○○號）",
+         "fine": 32436,
+         "severity": "輕微",
+         "appeal": null,
+         "source_url": "https://announcement.mol.gov.tw/",
+         "hazards": [],
+         "fatal": false
+        },
+        {
+         "date": "115/02/26",
+         "law": "勞工退休金條例第19條第1項",
+         "content": "雇主未按時繳納勞工退休金致加徵滯納金。（處分字號 保退一字第○○○○○○號）",
+         "fine": 24955,
+         "severity": "輕微",
+         "appeal": null,
+         "source_url": "https://announcement.mol.gov.tw/",
+         "hazards": [],
+         "fatal": false
+        },
+        {
+         "date": "114/11/24",
+         "law": "勞工退休金條例第19條第1項",
+         "content": "雇主未按時繳納勞工退休金致加徵滯納金。（處分字號 保退一字第○○○○○○號）",
+         "fine": 16881,
+         "severity": "輕微",
+         "appeal": null,
+         "source_url": "https://announcement.mol.gov.tw/",
+         "hazards": [],
+         "fatal": false
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "summary": {
+    "own_violation_count": 7,
+    "linked_violation_count": 4,
+    "linked_osha_count": 0,
+    "highest_confidence": 0.75,
+    "hazards": [],
+    "fatal_count": 0
+   }
+  },
+  {
+   "query": "○○庭園景觀工程有限公司",
+   "company": {
+    "tax_id": "",
+    "name": "○○庭園景觀工程有限公司",
+    "status": "核准設立",
+    "established": "2010",
+    "address": "新北市三重區仁昌街○○○",
+    "own_violations": [
+     {
+      "date": "112/04/06",
+      "law": "營造安全衛生設施標準第133條第1項第1款、第2款、第3款、第4款、第5款暨職業安全衛生法第6條第1項",
+      "content": "模板支撐作業未指派作業主管辦理規定事項。（處分字號 府勞職字第○○○○○○號）",
+      "fine": 0,
+      "severity": "輕微",
+      "appeal": null,
+      "source_url": "https://announcement.mol.gov.tw/",
+      "hazards": [
+       {
+        "code": "collapse",
+        "name": "倒塌崩塌",
+        "duty": "開挖、模板支撐、擋土等作業，雇主應依規定設置支撐並指派專人於現場指揮監督。"
+       },
+       {
+        "code": "training",
+        "name": "教育訓練",
+        "duty": "雇主應對勞工施以從事工作及預防災變所必要的安全衛生教育訓練；特定危險作業還需要具備合格證照的作業主管。"
+       }
+      ],
+      "fatal": false
+     }
+    ]
+   },
+   "principals": [
+    {
+     "name": "郭○瑩",
+     "role": "負責人（勞動部公告）",
+     "linked_companies": [
+      {
+       "tax_id": "",
+       "name": "○○工程有限公司",
+       "status": "核准設立",
+       "established": "2008",
+       "dissolved": null,
+       "confidence": 1.0,
+       "evidence": [
+        {
+         "kind": "same_address",
+         "detail": "兩家公司都登記在「新北市三重區仁昌街○○○」。全國隨機兩家公司同地址的機率是 0.0158%。"
+        },
+        {
+         "kind": "rare_name",
+         "detail": "「郭○瑩」在全國公司負責人裡屬於罕見姓名，同名巧合的機率低於千分之一。"
+        },
+        {
+         "kind": "same_county",
+         "detail": "兩家公司的裁處都出自台北市，屬於同一個縣市的管轄範圍。"
+        },
+        {
+         "kind": "same_name",
+         "detail": "勞動部公告的負責人姓名相同。⚠ 姓名相同不等於同一人，這只是查詢的起點。"
+        }
+       ],
+       "violations": [
+        {
+         "date": "114/05/16",
+         "law": "營造安全衛生設施標準第11-1條暨職業安全衛生法第6條第1項第1款、第3款、第5款",
+         "content": "未提供安全帽使正確戴用。（處分字號 北市勞職字第○○○○○○號）",
+         "fine": 0,
+         "severity": "輕微",
+         "appeal": null,
+         "source_url": "https://announcement.mol.gov.tw/",
+         "hazards": [
+          {
+           "code": "helmet",
+           "name": "頭部防護",
+           "duty": "進入營繕工程工作場所的作業人員，雇主應提供適當的安全帽，並使其正確戴用。"
+          }
+         ],
+         "fatal": false
+        },
+        {
+         "date": "109/07/30",
+         "law": "職業安全衛生設施規則第281條第1項暨職業安全衛生法第6條第1項第5款",
+         "content": "2公尺作業未使用安全帶、帽。（處分字號 北市勞職字第○○○○○○號）",
+         "fine": 0,
+         "severity": "輕微",
+         "appeal": null,
+         "source_url": "https://announcement.mol.gov.tw/",
+         "hazards": [
+          {
+           "code": "fall",
+           "name": "墜落",
+           "duty": "高度二公尺以上有墜落之虞的作業場所，雇主應設置護欄、護蓋或安全網；設置有困難時，應使勞工使用安全帶並設置母索或防墜設施。"
+          }
+         ],
+         "fatal": false
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "summary": {
+    "own_violation_count": 1,
+    "linked_violation_count": 2,
+    "linked_osha_count": 2,
+    "highest_confidence": 1.0,
+    "hazards": [
+     {
+      "code": "collapse",
+      "name": "倒塌崩塌",
+      "count": 1
+     },
+     {
+      "code": "training",
+      "name": "教育訓練",
+      "count": 1
+     },
+     {
+      "code": "helmet",
+      "name": "頭部防護",
+      "count": 1
+     },
+     {
+      "code": "fall",
+      "name": "墜落",
+      "count": 1
+     }
+    ],
+    "fatal_count": 0
+   }
+  },
+  {
+   "query": "○○通訊行",
+   "company": {
+    "tax_id": "",
+    "name": "○○通訊行",
+    "status": "核准設立",
+    "established": "2024",
+    "address": "新北市新莊區五工三路○○○",
+    "own_violations": [
+     {
+      "date": "114/05/26",
+      "law": "勞工退休金條例第19條第1項",
+      "content": "雇主未按時繳納勞工退休金致加徵滯納金。（處分字號 保退一字第○○○○○○號）",
+      "fine": 9540,
+      "severity": "輕微",
+      "appeal": null,
+      "source_url": "https://announcement.mol.gov.tw/",
+      "hazards": [],
+      "fatal": false
+     },
+     {
+      "date": "114/02/25",
+      "law": "勞工退休金條例第19條第1項",
+      "content": "雇主未按時繳納勞工退休金致加徵滯納金。（處分字號 保退一字第○○○○○○號）",
+      "fine": 5036,
+      "severity": "輕微",
+      "appeal": null,
+      "source_url": "https://announcement.mol.gov.tw/",
+      "hazards": [],
+      "fatal": false
+     },
+     {
+      "date": "113/12/25",
+      "law": "勞工退休金條例第19條第1項",
+      "content": "雇主未按時繳納勞工退休金致加徵滯納金。（處分字號 保退一字第○○○○○○號）",
+      "fine": 2362,
+      "severity": "輕微",
+      "appeal": null,
+      "source_url": "https://announcement.mol.gov.tw/",
+      "hazards": [],
+      "fatal": false
+     }
+    ]
+   },
+   "principals": [
+    {
+     "name": "李○瑧",
+     "role": "負責人（勞動部公告）",
+     "linked_companies": [
+      {
+       "tax_id": "",
+       "name": "○○通訊行",
+       "status": "核准設立",
+       "established": "2024",
+       "dissolved": null,
+       "confidence": 0.75,
+       "evidence": [
+        {
+         "kind": "same_address",
+         "detail": "兩家公司都登記在「新北市新莊區五工三路○○○」。全國隨機兩家公司同地址的機率是 0.0158%。"
+        },
+        {
+         "kind": "rare_name",
+         "detail": "「李○瑧」在全國公司負責人裡屬於罕見姓名，同名巧合的機率低於千分之一。"
+        },
+        {
+         "kind": "same_name",
+         "detail": "勞動部公告的負責人姓名相同。⚠ 姓名相同不等於同一人，這只是查詢的起點。"
+        }
+       ],
+       "violations": [
+        {
+         "date": "115/06/25",
+         "law": "勞工退休金條例第19條第1項",
+         "content": "雇主未按時繳納勞工退休金致加徵滯納金。（處分字號 保退一字第○○○○○○號）",
+         "fine": 2401,
+         "severity": "輕微",
+         "appeal": null,
+         "source_url": "https://announcement.mol.gov.tw/",
+         "hazards": [],
+         "fatal": false
+        },
+        {
+         "date": "115/04/24",
+         "law": "勞工退休金條例第19條第1項",
+         "content": "雇主未按時繳納勞工退休金致加徵滯納金。（處分字號 保退一字第○○○○○○號）",
+         "fine": 9360,
+         "severity": "輕微",
+         "appeal": null,
+         "source_url": "https://announcement.mol.gov.tw/",
+         "hazards": [],
+         "fatal": false
+        },
+        {
+         "date": "115/02/26",
+         "law": "勞工退休金條例第19條第1項",
+         "content": "雇主未按時繳納勞工退休金致加徵滯納金。（處分字號 保退一字第○○○○○○號）",
+         "fine": 1504,
+         "severity": "輕微",
+         "appeal": null,
+         "source_url": "https://announcement.mol.gov.tw/",
+         "hazards": [],
+         "fatal": false
+        },
+        {
+         "date": "114/11/24",
+         "law": "勞工退休金條例第19條第1項",
+         "content": "雇主未按時繳納勞工退休金致加徵滯納金。（處分字號 保退一字第○○○○○○號）",
+         "fine": 6360,
+         "severity": "輕微",
+         "appeal": null,
+         "source_url": "https://announcement.mol.gov.tw/",
+         "hazards": [],
+         "fatal": false
+        },
+        {
+         "date": "114/08/26",
+         "law": "勞工退休金條例第19條第1項",
+         "content": "雇主未按時繳納勞工退休金致加徵滯納金。（處分字號 保退一字第○○○○○○號）",
+         "fine": 9540,
+         "severity": "輕微",
+         "appeal": null,
+         "source_url": "https://announcement.mol.gov.tw/",
+         "hazards": [],
+         "fatal": false
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "summary": {
+    "own_violation_count": 3,
+    "linked_violation_count": 5,
+    "linked_osha_count": 0,
+    "highest_confidence": 0.75,
+    "hazards": [],
+    "fatal_count": 0
+   }
+  },
+  {
+   "query": "○○里創意文化有限公司",
+   "company": {
+    "tax_id": "",
+    "name": "○○里創意文化有限公司",
+    "status": "核准設立",
+    "established": "2018",
+    "address": "臺北市中山區遼寧街○○○",
+    "own_violations": [
+     {
+      "date": "113/12/25",
+      "law": "勞工退休金條例第19條第1項",
+      "content": "雇主未按時繳納勞工退休金致加徵滯納金。（處分字號 保退一字第○○○○○○號）",
+      "fine": 1237,
+      "severity": "輕微",
+      "appeal": null,
+      "source_url": "https://announcement.mol.gov.tw/",
+      "hazards": [],
+      "fatal": false
+     }
+    ]
+   },
+   "principals": [
+    {
+     "name": "呂○璇",
+     "role": "負責人（勞動部公告）",
+     "linked_companies": [
+      {
+       "tax_id": "",
+       "name": "○○設計室內裝修有限公司",
+       "status": "核准設立",
+       "established": "2016",
+       "dissolved": null,
+       "confidence": 0.75,
+       "evidence": [
+        {
+         "kind": "same_address",
+         "detail": "兩家公司都登記在「台北市中山區遼寧街○○○」。全國隨機兩家公司同地址的機率是 0.0158%。"
+        },
+        {
+         "kind": "rare_name",
+         "detail": "「呂○璇」在全國公司負責人裡屬於罕見姓名，同名巧合的機率低於千分之一。"
+        },
+        {
+         "kind": "same_name",
+         "detail": "勞動部公告的負責人姓名相同。⚠ 姓名相同不等於同一人，這只是查詢的起點。"
+        }
+       ],
+       "violations": [
+        {
+         "date": "115/06/25",
+         "law": "職業安全衛生法第27條第1項第4款",
+         "content": "原事業單位未採取承攬管理必要措施。（處分字號 北市勞職字第○○○○○○號）",
+         "fine": 0,
+         "severity": "輕微",
+         "appeal": null,
+         "source_url": "https://announcement.mol.gov.tw/",
+         "hazards": [
+          {
+           "code": "contract",
+           "name": "承攬管理",
+           "duty": "事業單位以其事業招人承攬時，原事業單位仍負防止職業災害的責任 ——應設協議組織、進行工作連繫與調整、巡視工作場所、並對承攬人的勞工實施教育訓練。"
+          }
+         ],
+         "fatal": false
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "summary": {
+    "own_violation_count": 1,
+    "linked_violation_count": 1,
+    "linked_osha_count": 1,
+    "highest_confidence": 0.75,
+    "hazards": [
+     {
+      "code": "contract",
+      "name": "承攬管理",
+      "count": 1
+     }
+    ],
+    "fatal_count": 0
+   }
+  },
+  {
+   "query": "○○餐飲事業企業社",
+   "company": {
+    "tax_id": "",
+    "name": "○○餐飲事業企業社",
+    "status": "歇業",
+    "established": "2014",
+    "address": "高雄市左營區民族一路○○○",
+    "own_violations": [
+     {
+      "date": "107/10/22",
+      "law": "勞動基準法第21條第1項;勞動基準法第36條",
+      "content": "未達基本工資;未使勞工每七日中有二日之休息，其中一日為例假，一日為休息日（處分字號 高市勞條字第○○○○○○號）",
+      "fine": 0,
+      "severity": "輕微",
+      "appeal": null,
+      "source_url": "https://announcement.mol.gov.tw/",
+      "hazards": [],
+      "fatal": false
+     },
+     {
+      "date": "105/08/02",
+      "law": "勞動基準法第21條第1項;勞動基準法第22條第2項",
+      "content": "未達基本工資;工資未全額直接給付勞工（處分字號 高市勞條字第○○○○○○號）",
+      "fine": 0,
+      "severity": "輕微",
+      "appeal": null,
+      "source_url": "https://announcement.mol.gov.tw/",
+      "hazards": [],
+      "fatal": false
+     }
+    ]
+   },
+   "principals": [
+    {
+     "name": "湯○忠",
+     "role": "負責人（勞動部公告）",
+     "linked_companies": [
+      {
+       "tax_id": "",
+       "name": "○○人文藝術咖啡坊",
+       "status": "歇業",
+       "established": "2004",
+       "dissolved": null,
+       "confidence": 1.0,
+       "evidence": [
+        {
+         "kind": "same_address",
+         "detail": "兩家公司都登記在「高雄市左營區民族一路○○○」。全國隨機兩家公司同地址的機率是 0.0158%。"
+        },
+        {
+         "kind": "rare_name",
+         "detail": "「湯○忠」在全國公司負責人裡屬於罕見姓名，同名巧合的機率低於千分之一。"
+        },
+        {
+         "kind": "same_county",
+         "detail": "兩家公司的裁處都出自高雄市，屬於同一個縣市的管轄範圍。"
+        },
+        {
+         "kind": "same_name",
+         "detail": "勞動部公告的負責人姓名相同。⚠ 姓名相同不等於同一人，這只是查詢的起點。"
+        }
+       ],
+       "violations": [
+        {
+         "date": "109/09/16",
+         "law": "勞動基準法第21條第1項;勞動基準法第24條;勞動基準法第36條",
+         "content": "未達基本工資;延長工作時間未依規定加給工資;每七日中未有一日之休息作為例假（處分字號 高市勞條字第○○○○○○號）",
+         "fine": 60000,
+         "severity": "中度",
+         "appeal": null,
+         "source_url": "https://announcement.mol.gov.tw/",
+         "hazards": [],
+         "fatal": false
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "summary": {
+    "own_violation_count": 2,
+    "linked_violation_count": 1,
+    "linked_osha_count": 0,
+    "highest_confidence": 1.0,
+    "hazards": [],
+    "fatal_count": 0
+   }
+  },
+  {
+   "query": "○○盛企業有限公司",
+   "company": {
+    "tax_id": "",
+    "name": "○○盛企業有限公司",
+    "status": "核准設立",
+    "established": "2004",
+    "address": "新北市土城區中華路○○○",
+    "own_violations": [
+     {
+      "date": "113/03/12",
+      "law": "職業安全衛生法第10條第1項",
+      "content": "雇主對於具有危害性之化學品，未予標示、製備清單及揭示安全資料表，並採取必要之通識措施（處分字號 新北府勞檢字第○○○○○○號）",
+      "fine": 30000,
+      "severity": "輕微",
+      "appeal": null,
+      "source_url": "https://announcement.mol.gov.tw/",
+      "hazards": [
+       {
+        "code": "chemical",
+        "name": "化學性危害",
+        "duty": "使用危害性化學品，雇主應標示、提供安全資料表、實施作業環境監測，並提供必要的防護具。"
+       }
+      ],
+      "fatal": false
+     }
+    ]
+   },
+   "principals": [
+    {
+     "name": "許○花",
+     "role": "負責人（勞動部公告）",
+     "linked_companies": [
+      {
+       "tax_id": "",
+       "name": "○○物流股份有限公司",
+       "status": "核准設立",
+       "established": "2014",
+       "dissolved": null,
+       "confidence": 1.0,
+       "evidence": [
+        {
+         "kind": "same_address",
+         "detail": "兩家公司都登記在「新北市土城區中華路○○○」。全國隨機兩家公司同地址的機率是 0.0158%。"
+        },
+        {
+         "kind": "rare_name",
+         "detail": "「許○花」在全國公司負責人裡屬於罕見姓名，同名巧合的機率低於千分之一。"
+        },
+        {
+         "kind": "same_county",
+         "detail": "兩家公司的裁處都出自新北市，屬於同一個縣市的管轄範圍。"
+        },
+        {
+         "kind": "same_name",
+         "detail": "勞動部公告的負責人姓名相同。⚠ 姓名相同不等於同一人，這只是查詢的起點。"
+        }
+       ],
+       "violations": [
+        {
+         "date": "114/07/23",
+         "law": "勞工退休金條例第15條第2項",
+         "content": "雇主未依規定覈實申報調整勞工退休金提繳工資。（處分字號 保退三字第○○○○○○號）",
+         "fine": 5000,
+         "severity": "輕微",
+         "appeal": null,
+         "source_url": "https://announcement.mol.gov.tw/",
+         "hazards": [],
+         "fatal": false
+        },
+        {
+         "date": "114/06/16",
+         "law": "職業安全衛生法第6條第1項",
+         "content": "未符合規定之必要安全衛生設備及措施（處分字號 新北府勞檢字第○○○○○○號）",
+         "fine": 30000,
+         "severity": "輕微",
+         "appeal": null,
+         "source_url": "https://announcement.mol.gov.tw/",
+         "hazards": [
+          {
+           "code": "general",
+           "name": "未指明的設備措施不足",
+           "duty": "職業安全衛生法第 6 條列舉了雇主應有的防護設備與措施；這筆公告未指明是哪一項，需要查閱原始裁處書。"
+          }
+         ],
+         "fatal": false
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "summary": {
+    "own_violation_count": 1,
+    "linked_violation_count": 2,
+    "linked_osha_count": 1,
+    "highest_confidence": 1.0,
+    "hazards": [
+     {
+      "code": "chemical",
+      "name": "化學性危害",
+      "count": 1
+     },
+     {
+      "code": "general",
+      "name": "未指明的設備措施不足",
+      "count": 1
+     }
+    ],
+    "fatal_count": 0
+   }
+  }
+ ]
+}
