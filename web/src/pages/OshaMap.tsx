@@ -130,6 +130,16 @@ export default function OshaMap() {
     [plottable, countyFilter, yearFilter, lawFilter],
   );
 
+  // TODO 4：統計摘要。從 filtered 算出「現在顯示幾筆」跟「罹災人數合計」，
+  // filtered 一變（篩選列一動），這兩個數字就會自動重新算。
+  const stats = useMemo(
+    () => ({
+      count: filtered.length,
+      totalCasualties: filtered.reduce((sum, i) => sum + i.casualties, 0),
+    }),
+    [filtered],
+  );
+
   return (
     <div>
       <h1 style={{ marginTop: 0, fontSize: 24 }}>職業安全衛生違規地圖</h1>
@@ -194,6 +204,10 @@ export default function OshaMap() {
         </label>
       </div>
 
+      <p className="sw-muted" style={{ margin: "0 0 12px", fontWeight: 600 }}>
+        目前顯示 {stats.count} 筆，合計罹災 {stats.totalCasualties} 人
+      </p>
+
       <div
         style={{
           height: "70vh",              // ← 容器一定要給明確高度，不然地圖高度會是 0
@@ -239,8 +253,6 @@ export default function OshaMap() {
           ))}
         </MapContainer>
       </div>
-
-      {/* TODO 4：統計摘要放這裡（目前顯示幾筆、合計罹災幾人） */}
 
       <p className="sw-muted" style={{ marginTop: 16 }}>
         本頁僅呈現主管機關已公告之裁處紀錄與其出處，不對任何事業單位作出評價或認定。
