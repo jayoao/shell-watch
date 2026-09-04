@@ -22,7 +22,11 @@
    "lat": 23.610451,
    "lng": 120.440526,
    "industry": "住宿及餐飲業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "training"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0002",
@@ -42,7 +46,11 @@
    "lat": 22.874218,
    "lng": 120.077386,
    "industry": "批發及零售業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "org"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0003",
@@ -62,7 +70,11 @@
    "lat": null,
    "lng": null,
    "industry": "製造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "fall"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0004",
@@ -82,7 +94,11 @@
    "lat": 24.000089,
    "lng": 121.58757,
    "industry": "製造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "training"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0005",
@@ -102,7 +118,11 @@
    "lat": 25.046264,
    "lng": 121.567942,
    "industry": "營造業",
-   "appeal": "訴願駁回"
+   "appeal": "訴願駁回",
+   "hazards": [
+    "chemical"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0006",
@@ -122,7 +142,11 @@
    "lat": 22.718037,
    "lng": 120.402876,
    "industry": "營造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "machine"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0007",
@@ -142,7 +166,11 @@
    "lat": 24.996226,
    "lng": 121.544673,
    "industry": "製造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "training"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0008",
@@ -162,7 +190,11 @@
    "lat": 24.806991,
    "lng": 120.973505,
    "industry": "其他服務業",
-   "appeal": "訴願駁回"
+   "appeal": "訴願駁回",
+   "hazards": [
+    "fall"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0009",
@@ -182,7 +214,11 @@
    "lat": 24.058278,
    "lng": 120.762682,
    "industry": "批發及零售業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "fall"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0010",
@@ -202,7 +238,11 @@
    "lat": 22.787123,
    "lng": 120.176308,
    "industry": "運輸及倉儲業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "org"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0011",
@@ -222,7 +262,11 @@
    "lat": 25.175175,
    "lng": 121.28755,
    "industry": "運輸及倉儲業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "fall"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0012",
@@ -242,7 +286,11 @@
    "lat": 22.582205,
    "lng": 121.263609,
    "industry": "運輸及倉儲業",
-   "appeal": "訴願審理中"
+   "appeal": "訴願審理中",
+   "hazards": [
+    "training"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0013",
@@ -262,7 +310,12 @@
    "lat": 22.526769,
    "lng": 120.185354,
    "industry": "製造業",
-   "appeal": "訴願駁回"
+   "appeal": "訴願駁回",
+   "hazards": [
+    "contract",
+    "collapse"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0014",
@@ -282,7 +335,12 @@
    "lat": 23.432374,
    "lng": 120.257736,
    "industry": "其他服務業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "fall",
+    "helmet"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0015",
@@ -302,7 +360,11 @@
    "lat": 24.915597,
    "lng": 121.173066,
    "industry": "批發及零售業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "training"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0016",
@@ -322,7 +384,12 @@
    "lat": 23.151681,
    "lng": 120.308268,
    "industry": "批發及零售業",
-   "appeal": "訴願審理中"
+   "appeal": "訴願審理中",
+   "hazards": [
+    "fall",
+    "helmet"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0017",
@@ -342,7 +409,12 @@
    "lat": 24.944294,
    "lng": 121.349373,
    "industry": "批發及零售業",
-   "appeal": "訴願審理中"
+   "appeal": "訴願審理中",
+   "hazards": [
+    "contract",
+    "collapse"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0018",
@@ -362,7 +434,12 @@
    "lat": 24.99588,
    "lng": 121.552783,
    "industry": "批發及零售業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "contract",
+    "collapse"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0019",
@@ -382,7 +459,11 @@
    "lat": 24.008183,
    "lng": 120.560904,
    "industry": "製造業",
-   "appeal": "訴願駁回"
+   "appeal": "訴願駁回",
+   "hazards": [
+    "org"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0020",
@@ -402,7 +483,11 @@
    "lat": 24.926952,
    "lng": 121.390703,
    "industry": "批發及零售業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "org"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0021",
@@ -422,7 +507,11 @@
    "lat": null,
    "lng": null,
    "industry": "住宿及餐飲業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "chemical"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0022",
@@ -442,7 +531,9 @@
    "lat": 23.381855,
    "lng": 120.34975,
    "industry": "營造業",
-   "appeal": "訴願駁回"
+   "appeal": "訴願駁回",
+   "hazards": [],
+   "fatal": false
   },
   {
    "id": "osha_0023",
@@ -462,7 +553,11 @@
    "lat": null,
    "lng": null,
    "industry": "製造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "chemical"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0024",
@@ -482,7 +577,12 @@
    "lat": 23.879498,
    "lng": 121.073031,
    "industry": "住宿及餐飲業",
-   "appeal": "訴願審理中"
+   "appeal": "訴願審理中",
+   "hazards": [
+    "fall",
+    "helmet"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0025",
@@ -502,7 +602,11 @@
    "lat": 24.278869,
    "lng": 120.676003,
    "industry": "運輸及倉儲業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "fall"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0026",
@@ -522,7 +626,11 @@
    "lat": 23.998271,
    "lng": 120.61022,
    "industry": "批發及零售業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "org"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0027",
@@ -542,7 +650,11 @@
    "lat": 23.609332,
    "lng": 119.584172,
    "industry": "批發及零售業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "fall"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0028",
@@ -562,7 +674,11 @@
    "lat": null,
    "lng": null,
    "industry": "住宿及餐飲業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "training"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0029",
@@ -582,7 +698,11 @@
    "lat": 24.672242,
    "lng": 120.913749,
    "industry": "批發及零售業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "fall"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0030",
@@ -602,7 +722,12 @@
    "lat": 23.131291,
    "lng": 120.074538,
    "industry": "批發及零售業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "fall",
+    "helmet"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0031",
@@ -622,7 +747,9 @@
    "lat": 25.053125,
    "lng": 121.547409,
    "industry": "住宿及餐飲業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [],
+   "fatal": false
   },
   {
    "id": "osha_0032",
@@ -642,7 +769,11 @@
    "lat": 24.940211,
    "lng": 121.332687,
    "industry": "其他服務業",
-   "appeal": "訴願駁回"
+   "appeal": "訴願駁回",
+   "hazards": [
+    "org"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0033",
@@ -662,7 +793,12 @@
    "lat": 22.742326,
    "lng": 120.600042,
    "industry": "其他服務業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "contract",
+    "collapse"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0034",
@@ -682,7 +818,11 @@
    "lat": 25.058672,
    "lng": 121.602167,
    "industry": "批發及零售業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "org"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0035",
@@ -702,7 +842,11 @@
    "lat": 24.824819,
    "lng": 120.97556,
    "industry": "住宿及餐飲業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "training"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0036",
@@ -722,7 +866,11 @@
    "lat": 25.006666,
    "lng": 121.532072,
    "industry": "住宿及餐飲業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "org"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0037",
@@ -742,7 +890,11 @@
    "lat": 22.587788,
    "lng": 120.150895,
    "industry": "其他服務業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "org"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0038",
@@ -762,7 +914,11 @@
    "lat": 23.900718,
    "lng": 121.454721,
    "industry": "運輸及倉儲業",
-   "appeal": "訴願審理中"
+   "appeal": "訴願審理中",
+   "hazards": [
+    "fall"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0039",
@@ -782,7 +938,11 @@
    "lat": null,
    "lng": null,
    "industry": "運輸及倉儲業",
-   "appeal": "訴願駁回"
+   "appeal": "訴願駁回",
+   "hazards": [
+    "electric"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0040",
@@ -802,7 +962,11 @@
    "lat": null,
    "lng": null,
    "industry": "批發及零售業",
-   "appeal": "訴願審理中"
+   "appeal": "訴願審理中",
+   "hazards": [
+    "fall"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0041",
@@ -822,7 +986,11 @@
    "lat": 24.592103,
    "lng": 120.917995,
    "industry": "批發及零售業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "electric"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0042",
@@ -842,7 +1010,11 @@
    "lat": 24.852966,
    "lng": 120.989638,
    "industry": "製造業",
-   "appeal": "訴願審理中"
+   "appeal": "訴願審理中",
+   "hazards": [
+    "chemical"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0043",
@@ -862,7 +1034,11 @@
    "lat": 24.177844,
    "lng": 120.69716,
    "industry": "製造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "fall"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0044",
@@ -882,7 +1058,11 @@
    "lat": 24.059103,
    "lng": 120.571084,
    "industry": "製造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "org"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0045",
@@ -902,7 +1082,11 @@
    "lat": 23.82291,
    "lng": 121.150108,
    "industry": "製造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "org"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0046",
@@ -922,7 +1106,11 @@
    "lat": 25.097443,
    "lng": 121.200057,
    "industry": "其他服務業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "electric"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0047",
@@ -942,7 +1130,11 @@
    "lat": 24.04287,
    "lng": 120.625376,
    "industry": "營造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "machine"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0048",
@@ -962,7 +1154,12 @@
    "lat": 22.63343,
    "lng": 120.33832,
    "industry": "製造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "fall",
+    "helmet"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0049",
@@ -982,7 +1179,11 @@
    "lat": null,
    "lng": null,
    "industry": "運輸及倉儲業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "org"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0050",
@@ -1002,7 +1203,12 @@
    "lat": 24.170901,
    "lng": 120.736539,
    "industry": "營造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "fall",
+    "helmet"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0051",
@@ -1022,7 +1228,11 @@
    "lat": null,
    "lng": null,
    "industry": "批發及零售業",
-   "appeal": "訴願駁回"
+   "appeal": "訴願駁回",
+   "hazards": [
+    "org"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0052",
@@ -1042,7 +1252,11 @@
    "lat": 24.030649,
    "lng": 120.517298,
    "industry": "其他服務業",
-   "appeal": "訴願駁回"
+   "appeal": "訴願駁回",
+   "hazards": [
+    "fall"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0053",
@@ -1062,7 +1276,12 @@
    "lat": 25.073895,
    "lng": 121.554813,
    "industry": "住宿及餐飲業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "fall",
+    "helmet"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0054",
@@ -1082,7 +1301,11 @@
    "lat": 22.873925,
    "lng": 120.130615,
    "industry": "營造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "fall"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0055",
@@ -1102,7 +1325,11 @@
    "lat": 24.270833,
    "lng": 120.768025,
    "industry": "運輸及倉儲業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "fall"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0056",
@@ -1122,7 +1349,11 @@
    "lat": 24.177567,
    "lng": 120.535546,
    "industry": "其他服務業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "org"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0057",
@@ -1142,7 +1373,11 @@
    "lat": 24.786368,
    "lng": 121.635434,
    "industry": "其他服務業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "fall"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0058",
@@ -1162,7 +1397,11 @@
    "lat": 24.594391,
    "lng": 120.817981,
    "industry": "製造業",
-   "appeal": "訴願審理中"
+   "appeal": "訴願審理中",
+   "hazards": [
+    "fall"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0059",
@@ -1182,7 +1421,11 @@
    "lat": 25.087846,
    "lng": 121.736269,
    "industry": "製造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "training"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0060",
@@ -1202,7 +1445,12 @@
    "lat": 23.519614,
    "lng": 120.358684,
    "industry": "製造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "fall",
+    "helmet"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0061",
@@ -1222,7 +1470,11 @@
    "lat": 24.204131,
    "lng": 120.553125,
    "industry": "其他服務業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "org"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0062",
@@ -1242,7 +1494,12 @@
    "lat": 23.60244,
    "lng": 120.32907,
    "industry": "製造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "contract",
+    "collapse"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0063",
@@ -1262,7 +1519,11 @@
    "lat": 24.01428,
    "lng": 120.715949,
    "industry": "住宿及餐飲業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "fall"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0064",
@@ -1282,7 +1543,11 @@
    "lat": 24.872204,
    "lng": 121.507555,
    "industry": "營造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "chemical"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0065",
@@ -1302,7 +1567,11 @@
    "lat": 24.228611,
    "lng": 120.795676,
    "industry": "營造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "org"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0066",
@@ -1322,7 +1591,12 @@
    "lat": 22.629535,
    "lng": 120.435423,
    "industry": "住宿及餐飲業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "contract",
+    "collapse"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0067",
@@ -1342,7 +1616,11 @@
    "lat": 23.769917,
    "lng": 120.403956,
    "industry": "批發及零售業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "fall"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0068",
@@ -1362,7 +1640,12 @@
    "lat": 23.774894,
    "lng": 121.638895,
    "industry": "營造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "contract",
+    "collapse"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0069",
@@ -1382,7 +1665,11 @@
    "lat": 23.773416,
    "lng": 121.537547,
    "industry": "住宿及餐飲業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "org"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0070",
@@ -1402,7 +1689,11 @@
    "lat": 23.85546,
    "lng": 121.58149,
    "industry": "運輸及倉儲業",
-   "appeal": "訴願審理中"
+   "appeal": "訴願審理中",
+   "hazards": [
+    "fall"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0071",
@@ -1422,7 +1713,11 @@
    "lat": 25.08519,
    "lng": 121.624668,
    "industry": "製造業",
-   "appeal": "訴願審理中"
+   "appeal": "訴願審理中",
+   "hazards": [
+    "training"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0072",
@@ -1442,7 +1737,11 @@
    "lat": 22.643036,
    "lng": 120.239736,
    "industry": "製造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "org"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0073",
@@ -1462,7 +1761,12 @@
    "lat": null,
    "lng": null,
    "industry": "運輸及倉儲業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "fall",
+    "helmet"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0074",
@@ -1482,7 +1786,12 @@
    "lat": 22.706218,
    "lng": 120.135259,
    "industry": "批發及零售業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "contract",
+    "collapse"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0075",
@@ -1502,7 +1811,11 @@
    "lat": 24.141362,
    "lng": 120.710521,
    "industry": "營造業",
-   "appeal": "訴願駁回"
+   "appeal": "訴願駁回",
+   "hazards": [
+    "org"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0076",
@@ -1522,7 +1835,11 @@
    "lat": 25.012764,
    "lng": 121.411717,
    "industry": "運輸及倉儲業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "fall"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0077",
@@ -1542,7 +1859,11 @@
    "lat": 24.997376,
    "lng": 121.320797,
    "industry": "住宿及餐飲業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "machine"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0078",
@@ -1562,7 +1883,12 @@
    "lat": null,
    "lng": null,
    "industry": "營造業",
-   "appeal": "訴願駁回"
+   "appeal": "訴願駁回",
+   "hazards": [
+    "contract",
+    "collapse"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0079",
@@ -1582,7 +1908,9 @@
    "lat": 25.151394,
    "lng": 121.717413,
    "industry": "其他服務業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [],
+   "fatal": false
   },
   {
    "id": "osha_0080",
@@ -1602,7 +1930,12 @@
    "lat": 23.72363,
    "lng": 120.37927,
    "industry": "其他服務業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "fall",
+    "helmet"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0081",
@@ -1622,7 +1955,12 @@
    "lat": 25.057547,
    "lng": 121.613615,
    "industry": "製造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "contract",
+    "collapse"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0082",
@@ -1642,7 +1980,11 @@
    "lat": 24.20212,
    "lng": 120.597779,
    "industry": "營造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "fall"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0083",
@@ -1662,7 +2004,11 @@
    "lat": 24.984325,
    "lng": 121.588859,
    "industry": "其他服務業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "machine"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0084",
@@ -1682,7 +2028,11 @@
    "lat": 23.049671,
    "lng": 120.298245,
    "industry": "批發及零售業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "training"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0085",
@@ -1702,7 +2052,11 @@
    "lat": 24.021782,
    "lng": 121.659413,
    "industry": "其他服務業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "org"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0086",
@@ -1722,7 +2076,9 @@
    "lat": null,
    "lng": null,
    "industry": "運輸及倉儲業",
-   "appeal": "訴願審理中"
+   "appeal": "訴願審理中",
+   "hazards": [],
+   "fatal": false
   },
   {
    "id": "osha_0087",
@@ -1742,7 +2098,11 @@
    "lat": 23.864623,
    "lng": 121.512788,
    "industry": "其他服務業",
-   "appeal": "訴願駁回"
+   "appeal": "訴願駁回",
+   "hazards": [
+    "training"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0088",
@@ -1762,7 +2122,9 @@
    "lat": 24.484926,
    "lng": 120.731548,
    "industry": "批發及零售業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [],
+   "fatal": false
   },
   {
    "id": "osha_0089",
@@ -1782,7 +2144,11 @@
    "lat": 23.861442,
    "lng": 121.577546,
    "industry": "運輸及倉儲業",
-   "appeal": "訴願審理中"
+   "appeal": "訴願審理中",
+   "hazards": [
+    "machine"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0090",
@@ -1802,7 +2168,11 @@
    "lat": 24.000714,
    "lng": 120.883898,
    "industry": "批發及零售業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "fall"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0091",
@@ -1822,7 +2192,11 @@
    "lat": 23.916124,
    "lng": 121.575666,
    "industry": "批發及零售業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "training"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0092",
@@ -1842,7 +2216,12 @@
    "lat": 24.266089,
    "lng": 120.709889,
    "industry": "住宿及餐飲業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "fall",
+    "helmet"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0093",
@@ -1862,7 +2241,11 @@
    "lat": 25.084951,
    "lng": 121.252897,
    "industry": "住宿及餐飲業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "training"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0094",
@@ -1882,7 +2265,11 @@
    "lat": 22.703887,
    "lng": 120.732297,
    "industry": "其他服務業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "machine"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0095",
@@ -1902,7 +2289,11 @@
    "lat": 24.063607,
    "lng": 120.720493,
    "industry": "製造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "machine"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0096",
@@ -1922,7 +2313,11 @@
    "lat": 24.934286,
    "lng": 121.419429,
    "industry": "住宿及餐飲業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "org"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0097",
@@ -1942,7 +2337,11 @@
    "lat": 22.580378,
    "lng": 120.318565,
    "industry": "批發及零售業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "chemical"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0098",
@@ -1962,7 +2361,11 @@
    "lat": 24.970043,
    "lng": 121.388528,
    "industry": "其他服務業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "machine"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0099",
@@ -1982,7 +2385,11 @@
    "lat": 24.972197,
    "lng": 121.615738,
    "industry": "製造業",
-   "appeal": "訴願審理中"
+   "appeal": "訴願審理中",
+   "hazards": [
+    "training"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0100",
@@ -2002,7 +2409,11 @@
    "lat": 24.886707,
    "lng": 120.89825,
    "industry": "製造業",
-   "appeal": "訴願審理中"
+   "appeal": "訴願審理中",
+   "hazards": [
+    "machine"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0101",
@@ -2022,7 +2433,11 @@
    "lat": 24.12624,
    "lng": 120.5454,
    "industry": "運輸及倉儲業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "org"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0102",
@@ -2042,7 +2457,11 @@
    "lat": 25.196486,
    "lng": 121.36492,
    "industry": "住宿及餐飲業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "fall"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0103",
@@ -2062,7 +2481,11 @@
    "lat": 24.551358,
    "lng": 120.877188,
    "industry": "製造業",
-   "appeal": "訴願駁回"
+   "appeal": "訴願駁回",
+   "hazards": [
+    "machine"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0104",
@@ -2082,7 +2505,12 @@
    "lat": 22.909494,
    "lng": 120.289861,
    "industry": "批發及零售業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "contract",
+    "collapse"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0105",
@@ -2102,7 +2530,11 @@
    "lat": 22.780448,
    "lng": 120.257197,
    "industry": "製造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "training"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0106",
@@ -2122,7 +2554,11 @@
    "lat": 24.277842,
    "lng": 120.552666,
    "industry": "批發及零售業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "org"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0107",
@@ -2142,7 +2578,11 @@
    "lat": 24.151005,
    "lng": 120.514301,
    "industry": "其他服務業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "org"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0108",
@@ -2162,7 +2602,11 @@
    "lat": null,
    "lng": null,
    "industry": "批發及零售業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "org"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0109",
@@ -2182,7 +2626,12 @@
    "lat": 24.013601,
    "lng": 120.618877,
    "industry": "批發及零售業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "contract",
+    "collapse"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0110",
@@ -2202,7 +2651,12 @@
    "lat": 24.864679,
    "lng": 121.60107,
    "industry": "運輸及倉儲業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "fall",
+    "helmet"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0111",
@@ -2222,7 +2676,11 @@
    "lat": 24.793139,
    "lng": 120.949888,
    "industry": "其他服務業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "fall"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0112",
@@ -2242,7 +2700,12 @@
    "lat": 23.56988,
    "lng": 119.62427,
    "industry": "批發及零售業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "fall",
+    "helmet"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0113",
@@ -2262,7 +2725,11 @@
    "lat": 23.722317,
    "lng": 120.379225,
    "industry": "運輸及倉儲業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "fall"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0114",
@@ -2282,7 +2749,12 @@
    "lat": 24.787245,
    "lng": 121.010062,
    "industry": "營造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "fall",
+    "helmet"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0115",
@@ -2302,7 +2774,11 @@
    "lat": 24.802054,
    "lng": 120.934637,
    "industry": "製造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "fall"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0116",
@@ -2322,7 +2798,11 @@
    "lat": 23.778177,
    "lng": 120.489349,
    "industry": "批發及零售業",
-   "appeal": "訴願駁回"
+   "appeal": "訴願駁回",
+   "hazards": [
+    "electric"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0117",
@@ -2342,7 +2822,12 @@
    "lat": 23.920348,
    "lng": 121.707136,
    "industry": "營造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "contract",
+    "collapse"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0118",
@@ -2362,7 +2847,11 @@
    "lat": 22.533848,
    "lng": 121.379703,
    "industry": "其他服務業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "fall"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0119",
@@ -2382,7 +2871,9 @@
    "lat": 22.885227,
    "lng": 120.088547,
    "industry": "其他服務業",
-   "appeal": "訴願駁回"
+   "appeal": "訴願駁回",
+   "hazards": [],
+   "fatal": false
   },
   {
    "id": "osha_0120",
@@ -2402,7 +2893,11 @@
    "lat": 25.034286,
    "lng": 121.568992,
    "industry": "其他服務業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "chemical"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0121",
@@ -2422,7 +2917,12 @@
    "lat": 23.037835,
    "lng": 120.210522,
    "industry": "製造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "contract",
+    "collapse"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0122",
@@ -2442,7 +2942,12 @@
    "lat": 24.017804,
    "lng": 120.902724,
    "industry": "運輸及倉儲業",
-   "appeal": "訴願駁回"
+   "appeal": "訴願駁回",
+   "hazards": [
+    "contract",
+    "collapse"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0123",
@@ -2462,7 +2967,11 @@
    "lat": 22.672164,
    "lng": 120.222568,
    "industry": "營造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "org"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0124",
@@ -2482,7 +2991,11 @@
    "lat": 23.059912,
    "lng": 120.378206,
    "industry": "其他服務業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "org"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0125",
@@ -2502,7 +3015,11 @@
    "lat": 25.06154,
    "lng": 121.591251,
    "industry": "製造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "training"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0126",
@@ -2522,7 +3039,11 @@
    "lat": 25.012074,
    "lng": 121.438032,
    "industry": "營造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "machine"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0127",
@@ -2542,7 +3063,11 @@
    "lat": null,
    "lng": null,
    "industry": "運輸及倉儲業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "training"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0128",
@@ -2562,7 +3087,12 @@
    "lat": 22.892564,
    "lng": 121.328476,
    "industry": "製造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "contract",
+    "collapse"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0129",
@@ -2582,7 +3112,11 @@
    "lat": 24.799439,
    "lng": 121.714146,
    "industry": "製造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "electric"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0130",
@@ -2602,7 +3136,11 @@
    "lat": 24.576434,
    "lng": 121.845556,
    "industry": "營造業",
-   "appeal": "訴願駁回"
+   "appeal": "訴願駁回",
+   "hazards": [
+    "training"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0131",
@@ -2622,7 +3160,11 @@
    "lat": 23.153838,
    "lng": 120.30006,
    "industry": "製造業",
-   "appeal": "訴願駁回"
+   "appeal": "訴願駁回",
+   "hazards": [
+    "chemical"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0132",
@@ -2642,7 +3184,12 @@
    "lat": null,
    "lng": null,
    "industry": "營造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "contract",
+    "collapse"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0133",
@@ -2662,7 +3209,11 @@
    "lat": 22.461183,
    "lng": 120.185522,
    "industry": "住宿及餐飲業",
-   "appeal": "訴願審理中"
+   "appeal": "訴願審理中",
+   "hazards": [
+    "machine"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0134",
@@ -2682,7 +3233,11 @@
    "lat": 24.103814,
    "lng": 120.816684,
    "industry": "其他服務業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "org"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0135",
@@ -2702,7 +3257,11 @@
    "lat": 23.498693,
    "lng": 120.460333,
    "industry": "營造業",
-   "appeal": "訴願審理中"
+   "appeal": "訴願審理中",
+   "hazards": [
+    "org"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0136",
@@ -2722,7 +3281,11 @@
    "lat": 25.023755,
    "lng": 121.56475,
    "industry": "製造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "org"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0137",
@@ -2742,7 +3305,11 @@
    "lat": 22.489163,
    "lng": 120.355269,
    "industry": "住宿及餐飲業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "org"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0138",
@@ -2762,7 +3329,11 @@
    "lat": 24.991963,
    "lng": 121.234343,
    "industry": "製造業",
-   "appeal": "訴願駁回"
+   "appeal": "訴願駁回",
+   "hazards": [
+    "fall"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0139",
@@ -2782,7 +3353,11 @@
    "lat": 22.4676,
    "lng": 120.439523,
    "industry": "住宿及餐飲業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "electric"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0140",
@@ -2802,7 +3377,12 @@
    "lat": 24.121195,
    "lng": 120.465309,
    "industry": "住宿及餐飲業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "contract",
+    "collapse"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0141",
@@ -2822,7 +3402,11 @@
    "lat": 24.828492,
    "lng": 120.951284,
    "industry": "營造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "machine"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0142",
@@ -2842,7 +3426,11 @@
    "lat": 22.805313,
    "lng": 120.223884,
    "industry": "製造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "org"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0143",
@@ -2862,7 +3450,11 @@
    "lat": null,
    "lng": null,
    "industry": "批發及零售業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "machine"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0144",
@@ -2882,7 +3474,12 @@
    "lat": null,
    "lng": null,
    "industry": "其他服務業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "contract",
+    "collapse"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0145",
@@ -2902,7 +3499,11 @@
    "lat": 25.125262,
    "lng": 121.764733,
    "industry": "製造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "fall"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0146",
@@ -2922,7 +3523,11 @@
    "lat": 24.652419,
    "lng": 120.74172,
    "industry": "批發及零售業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "electric"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0147",
@@ -2942,7 +3547,11 @@
    "lat": 24.144603,
    "lng": 120.669773,
    "industry": "運輸及倉儲業",
-   "appeal": "訴願審理中"
+   "appeal": "訴願審理中",
+   "hazards": [
+    "fall"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0148",
@@ -2962,7 +3571,11 @@
    "lat": 22.62835,
    "lng": 120.415061,
    "industry": "營造業",
-   "appeal": "訴願審理中"
+   "appeal": "訴願審理中",
+   "hazards": [
+    "fall"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0149",
@@ -2982,7 +3595,11 @@
    "lat": 25.128323,
    "lng": 121.718695,
    "industry": "批發及零售業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "training"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0150",
@@ -3002,7 +3619,12 @@
    "lat": 25.137748,
    "lng": 121.597529,
    "industry": "其他服務業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "contract",
+    "collapse"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0151",
@@ -3022,7 +3644,12 @@
    "lat": 24.272028,
    "lng": 120.531471,
    "industry": "住宿及餐飲業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "fall",
+    "helmet"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0152",
@@ -3042,7 +3669,11 @@
    "lat": 24.864581,
    "lng": 121.328457,
    "industry": "運輸及倉儲業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "fall"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0153",
@@ -3062,7 +3693,11 @@
    "lat": 22.625747,
    "lng": 120.259313,
    "industry": "其他服務業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "fall"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0154",
@@ -3082,7 +3717,11 @@
    "lat": 24.12983,
    "lng": 120.719453,
    "industry": "其他服務業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "fall"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0155",
@@ -3102,7 +3741,12 @@
    "lat": null,
    "lng": null,
    "industry": "其他服務業",
-   "appeal": "訴願駁回"
+   "appeal": "訴願駁回",
+   "hazards": [
+    "contract",
+    "collapse"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0156",
@@ -3122,7 +3766,11 @@
    "lat": 25.010198,
    "lng": 121.285268,
    "industry": "運輸及倉儲業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "fall"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0157",
@@ -3142,7 +3790,11 @@
    "lat": 24.983615,
    "lng": 121.577906,
    "industry": "運輸及倉儲業",
-   "appeal": "訴願審理中"
+   "appeal": "訴願審理中",
+   "hazards": [
+    "machine"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0158",
@@ -3162,7 +3814,11 @@
    "lat": 25.097134,
    "lng": 121.172618,
    "industry": "運輸及倉儲業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "machine"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0159",
@@ -3182,7 +3838,11 @@
    "lat": 25.035634,
    "lng": 121.622051,
    "industry": "批發及零售業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "training"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0160",
@@ -3202,7 +3862,11 @@
    "lat": 23.423383,
    "lng": 120.261063,
    "industry": "營造業",
-   "appeal": "訴願駁回"
+   "appeal": "訴願駁回",
+   "hazards": [
+    "chemical"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0161",
@@ -3222,7 +3886,11 @@
    "lat": 22.977614,
    "lng": 120.251062,
    "industry": "營造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "org"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0162",
@@ -3242,7 +3910,12 @@
    "lat": 22.557898,
    "lng": 120.4283,
    "industry": "製造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "contract",
+    "collapse"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0163",
@@ -3262,7 +3935,12 @@
    "lat": 24.919624,
    "lng": 121.306014,
    "industry": "批發及零售業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "fall",
+    "helmet"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0164",
@@ -3282,7 +3960,12 @@
    "lat": 24.176797,
    "lng": 120.642288,
    "industry": "運輸及倉儲業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "contract",
+    "collapse"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0165",
@@ -3302,7 +3985,11 @@
    "lat": 22.433637,
    "lng": 120.72337,
    "industry": "其他服務業",
-   "appeal": "訴願駁回"
+   "appeal": "訴願駁回",
+   "hazards": [
+    "org"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0166",
@@ -3322,7 +4009,11 @@
    "lat": 23.983203,
    "lng": 120.571102,
    "industry": "批發及零售業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "fall"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0167",
@@ -3342,7 +4033,11 @@
    "lat": 24.93738,
    "lng": 121.477017,
    "industry": "住宿及餐飲業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "org"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0168",
@@ -3362,7 +4057,11 @@
    "lat": 24.950838,
    "lng": 121.347718,
    "industry": "住宿及餐飲業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "org"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0169",
@@ -3382,7 +4081,12 @@
    "lat": 24.693301,
    "lng": 121.653877,
    "industry": "營造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "contract",
+    "collapse"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0170",
@@ -3402,7 +4106,11 @@
    "lat": 22.876442,
    "lng": 120.351488,
    "industry": "住宿及餐飲業",
-   "appeal": "訴願駁回"
+   "appeal": "訴願駁回",
+   "hazards": [
+    "training"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0171",
@@ -3422,7 +4130,11 @@
    "lat": 22.875781,
    "lng": 120.140507,
    "industry": "營造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "chemical"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0172",
@@ -3442,7 +4154,11 @@
    "lat": 25.071969,
    "lng": 121.595915,
    "industry": "批發及零售業",
-   "appeal": "訴願審理中"
+   "appeal": "訴願審理中",
+   "hazards": [
+    "training"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0173",
@@ -3462,7 +4178,12 @@
    "lat": 24.045578,
    "lng": 120.576771,
    "industry": "其他服務業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "contract",
+    "collapse"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0174",
@@ -3482,7 +4203,11 @@
    "lat": 25.050818,
    "lng": 121.398517,
    "industry": "其他服務業",
-   "appeal": "訴願審理中"
+   "appeal": "訴願審理中",
+   "hazards": [
+    "training"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0175",
@@ -3502,7 +4227,9 @@
    "lat": null,
    "lng": null,
    "industry": "製造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [],
+   "fatal": false
   },
   {
    "id": "osha_0176",
@@ -3522,7 +4249,11 @@
    "lat": 25.14147,
    "lng": 121.283719,
    "industry": "營造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "fall"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0177",
@@ -3542,7 +4273,12 @@
    "lat": 23.6997,
    "lng": 120.480074,
    "industry": "營造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "contract",
+    "collapse"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0178",
@@ -3562,7 +4298,11 @@
    "lat": 24.218026,
    "lng": 120.672459,
    "industry": "營造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "fall"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0179",
@@ -3582,7 +4322,11 @@
    "lat": 25.089616,
    "lng": 121.308877,
    "industry": "住宿及餐飲業",
-   "appeal": "訴願駁回"
+   "appeal": "訴願駁回",
+   "hazards": [
+    "electric"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0180",
@@ -3602,7 +4346,12 @@
    "lat": 23.950215,
    "lng": 121.633915,
    "industry": "營造業",
-   "appeal": "訴願駁回"
+   "appeal": "訴願駁回",
+   "hazards": [
+    "contract",
+    "collapse"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0181",
@@ -3622,7 +4371,9 @@
    "lat": 25.089165,
    "lng": 121.60934,
    "industry": "製造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [],
+   "fatal": false
   },
   {
    "id": "osha_0182",
@@ -3642,7 +4393,11 @@
    "lat": null,
    "lng": null,
    "industry": "批發及零售業",
-   "appeal": "訴願駁回"
+   "appeal": "訴願駁回",
+   "hazards": [
+    "fall"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0183",
@@ -3662,7 +4417,12 @@
    "lat": 25.060123,
    "lng": 121.41902,
    "industry": "住宿及餐飲業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "fall",
+    "helmet"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0184",
@@ -3682,7 +4442,9 @@
    "lat": 22.478107,
    "lng": 120.173268,
    "industry": "其他服務業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [],
+   "fatal": false
   },
   {
    "id": "osha_0185",
@@ -3702,7 +4464,11 @@
    "lat": 24.643372,
    "lng": 121.835075,
    "industry": "製造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "org"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0186",
@@ -3722,7 +4488,11 @@
    "lat": 23.509377,
    "lng": 120.422405,
    "industry": "其他服務業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "training"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0187",
@@ -3742,7 +4512,11 @@
    "lat": 24.150642,
    "lng": 121.676236,
    "industry": "住宿及餐飲業",
-   "appeal": "訴願審理中"
+   "appeal": "訴願審理中",
+   "hazards": [
+    "org"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0188",
@@ -3762,7 +4536,11 @@
    "lat": 22.410198,
    "lng": 120.480146,
    "industry": "運輸及倉儲業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "electric"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0189",
@@ -3782,7 +4560,11 @@
    "lat": null,
    "lng": null,
    "industry": "營造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "electric"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0190",
@@ -3802,7 +4584,12 @@
    "lat": null,
    "lng": null,
    "industry": "住宿及餐飲業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "contract",
+    "collapse"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0191",
@@ -3822,7 +4609,11 @@
    "lat": null,
    "lng": null,
    "industry": "住宿及餐飲業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "training"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0192",
@@ -3842,7 +4633,11 @@
    "lat": null,
    "lng": null,
    "industry": "營造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "chemical"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0193",
@@ -3862,7 +4657,12 @@
    "lat": 22.528299,
    "lng": 120.256297,
    "industry": "運輸及倉儲業",
-   "appeal": "訴願審理中"
+   "appeal": "訴願審理中",
+   "hazards": [
+    "contract",
+    "collapse"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0194",
@@ -3882,7 +4682,9 @@
    "lat": 25.123292,
    "lng": 121.70967,
    "industry": "營造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [],
+   "fatal": false
   },
   {
    "id": "osha_0195",
@@ -3902,7 +4704,11 @@
    "lat": 22.645241,
    "lng": 120.30654,
    "industry": "營造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "fall"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0196",
@@ -3922,7 +4728,12 @@
    "lat": 25.033606,
    "lng": 121.570158,
    "industry": "運輸及倉儲業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "fall",
+    "helmet"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0197",
@@ -3942,7 +4753,12 @@
    "lat": 24.608892,
    "lng": 121.641269,
    "industry": "運輸及倉儲業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "fall",
+    "helmet"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0198",
@@ -3962,7 +4778,11 @@
    "lat": 22.645848,
    "lng": 120.193158,
    "industry": "營造業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [
+    "org"
+   ],
+   "fatal": false
   },
   {
    "id": "osha_0199",
@@ -3982,7 +4802,9 @@
    "lat": 22.436864,
    "lng": 120.460958,
    "industry": "住宿及餐飲業",
-   "appeal": "訴願駁回"
+   "appeal": "訴願駁回",
+   "hazards": [],
+   "fatal": false
   },
   {
    "id": "osha_0200",
@@ -4002,7 +4824,9 @@
    "lat": 25.136517,
    "lng": 121.772249,
    "industry": "批發及零售業",
-   "appeal": null
+   "appeal": null,
+   "hazards": [],
+   "fatal": false
   }
  ]
 }

@@ -310,9 +310,17 @@ def main(argv=None) -> int:
         sizes.append(len(body.encode()))
         total += len(sh["e"])
 
-    (out / "hazards.json").write_text(json.dumps(
-        {code: {"name": name, "duty": duty} for code, name, _p, duty in HAZARDS},
-        ensure_ascii=False, indent=1), encoding="utf-8")
+    haz = {code: {"name": name, "duty": duty}
+           for code, name, _p, duty in HAZARDS}
+    (out / "hazards.json").write_text(
+        json.dumps(haz, ensure_ascii=False, indent=1), encoding="utf-8")
+    # ⚠ 地圖頁與查詢頁都要用危害型態表，而 web/public/data/ 不進 git。
+    #   所以同一份也寫進 web/src/data/（15 筆，很小），由前端 import。
+    #   改了 pipeline/hazard.py 就重跑 publish，兩邊才不會走鐘。
+    src_haz = Path("web/src/data/hazards.json")
+    if src_haz.parent.exists():
+        src_haz.write_text(
+            json.dumps(haz, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
 
     # ⚠ 跨語言的雜湊對拍。前端載入時會驗這幾組；對不上就是
     #   fnv1a() 或 norm_name() 有一邊被改過。那種 bug 的症狀是

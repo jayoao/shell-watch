@@ -37,6 +37,13 @@ export interface OshaIncident {
   industry: string | null;
   /** 訴願結果。有值代表案件曾被爭議，呈現時要標註 */
   appeal: string | null;
+  /** ⚠ 選填。危害型態代碼，由 pipeline/hazard.py 規則歸類。
+   *  空陣列代表「公告文字未指明」，那跟「沒有危害」是兩件事。
+   *  代碼對應的名稱與法規義務在 web/src/data/hazards.json。 */
+  hazards?: string[];
+  /** ⚠ 選填。**公告文字裡提到**死亡災害，不等於這家公司造成死亡 ——
+   *  有些是「未於八小時內通報死亡災害」，罰的是通報義務。 */
+  fatal?: boolean;
 }
 
 export interface OshaDataset {
