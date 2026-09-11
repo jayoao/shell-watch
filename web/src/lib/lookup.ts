@@ -16,7 +16,8 @@
  *   那種 bug 沒有對拍測試會找很久。
  */
 import type {
-  Evidence, EvidenceKind, Hazard, LinkedCompany, LookupResult, Severity, ViolationRef,
+  EvidenceKind, Hazard, LinkedCompany, LookupResult, Principal,
+  Severity, ViolationRef,
 } from "../types/contracts";
 
 /** ⚠ 跟 pipeline/publish.py 的 fnv1a() 對拍，見 tests/test_publish.py */
@@ -63,7 +64,11 @@ interface RawEntry {
   a: string | null;
   v: RawViolation[];
   p?: string;
-  l?: [string, number, [string, string][]][];
+  /** 依「組的負責人姓名」分群的連結。同一家公司在來源裡有兩種姓名寫法時，
+   *  會有兩筆 —— 連結是靠哪一種寫法對上的，就掛在哪一種底下。 */
+  ps?: [string, [string, number, [string, string][]][]][];
+  /** 這家公司的公告裡出現過、但不是最常見的其他姓名寫法 */
+  alt?: string[];
 }
 
 /** 分片。e = 完整名稱 → 資料；a = 核心名 → 完整名稱清單 */
@@ -240,27 +245,43 @@ export async function lookup(query: string): Promise<LookupOutcome> {
   const own = toViolations(self.v, haz);
 
   // 關聯公司在別的分片，各抓一次。同一片只會抓一次（shardCache）。
-  const linked: LinkedCompany[] = [];
-  for (const [otherName, confidence, ev] of self.l ?? []) {
-    const other = await findEntry(otherName, shards);
-    const violations = other ? toViolations(other.v, haz) : [];
-    const evidence: Evidence[] = ev.map(([kind, detail]) => ({
-      kind: kind as EvidenceKind,
-      detail,
-    }));
-    linked.push({
-      tax_id: other?.t ?? "",
-      name: otherName,
-      status: other?.s ?? "",
-      established: other?.e ?? null,
-      // ⚠ entity 表沒有存「公司狀況日期」，寧可給 null 也不要把
-      //   「解散」這種狀態字塞進日期欄位騙過型別檢查。
-      dissolved: null,
-      confidence,
-      evidence,
-      violations,
+  //
+  // ⚠ 依**組的負責人姓名**分群。同一家公司在來源公告裡的姓名寫法可能不只一種
+  //   （實測有「徐健珩」4 筆、「徐建珩」1 筆的例子），而連結是靠其中一種
+  //   對上的。全部壓成一份清單，畫面就會出現「負責人 A 的姓名也出現在這些
+  //   公司」配上「B 很罕見」的證據 —— 兩個名字不一樣，使用者看不出為什麼。
+  const principals: Principal[] = [];
+  for (const [gp, entries] of self.ps ?? []) {
+    const linked: LinkedCompany[] = [];
+    for (const [otherName, confidence, ev] of entries) {
+      const other = await findEntry(otherName, shards);
+      linked.push({
+        tax_id: other?.t ?? "",
+        name: otherName,
+        status: other?.s ?? "",
+        established: other?.e ?? null,
+        // ⚠ entity 表沒有存「公司狀況日期」，寧可給 null 也不要把
+        //   「解散」這種狀態字塞進日期欄位騙過型別檢查。
+        dissolved: null,
+        confidence,
+        evidence: ev.map(([kind, detail]) => ({
+          kind: kind as EvidenceKind, detail,
+        })),
+        violations: other ? toViolations(other.v, haz) : [],
+      });
+    }
+    // 這家公司自己的公告用的是別的寫法時，老實寫出來。
+    const note = self.p && self.p !== gp
+      ? `本系統在這家公司的公開紀錄上另外看到「${self.p}」的寫法；`
+        + `這一組連結是以「${gp}」比對出來的。姓名寫法的差異來自來源公告。`
+      : "";
+    principals.push({
+      name: gp,
+      role: note ? `負責人（勞動部公告）\u3000${note}` : "負責人（勞動部公告）",
+      linked_companies: linked,
     });
   }
+  const linked = principals.flatMap((x) => x.linked_companies);
 
   const all = [...own, ...linked.flatMap((c) => c.violations)];
   const result: LookupResult = {
@@ -273,9 +294,7 @@ export async function lookup(query: string): Promise<LookupOutcome> {
       address: self.a,
       own_violations: own,
     },
-    principals: self.p
-      ? [{ name: self.p, role: "負責人（勞動部公告）", linked_companies: linked }]
-      : [],
+    principals,
     summary: {
       own_violation_count: own.length,
       linked_violation_count: linked.reduce((n, c) => n + c.violations.length, 0),

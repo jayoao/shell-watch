@@ -50,7 +50,7 @@ import re
 import shutil
 import sys
 import time
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -215,7 +215,12 @@ def main(argv=None) -> int:
 
     # ── 1. 裁處紀錄依公司分組 ────────────────────────────────
     by_company: dict[str, list] = defaultdict(list)
-    principal_of: dict[str, str] = {}
+    # ⚠ 同一家公司在不同公告裡的負責人姓名**寫法會不一樣**（來源的打字差異）。
+    #   實測「瀚強工程股份有限公司」有「徐健珩」4 筆、「徐建珩」1 筆。
+    #   原本用 setdefault 取第一個看到的，結果畫面標題顯示「徐健珩」，
+    #   但連結其實是靠「徐建珩」跟另一家對上的 —— 使用者看到的名字
+    #   跟證據講的名字不是同一個，而且看不出為什麼。
+    spellings: dict[str, Counter] = defaultdict(Counter)
     with RECORDS.open(encoding="utf-8-sig", newline="") as f:
         for r in csv.DictReader(f):
             c = (r.get("company") or "").strip()
@@ -223,7 +228,9 @@ def main(argv=None) -> int:
                 continue
             by_company[c].append(compact_violation(r))
             if r.get("principal"):
-                principal_of.setdefault(c, r["principal"])
+                spellings[c][r["principal"]] += 1
+    # 顯示用取最常見的寫法
+    principal_of = {c: n.most_common(1)[0][0] for c, n in spellings.items()}
     print(f"裁處紀錄依公司分組　{len(by_company):,} 家　"
           f"{sum(len(v) for v in by_company.values()):,} 筆　"
           f"（{time.time() - t0:.0f} 秒）")
@@ -262,20 +269,35 @@ def main(argv=None) -> int:
             "v": by_company[company],
         }
         principal = principal_of.get(company, "")
-        linked = []
-        seen = set()
-        for g in groups_of.get(company, []):
-            for other in g["company_list"].split(" → "):
-                if other == company or other in seen:
-                    continue
-                seen.add(other)
-                conf, ev = evidence_for(company, other, g, facts, addr_users)
-                linked.append([other, conf, ev])
         if principal:
             entry["p"] = principal
-        if linked:
-            # 強度高的排前面 —— 前端不必再排一次
-            entry["l"] = sorted(linked, key=lambda x: -x[1])
+
+        # ⚠ 依**組的負責人姓名**分群，不要壓成一份清單。
+        #   連結是靠某一種寫法對上的；把它掛在公司自己最常見的寫法底下，
+        #   畫面會出現「負責人 A 的姓名也出現在這些公司」配上「B 很罕見」
+        #   的證據 —— 兩個名字不一樣，而使用者看不出為什麼。
+        #   契約的 principals 本來就是陣列，一家公司有兩種寫法就給兩筆。
+        by_principal_linked: dict[str, list] = defaultdict(list)
+        seen: set[tuple[str, str]] = set()
+        for g in groups_of.get(company, []):
+            gp = g["principal"]
+            for other in g["company_list"].split(" → "):
+                if other == company or (gp, other) in seen:
+                    continue
+                seen.add((gp, other))
+                conf, ev = evidence_for(company, other, g, facts, addr_users)
+                by_principal_linked[gp].append([other, conf, ev])
+        if by_principal_linked:
+            entry["ps"] = [
+                [gp, sorted(v, key=lambda x: -x[1])]
+                for gp, v in sorted(by_principal_linked.items(),
+                                    key=lambda kv: -max(x[1] for x in kv[1]))
+            ]
+            # 公司自己的公告用的是別種寫法時，老實說出來 ——
+            # 那是來源資料的差異，藏起來只會讓畫面自相矛盾。
+            others = [w for w in spellings[company] if w != principal]
+            if others:
+                entry["alt"] = sorted(others)
         bucket = shards[shard_of(company)]["e"]
         key = norm_name(company)
         prev = bucket.get(key)
