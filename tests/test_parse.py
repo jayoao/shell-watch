@@ -74,9 +74,22 @@ MUST_FAIL = [
     "狐訾甄及陶順蒲等2人",
     "路孫華等5人",
     "職業安全衛生法第27條第1項",
+    # 缺右括號：補在哪裡不唯一（公司名到哪為止？），一律不猜。
     "豐熊安宏智富毅遠股份有限公司(武勇康",
-    "仁訾營造股份有限公司(夏和旺))",
+    # 同理，缺左括號。
+    "先鋒保全股份有限公司王至誠)",
     "",
+]
+
+# ⚠ 這一筆從 MUST_FAIL 移出來了，而且是**有證據**才移的。
+#   原本的想法是「括號沒配對就不要猜」。但人工標註（T3）在
+#   「崧富營造股份有限公司(林其霖))」這種形狀上標了「拆錯」——
+#   多出來的那個 ")' 前面已經有成對的括號，**還原方式唯一**，
+#   不是猜測。缺一邊的（上面兩筆）才是猜測，那些照舊拒絕。
+MUST_PARSE_AFTER_REPAIR = [
+    ("仁訾營造股份有限公司(夏和旺))", "仁訾營造股份有限公司", "夏和旺"),
+    ("金嘉企業有限公司(陳金忠君))", "金嘉企業有限公司", "陳金忠"),
+    ("日商馬爾貝克有限公司)(松原勇太)", "日商馬爾貝克有限公司", "松原勇太"),
 ]
 
 
@@ -103,6 +116,16 @@ def main() -> int:
             bad += 1
             print(f"  ✗ {raw!r} 不該被拆開，卻拆成 {got.company} | {got.principal}")
     print(f"  {len(MUST_FAIL)} 筆檢查完畢")
+
+    print("\n── 括號多打、還原唯一的（修好之後要拆得開）──")
+    for raw, want_c, want_p in MUST_PARSE_AFTER_REPAIR:
+        got = parse_employer(raw)
+        if got.company != want_c or got.principal != want_p:
+            bad += 1
+            print(f"  ✗ {raw!r}")
+            print(f"      期望 {want_c} | {want_p}")
+            print(f"      實得 {got.company} | {got.principal}  ({got.kind})")
+    print(f"  {len(MUST_PARSE_AFTER_REPAIR)} 筆檢查完畢")
 
     path = Path(__file__).parent / "fixtures" / "hard_employers.txt"
     rows = [l.rstrip("\n") for l in path.read_text(encoding="utf-8").splitlines()

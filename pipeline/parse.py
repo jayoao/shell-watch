@@ -62,7 +62,21 @@ Kind = Literal[
 # ── 字元類 ──────────────────────────────────────────────────
 # 中文字要含增補平面。真實資料裡有 蔡振𥪕(U+25A55)、阮𥡪葶、朱家㯋、徐已𦍻，
 # 只寫 [一-鿿] 會把這些人整個丟掉。
-_HAN = r"㐀-䶿一-鿿豈-﫿\U00020000-\U0003ffff"
+# ⚠ 倒數第二段 \ue000-\uf8ff 是 Unicode 私用區（PUA）—— 台灣政府系統的**造字**。
+#   Unicode 收不到的罕用字被編在這個區段。
+#
+#   人工標註（T3）抓到的：實測 10,656 筆的 raw_employer 含造字，
+#   其中 **9,528 筆的負責人被整個丟掉**，涉及 2,615 家事業單位。
+#   原因是造字不在 _HAN 裡，「黃□明」不符合 _HAN_NAME，
+#   被判定「不是人名」，principal 變成空的、kind 掉成 company_only。
+#
+#   後果不是少一個欄位 —— 那 2,615 家公司在「以人為軸」的連結圖裡
+#   **完全不存在**，而那就是整個產品。而且畫面上不會有任何異狀。
+#
+#   ⚠ 造字碼位由 Big5 造字檔決定，跨系統不保證一致。同一個人在商工登記
+#     那邊可能是別的碼位或別的寫法，所以含造字的姓名在跨資料源比對時
+#     要當作弱證據。這一點要寫進已知限制。
+_HAN = r"㐀-䶿一-鿿豈-﫿\ue000-\uf8ff\U00020000-\U0003ffff"
 _NAME_SEP = r"·‧・．\."          # 原住民姓名的分隔點
 _ZERO_WIDTH = re.compile(r"[​-‏  ﻿]")
 
@@ -213,9 +227,50 @@ def _is_org(s: str) -> bool:
     )
 
 
+# ⚠ 只修「多打的」括號，不猜缺掉的。
+#   人工標註在 200 筆裡挑出 9 筆拆錯，其中 6 筆是括號畸形。但全庫只有
+#   405 筆拆不開（0.06%），括號畸形又只占其中 20 幾筆 —— 跟造字的
+#   9,528 筆差三個數量級。為了這 20 幾筆去猜括號該補在哪裡，
+#   風險遠大於收益：猜錯不是少一筆，是把**錯的人名**放進連結圖。
+_DUP_OPEN = re.compile(r"\(\s*\(")
+_DUP_CLOSE = re.compile(r"\)\s*\)")
+
+
+def repair_brackets(s: str) -> str:
+    """把多打的括號拿掉。**只在括號數量不平衡時動手。**
+
+    ⚠ 這裡犯過一次錯：原本無條件把 "))" 收成 ")"，結果把巢狀括號拆壞了 ——
+      「…股份有限公司(…控股股份有限公司(法定代理人:鄂利))」的結尾 "))"
+      是合法的，不是打字重複。只有右括號比左括號多時，多的那個才確定是多打的。
+    """
+    while s.count(")") > s.count("(") and _DUP_CLOSE.search(s):
+        s = _DUP_CLOSE.sub(")", s, count=1)
+    while s.count("(") > s.count(")") and _DUP_OPEN.search(s):
+        s = _DUP_OPEN.sub("(", s, count=1)
+    # 第一個 "(" 之前的 ")" 是多打的。
+    # ⚠ 只有在後面真的有 "(" 且右括號過多時才動 ——
+    #   「日日泰交通事業有限公司劉國興)」沒有左括號，把那個 ")" 拿掉會得到
+    #   一個把人名吃進去的公司名，比原本送人工還糟：那是安靜地產生錯的資料。
+    i = s.find("(")
+    if i > 0 and ")" in s[:i] and s.count(")") > s.count("("):
+        s = s[:i].replace(")", "") + s[i:]
+    return s
+
+
+# 「君」是舊式公文對人的敬稱，不是名字的一部分（「(陳金忠君)」）。
+# ⚠ 只有拿掉之後仍是合法姓名長度時才拿，避免砍到真的叫「○君」的人。
+_HONORIFIC = re.compile(rf"^([{_HAN}]{{2,4}})君$")
+
+
+def strip_honorific(name: str) -> str:
+    m = _HONORIFIC.match(name or "")
+    return m.group(1) if m else name
+
+
 def _clean_person(s: str) -> tuple[str | None, str]:
     """把括號裡那一坨整理成人名。回傳 (人名 or None, 註記)。"""
     t = s.strip().strip("。，,;；")
+    t = strip_honorific(t)          # 「陳金忠君」→「陳金忠」
     if not t:
         return None, ""
     # 「Jared David Wiener 中譯：魏傑瑞」→ 取中譯
@@ -301,7 +356,7 @@ def _peel(s: str) -> tuple[str, list[str]]:
 
 
 def parse_employer(raw: str) -> Parsed:
-    s = normalize(raw)
+    s = repair_brackets(normalize(raw))
     if not s:
         return Parsed(raw, None, None, "unparsed", False, "空值")
 

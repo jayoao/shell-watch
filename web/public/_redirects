@@ -1,0 +1,8 @@
+# SPA 的路由退路：/osha 這種路徑在伺服器上沒有對應檔案，
+# 要交給 index.html 讓 react-router 自己處理。
+#
+# ⚠ Cloudflare Pages 會**先找靜態檔案**，找不到才套這條規則。
+#   所以 /data/c/123.json 存在時照常回傳；不存在時會回 index.html（HTTP 200）。
+#   lookup.ts 的 getJSON() 對「解析 JSON 失敗」有 try/catch，
+#   會退回展示樣本而不是整頁壞掉 —— 那是刻意的，不是漏掉。
+/*    /index.html   200

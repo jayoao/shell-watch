@@ -43,6 +43,7 @@
 """
 from __future__ import annotations
 
+import argparse
 import csv
 import random
 import sys
@@ -58,18 +59,30 @@ OUT = Path("data/severity_review.csv")
 OUT_KEY = Path("data/severity_review_key.csv")
 
 SEED = 20260904
-N = 100
 
 # 分層 → 要抽幾筆。刻意讓輕重都有，也刻意保留「沒有罰鍰金額」那一層 ——
 # 那一層佔全部的 78.6%，是系統最沒把握的地方，最需要人的判斷。
+# ⚠ 總數 150 是工作說明書 T7 訂的，不要自己改成別的數字 ——
+#   隊友是照手冊排時間的（估 2 小時），檔案跟手冊對不上會讓人以為漏給了。
 QUOTA = {
-    "職安·死亡災害": 15,
-    "職安·高額罰鍰": 12,
-    "職安·無金額": 25,
-    "職安·一般": 18,
-    "其他法規·有金額": 15,
-    "其他法規·無金額": 15,
+    "職安·死亡災害": 20,
+    "職安·高額罰鍰": 18,
+    "職安·無金額": 40,
+    "職安·一般": 27,
+    "其他法規·有金額": 22,
+    "其他法規·無金額": 23,
 }
+assert sum(QUOTA.values()) == 150, "T7 的總數是 150 筆（工作說明書）"
+
+
+def flat(v: str) -> str:
+    """把換行壓成「／」。
+
+    ⚠ 含換行的儲存格用 Excel 開了再存會整格跑掉 —— 實測隊友回傳的第一版
+      就有兩列因此錯位（S009 整格變空、內容跑到 S010），標籤貼到別筆內容上。
+      而且畫面上看不出來。標註檔寧可難看一點，也不要讓資料悄悄變形。
+    """
+    return re.sub(r"\s*\n\s*", "／", (v or "").strip())
 
 
 def layer(r: dict) -> str:
@@ -100,14 +113,18 @@ def rule_severity(fine: int, violation: str) -> str:
     return "輕微"
 
 
-def main() -> int:
+def main(argv=None) -> int:
     use_utf8_stdout()
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--force", action="store_true",
+                    help="覆蓋已存在的標註檔（⚠ 已標好的內容會全部作廢）")
+    a = ap.parse_args(argv)
     if not RECORDS.exists():
         print(f"找不到 {RECORDS}", file=sys.stderr)
         return 1
-    if OUT.exists():
+    if OUT.exists() and not a.force:
         print(f"{OUT} 已經存在。重新產生會讓已經標好的東西全部作廢。\n"
-              f"確定要重來的話，先手動把舊檔改名或刪掉。", file=sys.stderr)
+              f"確定要重來的話加 --force。", file=sys.stderr)
         return 1
 
     buckets: dict[str, list[dict]] = defaultdict(list)
@@ -135,12 +152,15 @@ def main() -> int:
     # ── 標註檔：只有描述，沒有金額、沒有公司名、沒有系統判斷 ──
     with OUT.open("w", encoding="utf-8-sig", newline="") as f:
         w = csv.writer(f)
+        # ⚠ 一定要有「無法判斷」這一格。有些描述只寫「未依規定辦理」，
+        #   沒有指明是哪一種危害 —— 逼標註者從三級裡硬選一個，
+        #   等於把他們的猜測記錄成資料。
         w.writerow(["編號", "違反法規", "法規法條", "違反內容",
-                    "嚴重度（輕微/中度/重大）", "理由"])
+                    "嚴重度（輕微/中度/重大/無法判斷）", "理由"])
         for i, r in enumerate(picked, 1):
             w.writerow([f"S{i:03d}", r.get("law", ""),
-                        r.get("law_article", ""),
-                        (r.get("violation") or "").strip(), "", ""])
+                        flat(r.get("law_article", "")),
+                        flat(r.get("violation", "")), "", ""])
 
     # ── 對照檔：⚠ 標註完成前不要打開 ──
     with OUT_KEY.open("w", encoding="utf-8-sig", newline="") as f:

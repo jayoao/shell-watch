@@ -30,18 +30,36 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from common import use_utf8_stdout            # noqa: E402
 
 COL_ID = "編號"
-COL_LABEL = "判斷（是/可能/否/無法判斷）"
+
+# 三份標註檔的判斷欄名稱不一樣。不要寫死一個，也不要用「最後一欄」之類的
+# 猜測 —— 猜錯會安靜地讀到「理由」欄，然後算出一個看起來很正常的 kappa。
+LABEL_COLS = (
+    "判斷（是/可能/否/無法判斷）",              # T6 配對
+    "嚴重度（輕微/中度/重大/無法判斷）",          # T7 嚴重度
+    "拆得對嗎（對/錯）",                      # T3 欄位解析
+)
 
 
-def read(path: Path) -> dict[str, str]:
+def label_col(fieldnames) -> str:
+    for c in LABEL_COLS:
+        if c in (fieldnames or ()):
+            return c
+    raise SystemExit(
+        "這個檔案沒有認得出來的判斷欄。支援的欄名：\n  "
+        + "\n  ".join(LABEL_COLS))
+
+
+def read(path: Path) -> tuple[dict[str, str], str]:
     out: dict[str, str] = {}
     with path.open(encoding="utf-8-sig", newline="") as f:
-        for r in csv.DictReader(f):
+        rd = csv.DictReader(f)
+        col = label_col(rd.fieldnames)
+        for r in rd:
             rid = (r.get(COL_ID) or "").strip()
-            lab = (r.get(COL_LABEL) or "").strip()
+            lab = (r.get(col) or "").strip()
             if rid and lab:
                 out[rid] = lab
-    return out
+    return out, col
 
 
 def kappa(a: dict[str, str], b: dict[str, str]) -> tuple[float, int, dict]:
@@ -71,13 +89,20 @@ def main(argv: list[str]) -> int:
         if not p.exists():
             print(f"找不到 {p}", file=sys.stderr)
             return 1
-    a, b = read(pa), read(pb)
+    (a, ca), (b, cb) = read(pa), read(pb)
+    # ⚠ 兩份檔案讀到不同的判斷欄 = 拿配對標註去跟嚴重度標註比。
+    #   那會算出一個看起來很正常、但毫無意義的數字。
+    if ca != cb:
+        print(f"兩份檔案的判斷欄不一樣：\n  {pa.name} → {ca}\n  {pb.name} → {cb}\n"
+              f"這兩份不是同一份標註任務，不能算 kappa。", file=sys.stderr)
+        return 1
     k, n, matrix = kappa(a, b)
     if not n:
         print("兩份檔案沒有共同的、都填了判斷的編號。", file=sys.stderr)
         return 1
 
     agree = sum(v for (x, y), v in matrix.items() if x == y)
+    print(f"標註任務：{ca}")
     print(f"共同標註 {n} 組")
     print(f"直接一致 {agree}/{n} = {100 * agree / n:.1f}%")
     print(f"\nCohen's kappa = {k:.3f}", end="  ")

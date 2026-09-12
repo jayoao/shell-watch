@@ -1,0 +1,16 @@
+# Vite 會在檔名裡放內容雜湊，所以可以永久快取。
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# 分片的檔名**沒有雜湊**（編號是 FNV-1a 算出來的，資料更新後檔名不變），
+# 所以不能永久快取，否則重新部署之後使用者會查到舊資料。
+# 一小時是折衷：查詢很快，資料更新最多一小時內生效。
+/data/*
+  Cache-Control: public, max-age=3600, must-revalidate
+
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: no-referrer
+  # ⚠ 不要讓搜尋引擎收錄。見 robots.txt 的說明。
+  X-Robots-Tag: noindex, nofollow
