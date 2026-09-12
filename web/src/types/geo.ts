@@ -24,6 +24,11 @@ export interface DistrictRow {
   base: number;
   /** 危害型態代碼 → 筆數（15 種全帶） */
   haz: Record<string, number>;
+  /** 危害型態代碼 → 其中涉及死亡災害的筆數。篩選危害型態時要用這個，
+   *  不能用 fatal —— fatal 是全部型態合計。 */
+  hazf: Record<string, number>;
+  /** 危害型態代碼 → 其中行政救濟尚未終結的筆數。理由同 hazf。 */
+  hazp: Record<string, number>;
   /** 裁處年份 → 筆數 */
   yr: Record<string, number>;
 }

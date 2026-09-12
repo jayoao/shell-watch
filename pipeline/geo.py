@@ -187,7 +187,8 @@ def main() -> int:
             continue
         matched_all += 1
         cell = agg.setdefault(d, {"n": 0, "all": 0, "fatal": 0, "pending": 0,
-                                  "haz": Counter(), "yr": Counter()})
+                                  "haz": Counter(), "hazf": Counter(),
+                                  "hazp": Counter(), "yr": Counter()})
         cell["all"] += 1
         companies[d].add(co)
         if not osha:
@@ -195,13 +196,23 @@ def main() -> int:
         matched_osha += 1
         cell["n"] += 1
         v = row.violation if isinstance(row.violation, str) else ""
-        if is_fatal(v):
+        fatal = is_fatal(v)
+        if fatal:
             cell["fatal"] += 1
         rm = row.remark if isinstance(row.remark, str) else ""
-        if any(k in rm for k in PENDING):
+        pending = any(k in rm for k in PENDING)
+        if pending:
             cell["pending"] += 1
         for code in classify(v):
             cell["haz"][code] += 1
+            # ⚠ 每個危害型態各自的死亡筆數也要留。
+            #   不留的話，前端一旦篩「只看感電」，畫面上的
+            #   「其中 N 筆涉及死亡災害」還是全部危害型態的 N ——
+            #   數字沒錯，但它回答的已經不是使用者看到的那個問題了。
+            if fatal:
+                cell["hazf"][code] += 1
+            if pending:
+                cell["hazp"][code] += 1
         dd = row.disposition_date
         if isinstance(dd, str) and len(dd) >= 4 and dd[:4].isdigit():
             cell["yr"][dd[:4]] += 1
@@ -219,6 +230,8 @@ def main() -> int:
             #   只給前 5 名的話「只看感電」在多數區會查不到東西，
             #   而畫面上看起來就像那些區沒有感電案件。
             "haz": dict(cell["haz"].most_common()),
+            "hazf": {k: cell["hazf"][k] for k in cell["haz"] if cell["hazf"][k]},
+            "hazp": {k: cell["hazp"][k] for k in cell["haz"] if cell["hazp"][k]},
             "yr": dict(sorted(cell["yr"].items())),
         })
     rows.sort(key=lambda r: -r["n"])

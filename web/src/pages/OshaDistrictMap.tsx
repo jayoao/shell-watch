@@ -24,8 +24,21 @@ import type { DistrictDataset, DistrictRow } from "../types/geo";
 import raw from "../data/osha_district.json";
 import hazardTable from "../data/hazards.json";
 
-const TAIWAN_CENTER: [number, number] = [23.7, 121.0];
-const DEFAULT_ZOOM = 7;
+/**
+ * 預設檢視用 bounds 讓 Leaflet 自己挑縮放，不要寫死 center + zoom。
+ *
+ * ⚠ 寫死 zoom 7 的下場：容器寬 1,000px 時，畫面橫向會塞進 11 個經度，
+ *   而台灣本島只有 1.5 個經度寬 —— 結果整張圖七成是福建、琉球跟巴丹群島，
+ *   台灣縮在中間一小條，所有圓點擠成一團看不出差別。
+ *   用 bounds 的話，縮放會跟著容器實際大小算，換螢幕也不會歪。
+ *
+ * 範圍只框本島。金門（118.3E）與連江（26.1N）離太遠，
+ * 框進來會讓整個本島再縮小一半 —— 那兩縣的資料還在圖上，縮小就看得到。
+ */
+const TAIWAN_BOUNDS: [[number, number], [number, number]] = [
+  [21.85, 119.95],
+  [25.35, 122.05],
+];
 
 /** 危害型態代碼 → 名稱。分類在 pipeline/hazard.py 做，前端只查表。 */
 const HAZARD_NAME: Record<string, string> = Object.fromEntries(
@@ -50,10 +63,17 @@ const METRIC_LABEL: Record<Metric, string> = {
   fatal: "公告涉及死亡災害的件數",
 };
 
-/** 圓點半徑（像素）。用平方根是因為人眼看的是面積不是半徑。 */
+/**
+ * 圓點半徑（像素）。用平方根是因為人眼看的是**面積**不是半徑 ——
+ * 直接拿數值當半徑的話，10 倍的值會畫成 100 倍大的圓。
+ *
+ * ⚠ 最大值只給到 15px。西部工業帶的鄉鎮市區本來就擠，
+ *   圓再大一點整條海岸線就糊成一塊藍色，看不出哪個區是哪個區。
+ *   （試過 22px，實測就是糊掉。）
+ */
 function radiusFor(value: number, max: number): number {
   if (value <= 0 || max <= 0) return 0;
-  return 3 + Math.sqrt(value / max) * 22;
+  return 2 + Math.sqrt(value / max) * 10;
 }
 
 /**
@@ -103,13 +123,31 @@ export default function OshaDistrictMap() {
   }, [data, countyFilter, metric]);
 
   /** 每個區在目前設定下要畫多大。fatal 不受危害型態篩選影響，所以要分開。 */
+  /**
+   * 同一個篩選條件下，涉及死亡災害的筆數。
+   *
+   * ⚠ 篩了危害型態就一定要用 hazf，不能用 r.fatal。
+   *   不然畫面會變成「合計 3,404 筆（感電），其中 1,959 筆涉及死亡災害」——
+   *   兩個數字各自都對，放在一起卻在回答一個沒有人問的問題。
+   */
+  const fatalOf = useMemo(
+    () => (r: DistrictRow) => (hazardFilter ? r.hazf[hazardFilter] ?? 0 : r.fatal),
+    [hazardFilter],
+  );
+
+  /** 同理，行政救濟尚未終結的筆數也要跟著篩，不然會變成另一個同樣的錯。 */
+  const pendingOf = useMemo(
+    () => (r: DistrictRow) => (hazardFilter ? r.hazp[hazardFilter] ?? 0 : r.pending),
+    [hazardFilter],
+  );
+
   const valueOf = useMemo(
     () => (r: DistrictRow): number => {
-      if (metric === "fatal") return r.fatal;
+      if (metric === "fatal") return fatalOf(r);
       const n = countOf(r);
       return metric === "rate" ? (r.base > 0 ? (1000 * n) / r.base : 0) : n;
     },
-    [metric, countOf],
+    [metric, countOf, fatalOf],
   );
 
   const max = useMemo(
@@ -117,23 +155,22 @@ export default function OshaDistrictMap() {
     [rows, valueOf],
   );
 
-  const top = useMemo(
-    () => [...rows].sort((a, b) => valueOf(b) - valueOf(a)).slice(0, 10),
+  const ranked = useMemo(
+    () => [...rows].sort((a, b) => valueOf(b) - valueOf(a)),
     [rows, valueOf],
   );
+
+  const top = useMemo(() => ranked.slice(0, 10), [ranked]);
 
   const stats = useMemo(() => {
     const shown = rows.filter((r) => valueOf(r) > 0);
     return {
       districts: shown.length,
       records: rows.reduce((s, r) => s + countOf(r), 0),
-      fatal: rows.reduce((s, r) => s + r.fatal, 0),
-      pending: rows.reduce((s, r) => s + r.pending, 0),
+      fatal: rows.reduce((s, r) => s + fatalOf(r), 0),
+      pending: rows.reduce((s, r) => s + pendingOf(r), 0),
     };
-  }, [rows, valueOf, countOf]);
-
-  const fmt = (v: number) =>
-    metric === "rate" ? v.toFixed(1) : v.toLocaleString();
+  }, [rows, valueOf, countOf, fatalOf, pendingOf]);
 
   return (
     <div>
@@ -183,7 +220,6 @@ export default function OshaDistrictMap() {
           <select
             value={hazardFilter}
             onChange={(e) => setHazardFilter(e.target.value)}
-            disabled={metric === "fatal"}
           >
             <option value="">全部</option>
             {hazards.map((h) => (
@@ -215,10 +251,19 @@ export default function OshaDistrictMap() {
           ` · 只列入現存登記事業單位 ${MIN_BASE} 家以上的區（分母太小的率不可靠）`}
       </p>
 
+      {/*
+        ⚠ 地圖要限寬，不能撐滿版面。
+          台灣本島只有 2.1 個經度寬、3.5 個緯度高 —— 一個 1,000px 寬的框
+          在高度剛好裝下台灣時，橫向會多出 5 個經度的海，
+          畫面七成是福建跟太平洋。限寬到 660px 之後比例才接近本島本身
+          （本島會佔滿高度的九成、寬度的一半左右，那就是台灣的長相）。
+      */}
       <div
         style={{
-          height: "66vh",
-          minHeight: 400,
+          height: "70vh",
+          minHeight: 440,
+          maxWidth: 660,
+          margin: "0 auto",
           borderRadius: 14,
           overflow: "hidden",
           border: "1px solid var(--line)",
@@ -226,9 +271,24 @@ export default function OshaDistrictMap() {
         }}
       >
         <MapContainer
-          center={TAIWAN_CENTER}
-          zoom={DEFAULT_ZOOM}
+          bounds={TAIWAN_BOUNDS}
+          boundsOptions={{ padding: [10, 10] }}
+          /*
+           * ⚠ zoomSnap 預設是 1，縮放只能是整數級。
+           *   本島在這個框裡剛好卡在 7 跟 8 中間 —— 只能取整數的話
+           *   會退回 7，然後台灣又縮成一小條。改成 0.25 才吃得到 7.75。
+           */
+          zoomSnap={0.25}
+          minZoom={6}
           style={{ height: "100%", width: "100%" }}
+          /*
+           * 滾輪縮放維持開啟 —— 這是實際使用後決定的。
+           *
+           * 已知的取捨：地圖有 66vh 高，游標停在地圖上時滾輪會縮放而不是
+           * 捲頁面，要看下面的排行榜得先把游標移出地圖。
+           * 如果哪天覺得卡（特別是展示或錄影時滾一下地圖就跳掉），
+           * 把這行改成 scrollWheelZoom={false} 即可，其餘不用動。
+           */
           scrollWheelZoom
         >
           <TileLayer
@@ -236,7 +296,8 @@ export default function OshaDistrictMap() {
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
 
-          {rows.map((r) => {
+          {/* 大圓先畫、小圓後畫 —— 不然彰化那一帶的小區會被鄰居蓋住點不到 */}
+          {ranked.map((r) => {
             const v = valueOf(r);
             if (v <= 0) return null;
             const color = metric === "fatal" ? "var(--sev-high)" : "var(--accent-fill)";
@@ -248,8 +309,15 @@ export default function OshaDistrictMap() {
                 pathOptions={{
                   color,
                   fillColor: color,
-                  fillOpacity: 0.45,
-                  weight: 1.2,
+                  /*
+                   * 填色要淡、外框要清楚。
+                   * ⚠ 西部工業帶的鄉鎮市區本來就擠，300 個圓一定會重疊。
+                   *   填得越實，重疊處越糊成一塊；改成淡填色＋明顯外框之後，
+                   *   重疊的圓會讀成「幾個圈圈疊在一起」而不是「一坨藍色」。
+                   */
+                  fillOpacity: 0.22,
+                  opacity: 0.9,
+                  weight: 1.4,
                 }}
               >
                 <Popup>
@@ -281,14 +349,14 @@ export default function OshaDistrictMap() {
                     {/* ⚠ 措辭固定：「涉及」不是「造成」。有些公告罰的是
                         「未於八小時內通報死亡災害」，寫成「造成死亡」
                         就是把通報違規講成殺人。 */}
-                    {r.fatal > 0 && (
+                    {fatalOf(r) > 0 && (
                       <div style={{ color: "var(--sev-high)", fontWeight: 700 }}>
-                        其中 {r.fatal} 筆公告涉及死亡災害
+                        其中 {fatalOf(r)} 筆公告涉及死亡災害
                       </div>
                     )}
-                    {r.pending > 0 && (
+                    {pendingOf(r) > 0 && (
                       <div style={{ color: "var(--warn)" }}>
-                        {r.pending} 筆行政救濟尚未終結，原處分是否維持仍待確定
+                        {pendingOf(r)} 筆行政救濟尚未終結，原處分是否維持仍待確定
                       </div>
                     )}
                     <div style={{ color: "var(--ink-2)", marginTop: 4 }}>
@@ -313,34 +381,50 @@ export default function OshaDistrictMap() {
 
       <h2 style={{ fontSize: 17, margin: "20px 0 8px" }}>
         前 10 名 · {METRIC_LABEL[metric]}
-        {hazardFilter && metric !== "fatal" && ` · 只看${HAZARD_NAME[hazardFilter]}`}
+        {hazardFilter && ` · 只看${HAZARD_NAME[hazardFilter]}`}
       </h2>
+      {/*
+        ⚠ 欄位固定，不隨「顯示」改變 —— 只有排序跟粗體會變。
+          之前「顯示」選裁處件數時，第 2 欄和第 3 欄會印出一模一樣的數字
+          （值＝裁處件數），看起來像程式壞掉。四個數字一起看也比較有用：
+          率高是因為分子大還是分母小，一眼就看得出來。
+      */}
       <table className="sw-table" style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead>
           <tr>
             <th style={{ textAlign: "left" }}>鄉鎮市區</th>
-            <th style={{ textAlign: "right" }}>{METRIC_LABEL[metric]}</th>
-            <th style={{ textAlign: "right" }}>裁處件數</th>
+            <th style={{ textAlign: "right", fontWeight: metric === "rate" ? 800 : 500 }}>
+              每千家{metric === "rate" && " ▼"}
+            </th>
+            <th style={{ textAlign: "right", fontWeight: metric === "count" ? 800 : 500 }}>
+              裁處件數{metric === "count" && " ▼"}
+            </th>
             <th style={{ textAlign: "right" }}>現存登記家數</th>
-            <th style={{ textAlign: "right" }}>涉及死亡災害</th>
+            <th style={{ textAlign: "right", fontWeight: metric === "fatal" ? 800 : 500 }}>
+              涉及死亡災害{metric === "fatal" && " ▼"}
+            </th>
           </tr>
         </thead>
         <tbody>
           {top.map((r) => (
             <tr key={r.k} style={{ borderTop: "1px solid var(--line)" }}>
               <td>{r.k}</td>
-              <td style={{ textAlign: "right", fontWeight: 600 }}>
-                {fmt(valueOf(r))}
-                {metric === "rate" && (
-                  <span style={{ color: "var(--ink-3)", fontWeight: 400 }}>
-                    {" ± "}
-                    {rateSE2(countOf(r), r.base).toFixed(1)}
-                  </span>
+              <td style={{ textAlign: "right" }}>
+                {r.base >= MIN_BASE ? (
+                  <>
+                    <strong>{((1000 * countOf(r)) / r.base).toFixed(1)}</strong>
+                    <span style={{ color: "var(--ink-3)" }}>
+                      {" ± "}
+                      {rateSE2(countOf(r), r.base).toFixed(1)}
+                    </span>
+                  </>
+                ) : (
+                  <span style={{ color: "var(--ink-3)" }}>分母不足</span>
                 )}
               </td>
               <td style={{ textAlign: "right" }}>{countOf(r).toLocaleString()}</td>
               <td style={{ textAlign: "right" }}>{r.base.toLocaleString()}</td>
-              <td style={{ textAlign: "right" }}>{r.fatal.toLocaleString()}</td>
+              <td style={{ textAlign: "right" }}>{fatalOf(r).toLocaleString()}</td>
             </tr>
           ))}
         </tbody>
@@ -354,6 +438,9 @@ export default function OshaDistrictMap() {
         <br />
         各縣市的資料公開期間長短不一（有些縣市不到 2 年，基隆市與新竹市的職安法一筆都沒有），
         跨地區比較請一併考慮這一點。
+        <br />
+        預設檢視只框住本島；金門縣與連江縣的資料也在圖上，要縮小才看得到。
+        地圖可用滾輪、左上角的 + / − 或雙擊縮放。
       </p>
     </div>
   );
