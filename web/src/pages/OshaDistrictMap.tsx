@@ -18,8 +18,14 @@
    篩選列與 Popup 的措辭都是從那支沿用過來的。
    ============================================================ */
 
-import { useMemo, useState } from "react";
-import { MapContainer, GeoJSON, CircleMarker, Popup } from "react-leaflet";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  MapContainer,
+  GeoJSON,
+  CircleMarker,
+  Popup,
+  useMap,
+} from "react-leaflet";
 import type { GeoJsonObject } from "geojson";
 import type { DistrictDataset, DistrictRow } from "../types/geo";
 import raw from "../data/osha_district.json";
@@ -122,6 +128,46 @@ function rateSE2(n: number, base: number): number {
   if (base <= 0) return 0;
   const p = n / base;
   return 2 * Math.sqrt(Math.max(p * (1 - p), 0) / base) * 1000;
+}
+
+/**
+ * ⚠⚠ 這個元件不是裝飾，沒有它整張圖在正式站上是**空白的**。
+ *
+ * Leaflet 在建立地圖時量一次容器尺寸就**快取起來**。如果那一刻容器的寬度
+ * 是 0（分頁在背景、視窗還在開、CSS 還沒套上、lazy chunk 比樣式先到），
+ * 它會把裁切範圍算成 0 寬，然後**每一個圖形的 d 都變成 "M0 0"** ——
+ * DOM 裡 667 個 path 都在，畫面上什麼都沒有，而且不會有任何錯誤訊息。
+ *
+ * 實際踩到的樣子：本機一切正常、部署到 Cloudflare 之後整張圖空白。
+ * 本機之所以「正常」，是因為開發時視窗被改過大小，
+ * 觸發了 Leaflet 自己的 resize 處理把尺寸救回來 —— 等於把證據擦掉了。
+ *
+ * 所以用 ResizeObserver 盯著容器：
+ *   · 每次尺寸變化都 invalidateSize()，把快取的尺寸更新
+ *   · 第一次量到「寬度真的大於 0」時才套用預設檢視（fitBounds）
+ *     ⚠ 之後的 resize 不再 fitBounds —— 不然使用者放大到某個區去看，
+ *       一改視窗大小就被彈回全台，那比不會自動調整更煩。
+ */
+function KeepSized({ bounds }: { bounds: [[number, number], [number, number]] }) {
+  const map = useMap();
+  const fitted = useRef(false);
+
+  useEffect(() => {
+    const el = map.getContainer();
+    const sync = () => {
+      map.invalidateSize({ animate: false });
+      if (!fitted.current && el.clientWidth > 0 && el.clientHeight > 0) {
+        map.fitBounds(bounds, { padding: [10, 10] });
+        fitted.current = true;
+      }
+    };
+    sync();
+    const ro = new ResizeObserver(sync);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [map, bounds]);
+
+  return null;
 }
 
 export default function OshaDistrictMap() {
@@ -328,6 +374,7 @@ export default function OshaDistrictMap() {
            */
           scrollWheelZoom
         >
+          <KeepSized bounds={TAIWAN_BOUNDS} />
           <GeoJSON data={BOUNDARIES} style={() => LAND} interactive={false} />
 
           {/* 大圓先畫、小圓後畫 —— 不然彰化那一帶的小區會被鄰居蓋住點不到 */}
