@@ -19,9 +19,11 @@
    ============================================================ */
 
 import { useMemo, useState } from "react";
-import { MapContainer, TileLayer, CircleMarker, Popup } from "react-leaflet";
+import { MapContainer, GeoJSON, CircleMarker, Popup } from "react-leaflet";
+import type { GeoJsonObject } from "geojson";
 import type { DistrictDataset, DistrictRow } from "../types/geo";
 import raw from "../data/osha_district.json";
+import boundaries from "../data/tw_districts.json";
 import hazardTable from "../data/hazards.json";
 
 /**
@@ -35,6 +37,40 @@ import hazardTable from "../data/hazards.json";
  * 範圍只框本島。金門（118.3E）與連江（26.1N）離太遠，
  * 框進來會讓整個本島再縮小一半 —— 那兩縣的資料還在圖上，縮小就看得到。
  */
+/**
+ * 底圖用我們自己的鄉鎮市區界，**不打任何外部圖磚伺服器**。
+ *
+ * ⚠ 原本用的是 tile.openstreetmap.org。上線之後整張圖變成一格一格的
+ *   「Access blocked / 403」—— OSM 的圖磚是志工出錢跑的，有使用政策，
+ *   公開網站直接打它會被封，而且是**部署之後才會知道**。
+ *
+ * 更根本的問題是它違反這個專案自己的原則：「不需要資料庫、不需要伺服器，
+ * 展示當天不會因為後端掛掉而開天窗」。地圖頁偷偷開了一個對第三方的依賴，
+ * 而那個依賴掛掉的時候，畫面上是一堆 403 而不是一張空白地圖 —— 更難看。
+ *
+ * 換成自己的界線之後：零外部請求、離線可用、換誰的網路都一樣。
+ * 代價是沒有地名標籤（Popup 裡有區名補上）與 288 KB 的檔案
+ * （gzip 後 78 KB，而且這一頁是 lazy 載入的，查詢頁不受影響）。
+ */
+const BOUNDARIES = boundaries as unknown as GeoJsonObject;
+
+/**
+ * 陸地要比海**亮**，不能反過來。
+ *
+ * ⚠ 第一版拿現成的 --surface / --surface-2 湊：淺色主題沒問題，
+ *   但深色主題下 --surface(#161F27) 比 --surface-2(#1E2A33) 暗，
+ *   整座島看起來像一個洞。
+ *   淺色要「白陸地＋灰海」、深色要「灰陸地＋近黑海」——
+ *   同一個 token 在兩個主題的明暗關係剛好相反，所以湊不出來。
+ *   在 tokens.css 另外定義了 --map-land / --map-sea 兩個專用 token。
+ */
+const LAND = {
+  color: "var(--line-strong)",
+  weight: 0.7,
+  fillColor: "var(--map-land)",
+  fillOpacity: 1,
+} as const;
+
 const TAIWAN_BOUNDS: [[number, number], [number, number]] = [
   [21.85, 119.95],
   [25.35, 122.05],
@@ -280,7 +316,8 @@ export default function OshaDistrictMap() {
            */
           zoomSnap={0.25}
           minZoom={6}
-          style={{ height: "100%", width: "100%" }}
+          /* 沒有圖磚了，容器底色就是「海」 —— 要比陸地暗，見 LAND 的註解 */
+          style={{ height: "100%", width: "100%", background: "var(--map-sea)" }}
           /*
            * 滾輪縮放維持開啟 —— 這是實際使用後決定的。
            *
@@ -291,16 +328,15 @@ export default function OshaDistrictMap() {
            */
           scrollWheelZoom
         >
-          <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
+          <GeoJSON data={BOUNDARIES} style={() => LAND} interactive={false} />
 
           {/* 大圓先畫、小圓後畫 —— 不然彰化那一帶的小區會被鄰居蓋住點不到 */}
           {ranked.map((r) => {
             const v = valueOf(r);
             if (v <= 0) return null;
-            const color = metric === "fatal" ? "var(--sev-high)" : "var(--accent-fill)";
+            /* 用 --accent 不是 --accent-fill —— 深色主題下 accent-fill
+               壓在深色陸地上對比不夠。 */
+            const color = metric === "fatal" ? "var(--sev-high)" : "var(--accent)";
             return (
               <CircleMarker
                 key={r.k}
@@ -438,6 +474,9 @@ export default function OshaDistrictMap() {
         <br />
         各縣市的資料公開期間長短不一（有些縣市不到 2 年，基隆市與新竹市的職安法一筆都沒有），
         跨地區比較請一併考慮這一點。
+        <br />
+        行政區界為簡化後的鄉鎮市區界（來源：g0v/twgeojson），僅作為底圖，
+        不得用於任何界線或面積的認定；本頁不向任何外部圖磚伺服器取圖。
         <br />
         預設檢視只框住本島；金門縣與連江縣的資料也在圖上，要縮小才看得到。
         地圖可用滾輪、左上角的 + / − 或雙擊縮放。

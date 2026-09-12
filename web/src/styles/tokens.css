@@ -49,6 +49,13 @@
   --sev-mid:       #8A5A08;
   --sev-high:      #A3271E;
 
+  /* 地圖底圖（職安地圖頁）。陸地一定要比海亮 —— 深色主題反過來的話
+     整座島會看起來像一個洞。這兩個值不能用現成的 --surface 系列湊，
+     因為淺色需要「白陸地＋灰海」、深色需要「灰陸地＋近黑海」，
+     同一個 token 在兩個主題的明暗關係剛好相反。 */
+  --map-land:      #FFFFFF;
+  --map-sea:       #DDE4EA;
+
   --shadow: 0 1px 2px rgba(22,32,42,.06), 0 8px 24px -14px rgba(22,32,42,.22);
 }
 
@@ -81,6 +88,8 @@
     --sev-low:       #8C9DAA;
     --sev-mid:       #DBA94E;
     --sev-high:      #E8836F;
+    --map-land:      #1E2A33;
+    --map-sea:       #0D1318;
     --shadow: 0 1px 2px rgba(0,0,0,.5), 0 10px 30px -16px rgba(0,0,0,.85);
   }
 }
@@ -96,6 +105,7 @@
   --warn:#DBA94E; --warn-soft:#382A11; --on-warn-soft:#F2DCAE;
   --danger:#E8836F; --danger-soft:#3A1B16; --on-danger-soft:#F6C4B8;
   --sev-low:#8C9DAA; --sev-mid:#DBA94E; --sev-high:#E8836F;
+  --map-land:#1E2A33; --map-sea:#0D1318;
   --shadow: 0 1px 2px rgba(0,0,0,.5), 0 10px 30px -16px rgba(0,0,0,.85);
 }
 
