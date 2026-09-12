@@ -22,6 +22,7 @@
 cd D:\class-project\shell-watch
 
 python -m pipeline.publish          :: 產生 2,048 個分片（幾分鐘）
+python -m pipeline.geo              :: 產生地圖頁的鄉鎮市區聚合（幾秒）
 cd web
 npm run build                       :: eslint + tsc + vite build，dist/ 約 160 MB
 npx wrangler pages deploy dist --project-name shell-watch
@@ -46,10 +47,15 @@ https://shell-watch.pages.dev
 ```
 cd D:\class-project\shell-watch
 python -m pipeline.publish
+python -m pipeline.geo
 cd web
 npm run build
 npx wrangler pages deploy dist --project-name shell-watch
 ```
+
+⚠ `pipeline.geo` 漏跑的話，地圖頁會用 `web/src/data/` 裡那份**上次的**聚合結果
+（那一份有進 git，所以不會壞，但數字會停在上次），而且畫面上看不出來。
+資料重跑過就一定要跟著跑這支。
 
 ⚠ `pipeline.publish` 會先清掉舊的分片目錄。清不掉就會直接失敗並要你手動刪 ——
 那是刻意的：**沿用舊分片會讓使用者查到過期資料，而畫面上不會有任何異狀。**
