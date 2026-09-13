@@ -109,8 +109,18 @@ HEAD8 = ("編號", "縣市／單位別", "公告日期", "事業單位名稱(負
 FINE_NAMES = ("罰鍰金額", "處分金額／滯納金")
 NOTE_NAME = "備註"
 
-# 識別碼用的欄位。⚠ 不含罰鍰／備註／法條敘述 —— 那些是「會被更新的內容」。
-IDENT_COLS = (C_DOC_NO, C_EMPLOYER, C_DISP_DATE, C_LAW_ART)
+# 識別碼用的欄位。⚠ 不含罰鍰／備註／法條敘述 —— 那些是「會被更新的內容」，
+#    含進去的話「訴願狀態變了」會被報成「舊的消失、新的出現」，
+#    正好把最有價值的訊號丟掉。
+#
+# ⚠ 公告日期**要**含進去。2026-09-14 第一次真跑就踩到：
+#    同一個處分字號被**重新公告一次**（華膳空廚 府勞檢字第1150136647號，
+#    07/09 公告過，09/08 又公告一次，其餘欄位一字不差），而且新的那列
+#    被插在舊的前面。公告日期不在識別碼裡的話，seq 0 會被配成
+#    「公告日期從 07/09 變成 09/08」＋ seq 1「新增」——
+#    看起來像有兩件事發生，其實只有一件：多了一次重複公告。
+#    含進去之後就乾淨地報成「新增一列」，再由下面的 reannounced() 標成重複公告。
+IDENT_COLS = (C_DOC_NO, C_EMPLOYER, C_DISP_DATE, C_LAW_ART, C_ANNOUNCED)
 
 # 一組（單位×法規）縮水超過這個比例就當成可疑
 SHRINK_ALERT = 0.02      # 2%
@@ -158,6 +168,8 @@ class Row:
     announced: str
     note: str       # 備註（訴願狀態住在這裡）
     fine: str
+    # 「同一個處分」的鍵：不含公告日期。用來認出重新公告。
+    disp: str
 
 
 def read_dir(d: Path) -> dict[str, Row]:
@@ -193,6 +205,9 @@ def read_dir(d: Path) -> dict[str, Row]:
                 announced=r[C_ANNOUNCED].strip(),
                 note=r[note_i].strip() if note_i < len(r) else "",
                 fine=r[fine_i].strip() if fine_i is not None and fine_i < len(r) else "",
+                disp=_h(unit_code, law_code, r[C_DOC_NO].strip(),
+                        r[C_EMPLOYER].strip(), r[C_DISP_DATE].strip(),
+                        r[C_LAW_ART].strip()),
             )
     return out
 
@@ -243,6 +258,21 @@ def diff(old: dict[str, Row], new: dict[str, Row]) -> Diff:
     removed.sort(key=lambda r: (r.announced, r.doc_no))
     changed.sort(key=lambda p: (p[1].announced, p[1].doc_no))
     return Diff(added, removed, changed, same)
+
+
+def reannounced(added: list[Row], old: dict[str, Row]) -> set[str]:
+    """新增的列裡，哪幾列其實是「同一個處分重新公告」。
+
+    ⚠ 這一類**不是新的違規**。同一個處分字號、同一個處分日期、同一家公司、
+      同一條法規，只是公告日期不一樣 —— 來源會把同一件事再公告一次。
+      實測全庫 661,563 列裡有 318 組這種重複（多出 333 列，0.05%）。
+      不分出來的話，「這一輪新增 1,256 筆」會把重複公告算成新違規。
+
+    （下游 pipeline/dedupe.py 會把它們合併掉，所以上線的筆數沒有被灌水。
+      這裡分出來只是為了讓這份報告的數字誠實。）
+    """
+    seen = {r.disp for r in old.values()}
+    return {r.key for r in added if r.disp in seen}
 
 
 def appeal_changes(changed: list[tuple[Row, Row]]) -> list[tuple[Row, Row]]:
@@ -298,7 +328,7 @@ def _name(unit_code: str, law_code: str) -> str:
 
 
 def write_report(d: Diff, shrinks: list[Shrink], day: str,
-                 n_old: int, n_new: int) -> Path:
+                 n_old: int, n_new: int, redo: set[str]) -> Path:
     """⚠ 報告裡有真實公司名與真實人名，所以寫在 data/refresh/ 底下（.gitignore 全擋）。
     只有不含姓名的 data/refresh_log.csv 會進 git。"""
     out = OUT_DIR / day
@@ -310,9 +340,12 @@ def write_report(d: Diff, shrinks: list[Shrink], day: str,
     A(f"# 資料更新報告 {day}\n")
     A(f"- 上一輪 **{n_old:,}** 筆 → 這一輪 **{n_new:,}** 筆"
       f"（{n_new - n_old:+,}）")
+    fresh = len(d.added) - len(redo)
     A(f"- 新增 **{len(d.added):,}**　消失 **{len(d.removed):,}**　"
       f"內容變更 **{len(d.changed):,}**　沒動 {d.unchanged:,}")
-    A(f"- 其中**備註欄（訴願狀態）變更 {len(appeals):,} 筆**\n")
+    A(f"- 新增的 {len(d.added):,} 列裡，**{fresh:,} 列是新的處分**，"
+      f"{len(redo):,} 列是同一個處分**重新公告**（不是新違規）")
+    A(f"- 內容變更裡**備註欄（訴願狀態）變更 {len(appeals):,} 筆**\n")
 
     if shrinks:
         A("## ⚠ 這幾組筆數變少了，先確認是真的下架還是這次抓壞了\n")
@@ -359,7 +392,8 @@ def write_report(d: Diff, shrinks: list[Shrink], day: str,
                     "employer", "doc_no", "old_note", "new_note",
                     "old_fine", "new_fine"])
         for r in d.added:
-            w.writerow(["新增", r.unit_code, r.law_code, r.announced,
+            w.writerow(["重新公告" if r.key in redo else "新增",
+                        r.unit_code, r.law_code, r.announced,
                         r.employer, r.doc_no, "", r.note, "", r.fine])
         for r in d.removed:
             w.writerow(["消失", r.unit_code, r.law_code, r.announced,
@@ -371,7 +405,7 @@ def write_report(d: Diff, shrinks: list[Shrink], day: str,
 
 
 def append_log(day: str, n_old: int, n_new: int, d: Diff,
-               shrinks: list[Shrink]) -> None:
+               shrinks: list[Shrink], n_redo: int) -> None:
     """⚠ 這張表**只有數字，沒有任何公司名或人名**，所以可以進 git。
     它就是「這個系統持續在追資料」的證據，簡報要放。"""
     new = not LOG_PATH.exists()
@@ -379,9 +413,9 @@ def append_log(day: str, n_old: int, n_new: int, d: Diff,
         w = csv.writer(f)
         if new:
             w.writerow(["date", "rows_before", "rows_after", "added",
-                        "removed", "changed", "appeal_changed",
+                        "reannounced", "removed", "changed", "appeal_changed",
                         "shrinking_groups"])
-        w.writerow([day, n_old, n_new, len(d.added), len(d.removed),
+        w.writerow([day, n_old, n_new, len(d.added), n_redo, len(d.removed),
                     len(d.changed), len(appeal_changes(d.changed)),
                     len(shrinks)])
 
@@ -469,13 +503,15 @@ def main(argv: list[str] | None = None) -> int:
     if a.promote:
         return promote(a.accept_shrink, shrinks)
 
-    path = write_report(d, shrinks, day, len(old), len(new))
-    append_log(day, len(old), len(new), d, shrinks)
+    redo = reannounced(d.added, old)
+    path = write_report(d, shrinks, day, len(old), len(new), redo)
+    append_log(day, len(old), len(new), d, shrinks, len(redo))
     write_snapshot(new, day)
 
     print(f"\n上一輪 {len(old):,} → 這一輪 {len(new):,}（{len(new) - len(old):+,}）")
-    print(f"新增 {len(d.added):,}　消失 {len(d.removed):,}　"
-          f"內容變更 {len(d.changed):,}"
+    print(f"新增 {len(d.added):,}（其中 {len(redo):,} 是同一處分重新公告，"
+          f"實際新的處分 {len(d.added) - len(redo):,}）")
+    print(f"消失 {len(d.removed):,}　內容變更 {len(d.changed):,}"
           f"（其中訴願狀態 {len(appeal_changes(d.changed)):,}）")
     if shrinks:
         print(f"\n⚠ {len(shrinks)} 組筆數變少，**先看報告**再決定要不要 promote：")
