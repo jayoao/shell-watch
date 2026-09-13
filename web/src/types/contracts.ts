@@ -86,7 +86,12 @@ export interface ViolationRef {
   fine: number;
   severity: Severity;
   appeal: string | null;
-  /** 官方公告連結。⚠ 每一筆都必須有，這是法律風險的防線 */
+  /** 處分字號。⚠ 勞動部的查詢系統沒有單筆永久連結，這是**唯一**能查回
+   *  原始公告的線索，也是法律風險的防線 —— 不能為了畫面好看拿掉。
+   *  ⚠ 它是獨立欄位，不要再串進 content 裡：串進去之後就沒辦法
+   *  對齊成欄位、沒辦法複製、也沒辦法在長清單裡只顯示字號。 */
+  doc_no: string;
+  /** 官方公告連結（查詢系統首頁，不是單筆）。⚠ 每一筆都必須有 */
   source_url: string;
   /** ⚠ 選填。只有職安法的公告才歸類；空陣列代表「公告文字未指明危害型態」，
    *  那跟「沒有危害」是兩件事，UI 不能寫成後者。 */
@@ -113,6 +118,23 @@ export interface Principal {
   name: string;
   role: string;                // 代表人／董事長／董事…
   linked_companies: LinkedCompany[];
+}
+
+/**
+ * 撞名時給使用者選的候選。
+ *
+ * ⚠ 只給名稱是不夠的。實測「國城營造有限公司」有兩家**名稱完全相同**、
+ *   統一編號與登記地址不同的公司 —— 只列名稱的話使用者看到兩行一模一樣的
+ *   字，等於逼他亂猜。選錯就是把 A 公司的裁處紀錄看成 B 公司的。
+ */
+export interface Candidate {
+  name: string;
+  tax_id: string;
+  status: string;
+  established: string | null;
+  address: string | null;
+  /** 這家公司自己的公開裁處紀錄筆數 */
+  violation_count: number;
 }
 
 export interface LookupResult {

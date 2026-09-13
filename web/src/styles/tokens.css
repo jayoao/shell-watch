@@ -1,116 +1,146 @@
 /* ============================================================
-   顏色 token —— 全專案唯一的顏色來源。
+   顏色與字體 token —— 全專案唯一的來源。
    元件只准用 var(--xxx)，禁止在任何地方寫死色碼。
 
    為什麼：寫死的顏色在深色模式下會看不見，而且無障礙對比檢查過不了。
    改完顏色記得兩個主題都看一次。
+
+   ── 這一版的來源 ────────────────────────────────────────────
+   設計稿（Claude Design / Broadsheet）用的是「報紙」的語彙：
+   暖灰的紙、細的分隔線、粗的區塊上緣線、數字一律等寬字。
+   顏色只有三個有意義：
+     --fatal   涉及死亡災害（嚴重度）
+     --pending 行政救濟尚未確定（不確定性）
+     --link    可以點的東西
+   ⚠ 這三個**不可以合併成同一個色相**。死亡是「嚴重」，
+     尚未確定是「還不知道」—— 用同一個顏色就是把兩種意思講成一種。
+     設計稿裡沒有任何純裝飾用的顏色，新增顏色前先問「它代表什麼」。
    ============================================================ */
 
 :root {
   color-scheme: light;
 
-  /* 版面 */
-  --bg:            #F4F6F8;
-  --surface:       #FFFFFF;
-  --surface-2:     #EBEFF3;
-  --surface-3:     #DDE4EA;
+  /* ── 字體 ────────────────────────────────────────────────
+     ⚠ **不要加回 Google Fonts 的 <link>。**
+       理由跟當初拿掉 OpenStreetMap 圖磚一樣：正式站不打別人的伺服器。
+       等到有人把字型檔下載進 web/public/fonts/ 再自己 @font-face。
 
-  /* 文字 */
-  --ink:           #16202A;   /* 主要文字 */
-  --ink-2:         #3D4C58;   /* 次要文字 */
-  --ink-3:         #5C6D7A;   /* 輔助說明，仍須達 AA */
+     ⚠ 中文的襯線字刻意**不排 PMingLiU（新細明體）**。
+       Windows 只有新細明體與標楷體兩種襯線中文字，兩種在 13px
+       都糊得看不清楚 —— 與其為了「看起來像設計稿」犧牲可讀性，
+       不如讓 Windows 退回無襯線。設計稿的性格主要來自
+       版面的線條與等寬數字，那兩者在每個平台都拿得到。
+       所以：macOS → Songti TC、Linux → Noto Serif CJK TC、
+             Windows → 微軟正黑體（無襯線，是刻意的降級）。 */
+  --serif: "Source Serif 4", "Noto Serif CJK TC", "Noto Serif TC",
+           "Source Han Serif TC", "Songti TC",
+           "Noto Sans TC", "PingFang TC", "Microsoft JhengHei",
+           system-ui, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Courier New", monospace;
 
-  /* 線條（非文字，對比門檻 3.0） */
-  --line:          #D3DBE2;
-  --line-strong:   #7E8E9B;
+  /* ── 紙與桌面 ────────────────────────────────────────────
+     paper = 頁面底色，sheet = 壓在紙上的輸入框／次級區塊 */
+  --paper:   #F3F2F2;
+  --sheet:   #F8F4F4;
+  --sheet-2: #EAE7E7;
+  --desk:    #E2DFDF;
 
-  /* 主色 */
-  --accent:        #1F5F8B;
-  --accent-fill:   #1F5F8B;
+  /* ── 墨 ──────────────────────────────────────────────── */
+  --ink:   #201E1D;   /* 主要文字 */
+  --ink-2: #444141;   /* 次要文字 */
+  --ink-3: #605D5D;   /* 輔助說明，仍須達 AA */
+
+  /* ── 線 ──（非文字，對比門檻 3.0）─────────────────────── */
+  --rule:   #D7D3D3;  /* 一般分隔線 */
+  --rule-2: #9B9797;  /* 輸入框、可點的邊界 */
+
+  /* ── 三個有意義的顏色 ──────────────────────────────────── */
+  --fatal:        #A3271E;
+  --fatal-ink:    #7A1C15;
+  --fatal-soft:   #F6E4E1;
+  --fatal-tag-bg: #A3271E;
+  --fatal-tag-fg: #FFFAF9;
+
+  --pending:      #8A5A08;
+  --pending-ink:  #664204;
+  --pending-soft: #F7ECD7;
+
+  --link: #1F5F8B;
+
+  /* ── 舊名稱（地圖頁還在用）─────────────────────────────
+     ⚠ 這一段是相容層，**新程式不要用這些名字**。
+       地圖頁改版時一起清掉。 */
+  --bg:            var(--paper);
+  --surface:       var(--sheet);
+  --surface-2:     var(--sheet-2);
+  --surface-3:     var(--rule);
+  --line:          var(--rule);
+  --line-strong:   var(--rule-2);
+  --accent:        var(--link);
+  --accent-fill:   var(--link);
   --on-accent:     #FFFFFF;
-  --accent-soft:   #DCEAF4;
+  --accent-soft:   #E2EDF4;
   --on-accent-soft:#134563;
-
-  /* 語意色 */
   --good:          #1E6640;
   --good-soft:     #DEEFE5;
   --on-good-soft:  #144A2D;
-
-  --warn:          #8A5A08;
-  --warn-soft:     #F8EBD4;
-  --on-warn-soft:  #664204;
-
-  --danger:        #A3271E;
-  --danger-soft:   #F7E1DD;
-  --on-danger-soft:#7A1C15;
-
-  /* 嚴重度（對應資料的 severity 欄位） */
-  --sev-low:       #5C6D7A;
-  --sev-mid:       #8A5A08;
-  --sev-high:      #A3271E;
+  --warn:          var(--pending);
+  --warn-soft:     var(--pending-soft);
+  --on-warn-soft:  var(--pending-ink);
+  --danger:        var(--fatal);
+  --danger-soft:   var(--fatal-soft);
+  --on-danger-soft:var(--fatal-ink);
+  --sev-low:       var(--ink-3);
+  --sev-mid:       var(--pending);
+  --sev-high:      var(--fatal);
 
   /* 地圖底圖（職安地圖頁）。陸地一定要比海亮 —— 深色主題反過來的話
-     整座島會看起來像一個洞。這兩個值不能用現成的 --surface 系列湊，
+     整座島會看起來像一個洞。這兩個值不能用現成的 --sheet 系列湊，
      因為淺色需要「白陸地＋灰海」、深色需要「灰陸地＋近黑海」，
      同一個 token 在兩個主題的明暗關係剛好相反。 */
-  --map-land:      #FFFFFF;
-  --map-sea:       #DDE4EA;
+  --map-land: #FFFFFF;
+  --map-sea:  #DAD5D5;
   /* 地圖上的文字。底圖（國土測繪中心的電子地圖）永遠是淺色的，
      所以這兩個值在深／淺主題**刻意相同** —— 用 --ink 系列的話，
      深色主題下會是淺灰字壓在淺色底圖上，等於看不見。 */
   --map-label:     #1B2A36;
   --map-label-halo:#FFFFFF;
 
-  --shadow: 0 1px 2px rgba(22,32,42,.06), 0 8px 24px -14px rgba(22,32,42,.22);
+  --shadow: 0 1px 2px rgba(32,30,29,.08), 0 8px 24px -14px rgba(32,30,29,.24);
 }
 
+/* 深色主題的值只寫一次，兩個選擇器共用。 */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --bg:            #0D1318;
-    --surface:       #161F27;
-    --surface-2:     #1E2A33;
-    --surface-3:     #28363F;
-    --ink:           #E4EBF1;
-    --ink-2:         #AFC0CC;
-    --ink-3:         #8C9DAA;
-    --line:          #28363F;
-    --line-strong:   #6C7F8C;
-    --accent:        #6FB4DC;
-    --accent-fill:   #2C6E9B;
-    --on-accent:     #FFFFFF;
-    --accent-soft:   #12303F;
-    --on-accent-soft:#BEDFF2;
-    --good:          #6BBF8E;
-    --good-soft:     #12301F;
-    --on-good-soft:  #B6E3C8;
-    --warn:          #DBA94E;
-    --warn-soft:     #382A11;
-    --on-warn-soft:  #F2DCAE;
-    --danger:        #E8836F;
-    --danger-soft:   #3A1B16;
-    --on-danger-soft:#F6C4B8;
-    --sev-low:       #8C9DAA;
-    --sev-mid:       #DBA94E;
-    --sev-high:      #E8836F;
-    --map-land:      #1E2A33;
-    --map-sea:       #0D1318;
+    --paper:#191817; --sheet:#201E1D; --sheet-2:#2A2726; --desk:#0E0D0D;
+    --ink:#ECE8E6; --ink-2:#C5BFBC; --ink-3:#9C9693;
+    --rule:#332F2D; --rule-2:#6E6864;
+    --fatal:#E8836F; --fatal-ink:#F6C4B8; --fatal-soft:#3A1B16;
+    --fatal-tag-bg:#7F2A1F; --fatal-tag-fg:#FFD9D1;
+    --pending:#DBA94E; --pending-ink:#F2DCAE; --pending-soft:#382A11;
+    --link:#6FB4DC;
+    --accent-soft:#12303F; --on-accent-soft:#BEDFF2;
+    --accent-fill:#2C6E9B;
+    --good:#6BBF8E; --good-soft:#12301F; --on-good-soft:#B6E3C8;
+    --map-land:#201E1D; --map-sea:#0E0D0D;
     --shadow: 0 1px 2px rgba(0,0,0,.5), 0 10px 30px -16px rgba(0,0,0,.85);
   }
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg:#0D1318; --surface:#161F27; --surface-2:#1E2A33; --surface-3:#28363F;
-  --ink:#E4EBF1; --ink-2:#AFC0CC; --ink-3:#8C9DAA;
-  --line:#28363F; --line-strong:#6C7F8C;
-  --accent:#6FB4DC; --accent-fill:#2C6E9B; --on-accent:#FFFFFF;
+  --paper:#191817; --sheet:#201E1D; --sheet-2:#2A2726; --desk:#0E0D0D;
+  --ink:#ECE8E6; --ink-2:#C5BFBC; --ink-3:#9C9693;
+  --rule:#332F2D; --rule-2:#6E6864;
+  --fatal:#E8836F; --fatal-ink:#F6C4B8; --fatal-soft:#3A1B16;
+  --fatal-tag-bg:#7F2A1F; --fatal-tag-fg:#FFD9D1;
+  --pending:#DBA94E; --pending-ink:#F2DCAE; --pending-soft:#382A11;
+  --link:#6FB4DC;
   --accent-soft:#12303F; --on-accent-soft:#BEDFF2;
+  --accent-fill:#2C6E9B;
   --good:#6BBF8E; --good-soft:#12301F; --on-good-soft:#B6E3C8;
-  --warn:#DBA94E; --warn-soft:#382A11; --on-warn-soft:#F2DCAE;
-  --danger:#E8836F; --danger-soft:#3A1B16; --on-danger-soft:#F6C4B8;
-  --sev-low:#8C9DAA; --sev-mid:#DBA94E; --sev-high:#E8836F;
-  --map-land:#1E2A33; --map-sea:#0D1318;
+  --map-land:#201E1D; --map-sea:#0E0D0D;
   --shadow: 0 1px 2px rgba(0,0,0,.5), 0 10px 30px -16px rgba(0,0,0,.85);
 }
 
@@ -119,43 +149,146 @@
 
 body {
   margin: 0;
-  background: var(--bg);
+  background: var(--paper);
   color: var(--ink);
-  font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+  font-family: var(--serif);
   font-size: 16px;
   line-height: 1.7;
+  text-wrap: pretty;
   -webkit-font-smoothing: antialiased;
 }
 
-a { color: var(--accent); }
-:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+input, button, select, textarea { font: inherit; color: inherit; }
 
-.sw-shell { max-width: 1080px; margin: 0 auto; padding: 24px 20px 64px; }
+a { color: var(--link); text-underline-offset: 3px; }
+a:hover { color: var(--ink); }
+:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
 
+/* 數字一律等寬＋定寬數字。⚠ 比對兩個數字大小時，
+   比例字寬的 "1" 比 "8" 窄，欄位會歪掉。 */
+.num {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+/* 欄位標籤（統一編號、罰鍰、處分字號…）。等寬＋字距，當成小標看。 */
+.lbl {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .06em;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+/* 區塊上方的小眉標（查詢結果、資料涵蓋範圍…） */
+.kicker {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: .12em;
+  color: var(--ink-3);
+}
+
+/* ── 版心 ─────────────────────────────────
+   ⚠ 行動優先。設計稿的 375px 版是主要的版本，
+     桌機版只是在同一份標記上把欄位攤開。 */
+.sw-shell { max-width: 1180px; margin: 0 auto; padding: 0 20px 64px; }
+
+/* ── 頁首 ───────────────────────────────── */
 .sw-nav {
-  display: flex; gap: 18px; align-items: baseline;
-  padding: 14px 20px; border-bottom: 1px solid var(--line);
-  background: var(--surface);
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 16px; max-width: 1180px; margin: 0 auto;
+  padding: 14px 20px 12px; border-bottom: 1px solid var(--rule);
 }
-.sw-nav .brand { font-weight: 800; font-size: 18px; letter-spacing: -.01em; }
-.sw-nav a { text-decoration: none; font-size: 15px; color: var(--ink-2); }
-.sw-nav a.on { color: var(--accent); font-weight: 700; }
+.sw-nav .brand { font-size: 16px; font-weight: 700; letter-spacing: -.01em; white-space: nowrap; }
+.sw-nav nav { display: flex; gap: 14px; }
+.sw-nav a {
+  font-family: var(--mono); font-size: 11px; letter-spacing: .08em;
+  color: var(--ink-3); text-decoration: none; white-space: nowrap;
+}
+.sw-nav a.on { color: var(--ink); text-decoration: underline; }
+/* 資料規模。⚠ 375px 放不下，只有桌機顯示 —— 硬塞會把報頭擠成兩行。 */
+.sw-nav .scale { display: none; }
 
-.sw-card {
-  background: var(--surface); border: 1px solid var(--line);
-  border-radius: 14px; padding: 20px; box-shadow: var(--shadow);
+@media (min-width: 980px) {
+  .sw-nav { gap: 28px; justify-content: flex-start; padding: 16px 20px; }
+  .sw-nav .brand { font-size: 18px; }
+  .sw-nav nav { gap: 22px; }
+  .sw-nav a { font-family: var(--serif); font-size: 14px; letter-spacing: 0; color: var(--link); }
+  .sw-nav a.on {
+    color: var(--ink); text-decoration: none;
+    border-bottom: 2px solid var(--ink); padding-bottom: 2px;
+  }
+  .sw-nav .scale {
+    display: block; margin-left: auto;
+    font-family: var(--mono); font-size: 11.5px; color: var(--ink-3);
+  }
+  .sw-shell { padding-bottom: 80px; }
 }
-.sw-muted { color: var(--ink-3); font-size: 14px; }
+
+/* ── 區塊 ─────────────────────────────────
+   .band 是設計稿裡那個「上粗下細」的重點區塊：
+   紅線句子、選擇提示、查無說明都用它。 */
+.band {
+  border-top: 3px solid var(--ink);
+  border-bottom: 1px solid var(--ink);
+  padding: 13px 0;
+  margin: 18px 0 0;
+}
+.band > p:first-child { font-size: 15px; line-height: 1.6; margin: 0; font-weight: 600; }
+.band > p + p { font-size: 13px; line-height: 1.75; color: var(--ink-2); margin: 6px 0 0; }
+
+/* 標籤（涉及死亡災害／尚未確定）。方角，不是圓角膠囊 —— 圓角看起來像
+   裝飾，方角看起來像檔案上的戳記。 */
+.tag {
+  font-family: var(--mono); font-size: 11px; letter-spacing: .04em;
+  padding: 2px 7px; border-radius: 2px; white-space: nowrap;
+}
+.tag-fatal   { background: var(--fatal-tag-bg); color: var(--fatal-tag-fg); }
+.tag-pending { background: var(--pending-soft); color: var(--pending-ink); border: 1px solid var(--pending); padding: 1px 7px; }
+
+/* 表單 */
+.sw-input {
+  width: 100%; padding: 12px; font-size: 16px; font-family: var(--serif);
+  background: var(--sheet); color: var(--ink);
+  border: 1px solid var(--rule-2); border-radius: 2px;
+}
+.sw-btn {
+  width: 100%; padding: 13px; font-size: 16px; font-weight: 600;
+  font-family: var(--serif); background: var(--ink); color: var(--paper);
+  border: 1px solid var(--ink); border-radius: 2px; cursor: pointer;
+}
+.sw-btn[disabled] {
+  background: var(--sheet); color: var(--ink-3);
+  border-color: var(--rule-2); cursor: default;
+}
+/* 次級按鈕：危害型態、篩選、展開 */
+.sw-chip {
+  font-family: var(--mono); font-size: 12px; padding: 5px 10px;
+  background: var(--sheet); color: var(--ink);
+  border: 1px solid var(--rule-2); border-radius: 2px; cursor: pointer;
+}
+.sw-chip[aria-pressed="true"] {
+  background: var(--ink); color: var(--paper); border-color: var(--ink);
+}
+
+/* 骨架（載入中）。⚠ 不要做閃爍動畫 —— 已經有 prefers-reduced-motion，
+   而且這一頁的載入通常不到一秒，動畫只會讓人以為畫面壞了。 */
+.skel { background: var(--rule); }
 
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
 
-/* 聚合圈上的數字。⚠ 底圖恆為淺色，所以用 --map-label 系列，
+/* 聚合圈上的數字。⚠ 底圖恆為淺色，所以固定用白字＋深色陰影，
    不能用 --ink（深色主題下會變成淺灰字壓在淺色底圖上）。 */
 .sw-cluster-label.leaflet-tooltip {
   background: none; border: 0; box-shadow: none; padding: 0;
-  color: var(--on-accent); font-weight: 800; font-size: 11px;
+  color: #FFFFFF; font-weight: 800; font-size: 11px;
   text-shadow: 0 1px 2px rgba(0,0,0,.45);
 }
 .sw-cluster-label.leaflet-tooltip::before { display: none; }
+
+/* 地圖頁還在用的舊卡片樣式。改版時一起清掉。 */
+.sw-card {
+  background: var(--sheet); border: 1px solid var(--rule);
+  border-radius: 2px; padding: 20px;
+}
+.sw-muted { color: var(--ink-3); font-size: 14px; }

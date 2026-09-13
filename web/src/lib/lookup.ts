@@ -16,7 +16,7 @@
  *   那種 bug 沒有對拍測試會找很久。
  */
 import type {
-  EvidenceKind, Hazard, LinkedCompany, LookupResult, Principal,
+  Candidate, EvidenceKind, Hazard, LinkedCompany, LookupResult, Principal,
   Severity, ViolationRef,
 } from "../types/contracts";
 
@@ -207,6 +207,34 @@ export function trimPartialOrgSuffix(q: string): string[] {
 
 const SOURCE_URL = "https://announcement.mol.gov.tw/";
 
+/**
+ * 把候選的完整名稱補成「看得出差別」的候選卡。
+ *
+ * ⚠ 每一家要各抓一片（候選之間的雜湊不同，不會在同一片裡），
+ *   所以有上限。超過的部分照樣列出來，只是沒有統編與地址 ——
+ *   寧可少資訊，也不要為了補齊欄位一次下載兩百片。
+ */
+const DESCRIBE_LIMIT = 24;
+
+async function describe(names: string[], shards: number): Promise<Candidate[]> {
+  const head = names.slice(0, DESCRIBE_LIMIT);
+  const rest = names.slice(DESCRIBE_LIMIT);
+  const got = await Promise.all(head.map((n) => findEntry(n, shards)));
+  const out: Candidate[] = head.map((name, i) => ({
+    name,
+    tax_id: got[i]?.t ?? "",
+    status: got[i]?.s ?? "",
+    established: got[i]?.e ?? null,
+    address: got[i]?.a ?? null,
+    violation_count: got[i]?.v.length ?? 0,
+  }));
+  for (const name of rest) {
+    out.push({ name, tax_id: "", status: "", established: null,
+               address: null, violation_count: 0 });
+  }
+  return out;
+}
+
 function toViolations(
   raw: RawViolation[],
   haz: Record<string, { name: string; duty: string }>,
@@ -219,9 +247,13 @@ function toViolations(
       return {
         date,
         law,
+        content,
         // 勞動部沒有單筆永久連結，處分字號是唯一能查回原始公告的線索。
         // ⚠ 這是法律風險的防線，不能為了畫面好看拿掉。
-        content: content ? `${content}（處分字號 ${docNo}）` : `處分字號 ${docNo}`,
+        // ⚠ 它是獨立欄位，**不要再串回 content**。以前是串在違反內容後面的
+        //   「（處分字號 ○○）」，結果是：欄位對不齊、使用者沒辦法只複製字號、
+        //   長清單想只顯示字號也做不到。
+        doc_no: docNo,
         fine,
         severity: severity as Severity,
         appeal,
@@ -250,7 +282,7 @@ function summariseHazards(vs: ViolationRef[]) {
 /** 查詢的四種結果。查不到跟沒資料是兩件事，UI 的說法完全不同。 */
 export type LookupOutcome =
   | { kind: "hit"; result: LookupResult }
-  | { kind: "choose"; candidates: string[]; note?: string }  // 要使用者選
+  | { kind: "choose"; candidates: Candidate[]; note?: string }  // 要使用者選
   | { kind: "miss" }                           // 有資料，但沒有這家的紀錄
   | { kind: "nodata" };                        // 完整資料沒部署，只有展示樣本
 
@@ -269,7 +301,9 @@ export async function lookup(query: string): Promise<LookupOutcome> {
   let self = await findEntry(query, shards);
   if (!self) {
     const cands = await findByCore(query, shards);
-    if (cands.length > 1) return { kind: "choose", candidates: cands };
+    if (cands.length > 1) {
+      return { kind: "choose", candidates: await describe(cands, shards) };
+    }
     if (cands.length === 1) self = await findEntry(cands[0], shards);
   }
   if (!self) {
@@ -285,7 +319,7 @@ export async function lookup(query: string): Promise<LookupOutcome> {
       if (hits.length) {
         return {
           kind: "choose",
-          candidates: hits,
+          candidates: await describe(hits, shards),
           note: `找不到「${query.trim()}」。`
             + `這個查詢系統要完整公司名稱，或是去掉「股份有限公司」等字尾的名稱。`
             + `以「${cut}」找到以下結果：`,
