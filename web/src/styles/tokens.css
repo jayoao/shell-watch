@@ -150,3 +150,12 @@ a { color: var(--accent); }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
+
+/* 聚合圈上的數字。⚠ 底圖恆為淺色，所以用 --map-label 系列，
+   不能用 --ink（深色主題下會變成淺灰字壓在淺色底圖上）。 */
+.sw-cluster-label.leaflet-tooltip {
+  background: none; border: 0; box-shadow: none; padding: 0;
+  color: var(--on-accent); font-weight: 800; font-size: 11px;
+  text-shadow: 0 1px 2px rgba(0,0,0,.45);
+}
+.sw-cluster-label.leaflet-tooltip::before { display: none; }

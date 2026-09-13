@@ -34,6 +34,9 @@ import type { Layer, PathOptions } from "leaflet";
 import type { GeoJsonObject } from "geojson";
 import type { DistrictDataset, DistrictRow } from "../types/geo";
 import raw from "../data/osha_district.json";
+import ptsRaw from "../data/points.json";
+import Clusters from "./OshaClusters";
+import type { PointDataset, Pt } from "../types/points";
 import boundaries from "../data/tw_districts.json";
 import hazardTable from "../data/hazards.json";
 
@@ -90,6 +93,13 @@ const BASEMAP_URL =
   "https://wmts.nlsc.gov.tw/wmts/EMAP/default/GoogleMapsCompatible/{z}/{y}/{x}";
 const BASEMAP_ATTR =
   '圖資：<a href="https://maps.nlsc.gov.tw/">內政部國土測繪中心</a>';
+
+/** 點位圖層時，行政區只畫界線不填色 —— 底圖跟圖釘才是主角。 */
+const OUTLINE_ONLY = {
+  color: "var(--line-strong)",
+  weight: 0.7,
+  fillOpacity: 0,
+} as const;
 
 const TAIWAN_BOUNDS: [[number, number], [number, number]] = [
   [21.85, 119.95],
@@ -164,6 +174,7 @@ const HAZARD_NAME: Record<string, string> = Object.fromEntries(
 const MIN_BASE = 500;
 
 type Metric = "count" | "rate" | "fatal";
+type MapLayer = "points" | "density";
 
 const METRIC_LABEL: Record<Metric, string> = {
   count: "裁處件數",
@@ -289,10 +300,40 @@ function KeepSized({ bounds }: { bounds: [[number, number], [number, number]] })
 export default function OshaDistrictMap() {
   const data = raw as unknown as DistrictDataset;
 
+  const [layer, setLayer] = useState<MapLayer>("points");
+  const [fatalOnly, setFatalOnly] = useState(false);
   const [metric, setMetric] = useState<Metric>("rate");
   const [selected, setSelected] = useState<DistrictRow | null>(null);
   const [hazardFilter, setHazardFilter] = useState<string>("");
   const [countyFilter, setCountyFilter] = useState<string>("");
+
+  /** 點位資料。⚠ hazmask 的位元順序以檔案裡的 haz_order 為準，不要另外寫死一份。 */
+  const pdata = ptsRaw as unknown as PointDataset;
+  const hazBit = useMemo(() => {
+    const m: Record<string, number> = {};
+    pdata.haz_order.forEach((c, i) => (m[c] = 1 << i));
+    return m;
+  }, [pdata]);
+
+  const allPoints = useMemo<Pt[]>(
+    () =>
+      pdata.pts.map((p) => ({
+        name: p[0], lat: p[1], lng: p[2], exact: p[3] === 1,
+        n: p[4], fatal: p[5], pending: p[6], haz: p[7], year: p[8], mask: p[9],
+      })),
+    [pdata],
+  );
+
+  const points = useMemo(() => {
+    const bit = hazardFilter ? hazBit[hazardFilter] ?? 0 : 0;
+    return allPoints.filter((p) => {
+      if (fatalOnly && p.fatal <= 0) return false;
+      // ⚠ 用 mask 不是 p.haz —— p.haz 只是「最主要」的那一種，
+      //   拿它來篩會變成「主要危害是感電的公司」，數字會少報。
+      if (bit && !(p.mask & bit)) return false;
+      return true;
+    });
+  }, [allPoints, hazardFilter, fatalOnly, hazBit]);
 
   const counties = useMemo(
     () => Array.from(new Set(data.rows.map((r) => r.k.slice(0, 3)))).sort(
@@ -433,13 +474,25 @@ export default function OshaDistrictMap() {
           lineHeight: 1.7,
         }}
       >
-        <strong>顏色深淺是依事業單位的「商工登記地址」歸戶到行政區，不是職災的發生地點。</strong>
+        <strong>
+          {layer === "points"
+            ? "圖釘是事業單位的「商工登記地址」，不是職災的發生地點。"
+            : "顏色深淺是依事業單位的「商工登記地址」歸戶到行政區，不是職災的發生地點。"}
+        </strong>
         <br />
         職安法的 {data.osha_total.toLocaleString()} 筆公告裡，只有 189 筆填了發生地點（0.25%），
         無法用來定位。公司登記在台北、工地在桃園是營造業的常態，
         所以這張圖回答的是「被處分的事業單位登記在哪裡」，
-        不是「哪裡容易出事」。整個行政區一起上色，是因為這份資料的解析度就是「一個區」——
-        再細的位置我們沒有，也不會假裝有。
+        不是「哪裡容易出事」。
+        {layer === "points" ? (
+          <>
+            {" "}
+            <b>圖釘落在真實門牌上，所以特別容易被誤讀</b>——那是一棟具體的建築物，
+            但它可能只是登記處所（會計師事務所、負責人住家），與違規事實發生的位置無關。
+          </>
+        ) : (
+          " 整個行政區一起上色，是因為這份資料的解析度就是「一個區」——再細的位置我們沒有，也不會假裝有。"
+        )}
       </div>
 
       <p className="sw-muted" style={{ marginTop: -4 }}>
@@ -449,11 +502,36 @@ export default function OshaDistrictMap() {
         職安法裁處可歸到鄉鎮市區（
         {((100 * data.osha_mapped) / data.osha_total).toFixed(1)}%），
         分布在 {data.districts} 個區
+        {layer === "points" && (
+          <>
+            {" · "}
+            座標由地址比對 taiwan-address-data（BSD 授權，原始來源為內政部 TGOS）取得
+          </>
+        )}
       </p>
 
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", margin: "4px 0 14px" }}>
         <label>
-          顯示：
+          圖層：
+          <select value={layer} onChange={(e) => setLayer(e.target.value as MapLayer)}>
+            <option value="points">事業單位位置</option>
+            <option value="density">行政區密度</option>
+          </select>
+        </label>
+
+        {layer === "points" && (
+          <label style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <input
+              type="checkbox"
+              checked={fatalOnly}
+              onChange={(e) => setFatalOnly(e.target.checked)}
+            />
+            只看有涉及死亡災害的事業單位
+          </label>
+        )}
+
+        <label style={{ display: layer === "density" ? undefined : "none" }}>
+          密度指標：
           <select value={metric} onChange={(e) => setMetric(e.target.value as Metric)}>
             <option value="rate">{METRIC_LABEL.rate}</option>
             <option value="count">{METRIC_LABEL.count}</option>
@@ -489,6 +567,20 @@ export default function OshaDistrictMap() {
         </label>
       </div>
 
+      {layer === "points" ? (
+        <p className="sw-muted" style={{ margin: "0 0 12px", fontWeight: 600 }}>
+          目前 {points.length.toLocaleString()} 家事業單位在圖上，合計{" "}
+          {points.reduce((a, p) => a + p.n, 0).toLocaleString()} 筆職安法裁處
+          {" · "}
+          其中 {points.reduce((a, p) => a + p.fatal, 0).toLocaleString()} 筆公告涉及死亡災害
+          {" · "}
+          定位精度：門牌 {pdata.exact_n.toLocaleString()} 家（
+          {((100 * pdata.exact_n) / pdata.total).toFixed(1)}%）、其餘為路名層級
+          {" · "}
+          另有 {(data.osha_mapped - pdata.pts.reduce((a, p) => a + p[4], 0)).toLocaleString()}
+          {" "}筆裁處的事業單位地址對不到座標，未出現在本圖層
+        </p>
+      ) : (
       <p className="sw-muted" style={{ margin: "0 0 12px", fontWeight: 600 }}>
         目前 {stats.districts} 個區有資料，合計 {stats.records.toLocaleString()} 筆
         {stats.fatal > 0 && `，其中 ${stats.fatal.toLocaleString()} 筆公告涉及死亡災害`}
@@ -496,6 +588,7 @@ export default function OshaDistrictMap() {
         {metric === "rate" &&
           ` · 只列入現存登記事業單位 ${MIN_BASE} 家以上的區（分母太小的率不可靠）`}
       </p>
+      )}
 
       {/*
         ⚠ 地圖要限寬，不能撐滿版面。
@@ -558,18 +651,25 @@ export default function OshaDistrictMap() {
               key 要含 metric／篩選條件：react-leaflet 的 GeoJSON 不會因為
               style 函式變了就重畫，要換 key 強制重建。
           */}
+          {/* 行政區永遠畫界線；只有密度圖層才填色。 */}
           <GeoJSON
-            key={`v-${metric}-${hazardFilter}-${countyFilter}-${max}`}
+            key={`v-${layer}-${metric}-${hazardFilter}-${countyFilter}-${max}`}
             data={BOUNDARIES}
-            style={styleFor}
-            onEachFeature={onEachFeature}
+            style={layer === "density" ? styleFor : () => OUTLINE_ONLY}
+            onEachFeature={layer === "density" ? onEachFeature : undefined}
+            interactive={layer === "density"}
           />
 
+          {layer === "points" && (
+            <Clusters points={points} hazName={(c) => HAZARD_NAME[c] ?? c} />
+          )}
+
           {/*
-            圓點層。大圓先畫、小圓後畫 —— 不然西部工業帶的小區
-            會被鄰居整個蓋住，連點都點不到。
+            行政區代表點。⚠ 只在密度圖層出現 —— 點位圖層已經有真實門牌的
+            圖釘了，再疊一層「區中心的點」會讓人分不清哪個是真的位置。
+            大圓先畫、小圓後畫，小區才不會被鄰居蓋住點不到。
           */}
-          {ranked.map((r) => {
+          {layer === "density" && ranked.map((r) => {
             const v = valueOf(r);
             if (v <= 0) return null;
             return (
@@ -589,7 +689,7 @@ export default function OshaDistrictMap() {
             );
           })}
 
-          {selected && (
+          {layer === "density" && selected && (
             <Popup
               position={[selected.lat, selected.lng]}
               eventHandlers={{ remove: () => setSelected(null) }}
@@ -653,6 +753,7 @@ export default function OshaDistrictMap() {
 
       {/* 圖例。顏色一旦拿來編碼數值就一定要有圖例，不然深淺只是裝飾。 */}
       <div
+        hidden={layer !== "density"}
         style={{
           display: "flex",
           alignItems: "center",
