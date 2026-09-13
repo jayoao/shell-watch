@@ -105,6 +105,13 @@
   display: flex; flex-wrap: wrap; gap: 4px 20px;
   font-family: var(--mono); font-size: 12px; color: var(--ink-2);
 }
+/* 訴願已有結果、或結果未公開。⚠ 中性色，不用 --pending ——
+   那個顏色的意思是「還不確定」，這一類不是。 */
+.vio-appeal-plain {
+  font-size: 12.5px; line-height: 1.7; color: var(--ink-2);
+  border-left: 3px solid var(--rule-2); margin: 9px 0 0; padding: 2px 0 2px 10px;
+}
+
 .vio-appeal {
   font-size: 12.5px; line-height: 1.7; color: var(--pending-ink);
   background: var(--pending-soft); border-left: 3px solid var(--pending);

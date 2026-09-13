@@ -94,27 +94,60 @@ def severity_of(fine, violation: str) -> str:
 #   把整個備註直接塞進 appeal 欄位，畫面上會出現「訴願：0」這種東西 ——
 #   訴願有沒有進行是法律上有意義的資訊，顯示一個「0」是雜訊，
 #   而且會讓人以為那是某種結果。只認訴願／行政救濟相關的字樣。
-_APPEAL_SETTLED = ("駁回", "不受理", "原處分維持")
-_APPEAL_PENDING = ("訴願中", "行政救濟中", "提起訴願", "訴訟中", "審理中")
+APPEAL_SETTLED = ("駁回", "不受理", "原處分維持")
+APPEAL_PENDING = ("訴願中", "行政救濟中", "提起訴願", "訴訟中", "審理中")
+
+# 「曾經公告訴願中、後來備註被清空」的處分字號。由 pipeline/refresh.py 產生。
+# ⚠ 這個檔含真實公司名，不進 git（data/* 在 .gitignore 裡本來就全擋）。
+APPEAL_CLEARED_PATH = Path("data/appeal_cleared.csv")
+
+# ⚠ 措辭固定。**不可以寫成「訴願駁回」也不可以寫成「尚未確定」** ——
+#   備註被清空只代表來源不再刊載訴願狀態，駁回還是撤銷我們都看不到。
+#   寫成前者是替主管機關下結論，寫成後者是讓一件可能已經結束的案子
+#   永遠掛著「還沒確定」。兩個方向都是編造。
+APPEAL_CLEARED_TEXT = "本案曾公告訴願中，現行公告未載訴願狀態；結果未公開"
+
+_cleared: set[str] | None = None
 
 
-def appeal_of(remark: str) -> str | None:
+def appeal_cleared() -> set[str]:
+    """讀 data/appeal_cleared.csv。沒有這個檔是正常的（還沒跑過 refresh）。"""
+    global _cleared
+    if _cleared is None:
+        out: set[str] = set()
+        if APPEAL_CLEARED_PATH.exists():
+            with APPEAL_CLEARED_PATH.open(encoding="utf-8-sig", newline="") as f:
+                for row in csv.DictReader(f):
+                    if row.get("doc_no"):
+                        out.add(row["doc_no"].strip())
+        _cleared = out
+    return _cleared
+
+
+def appeal_of(remark: str, doc_no: str = "") -> str | None:
     """備註 → 訴願狀態。認不出來的一律回 None，不要硬塞。
 
     回傳的字串會直接顯示在畫面上，所以要寫成完整、不會被誤讀的句子。
     ⚠ 「尚未確定」的案子一定要標出來 —— 那是紅線，不是體貼。
+
+    ⚠ doc_no 是給「備註曾經寫訴願中、後來被清空」用的。實測 2026-09-14
+      那一輪有三筆這樣（長榮航空、鈞安婦幼、嘉倍管顧）。只看當下的備註
+      會讓標示整個消失 ——**畫面等於默默告訴使用者這案子確定了**，
+      而我們並不知道是駁回還是撤銷。那跟「查無紀錄不代表沒問題」是同一類的錯。
     """
     t = (remark or "").strip()
     if not t or t == "0" or t.isdigit():
-        return None
-    if any(k in t for k in _APPEAL_PENDING):
+        return APPEAL_CLEARED_TEXT if doc_no in appeal_cleared() else None
+    if any(k in t for k in APPEAL_PENDING):
         return f"{t}（本案尚未確定）"
-    if "訴願" in t and any(k in t for k in _APPEAL_SETTLED):
+    if "訴願" in t and any(k in t for k in APPEAL_SETTLED):
         # 已經寫了「原處分維持」就不要再加一次
         return t if "原處分維持" in t else f"{t}（原處分維持）"
     if "訴願" in t:
         return t
-    return None          # 「職業災害」「專案檢查」這些不是訴願，不放這一欄
+    # 「職業災害」「專案檢查」這些不是訴願，不放這一欄 ——
+    # 但如果這筆曾經公告過訴願中，那件事還是要講。
+    return APPEAL_CLEARED_TEXT if doc_no in appeal_cleared() else None
 
 
 def mask(name: str) -> str:
@@ -203,16 +236,20 @@ def violations_of(rows: list[dict], anonymize: bool = False) -> list[dict]:
         except ValueError:
             fine = 0
         content = (r.get("violation") or "").strip()
-        doc = mask_doc_no(r.get("doc_no", "")) if anonymize else r.get("doc_no", "")
+        raw_doc = r.get("doc_no", "")
+        doc = mask_doc_no(raw_doc) if anonymize else raw_doc
         out.append({
             "date": r.get("disposition_date", ""),
             "law": r.get("law_article") or r.get("law") or "",
-            # 處分字號一定要放進來 —— 沒有永久連結，這是唯一能查回原始公告的線索
-            "content": f"{content}（處分字號 {doc}）" if content
-                       else f"處分字號 {doc}",
+            "content": content,
+            # 處分字號一定要放進來 —— 沒有永久連結，這是唯一能查回原始公告的線索。
+            # ⚠ 它是**獨立欄位**，不要串進 content。串進去之後欄位對不齊、
+            #   沒辦法單獨複製、長清單也沒辦法只顯示字號。
+            "doc_no": doc,
             "fine": fine,
             "severity": severity_of(fine, content),
-            "appeal": appeal_of(r.get("remark", "")),
+            # ⚠ 用未遮罩的字號查 appeal_cleared，遮罩過的對不到
+            "appeal": appeal_of(r.get("remark", ""), raw_doc),
             "source_url": SOURCE_URL,
             "hazards": hazards_of(r.get("law") or "", content),
             # ⚠ 這是「公告文字提到死亡災害」，不是「造成死亡」。

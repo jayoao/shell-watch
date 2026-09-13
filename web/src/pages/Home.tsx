@@ -184,11 +184,17 @@ function Violation({ v, compact }: { v: ViolationRef; compact?: boolean }) {
           <span style={{ overflowWrap: "anywhere" }}>處分字號 {v.doc_no || "公告未載"}</span>
           <a href={v.source_url} target="_blank" rel="noreferrer">查閱原始公告</a>
         </div>
-        {pending && (
+        {pending ? (
           <p className="vio-appeal">
             {v.appeal}{"　"}本案的行政救濟程序尚未終結，原處分是否維持仍待確定。
           </p>
-        )}
+        ) : v.appeal ? (
+          /* 已經有結果的訴願（駁回、撤銷），或是「曾公告訴願中但備註被清空」。
+             ⚠ 這一類**不掛「尚未確定」標籤**：掛了等於說案子還在進行中，
+               而它可能早就結束了。但也不能不顯示 —— 不顯示就等於說
+               「沒有人爭議過這件事」。所以用中性的樣式把事實寫出來。 */
+          <p className="vio-appeal-plain">訴願{"　"}{v.appeal}</p>
+        ) : null}
       </div>
     </li>
   );

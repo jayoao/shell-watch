@@ -77,6 +77,7 @@ from common import use_utf8_stdout
 
 from crawler.constants import LAW_CODES, LAWS, UNIT_CODES, UNITS
 from crawler.mol import crawl, read_rows, write_coverage
+from pipeline.export import APPEAL_CLEARED_PATH, APPEAL_PENDING, APPEAL_SETTLED
 
 RAW = Path("data/raw")
 RAW_NEW = Path("data/raw_new")
@@ -280,6 +281,69 @@ def appeal_changes(changed: list[tuple[Row, Row]]) -> list[tuple[Row, Row]]:
     return [(a, b) for a, b in changed if a.note != b.note]
 
 
+def _pending(note: str) -> bool:
+    return any(k in note for k in APPEAL_PENDING)
+
+
+def _settled(note: str) -> bool:
+    return "訴願" in note and any(k in note for k in APPEAL_SETTLED)
+
+
+CLEARED_FIELDS = ["doc_no", "unit_code", "law_code", "employer", "was", "cleared_on"]
+
+
+def update_appeal_cleared(changed: list[tuple[Row, Row]], day: str) -> tuple[int, int]:
+    """維護 data/appeal_cleared.csv：曾經公告訴願中、後來備註被清空的處分。
+
+    ⚠ 為什麼需要這個檔：`pipeline/export.py` 只看得到**當下**的備註。
+      備註從「訴願中」變成空白時，畫面上的「尚未確定」標示會整個消失 ——
+      等於默默告訴使用者這案子確定了、原處分維持，而我們並不知道
+      是駁回還是撤銷。來源不再刊載，不等於結果已知。
+      實測 2026-09-14 那一輪有三筆這樣（長榮航空、鈞安婦幼、嘉倍管顧）。
+
+    ⚠ 三種情況要把紀錄**移除**，不是留著：
+        1. 備註又變回訴願中  → 本來就還在進行，照常標「尚未確定」
+        2. 備註寫出結果      → 結果已知，直接顯示那個結果
+      留著會讓畫面同時說「訴願駁回」跟「結果未公開」，自相矛盾。
+
+    ⚠ 這個檔含真實公司名，**不進 git**（data/* 在 .gitignore 全擋）。
+
+    回傳 (這輪新增幾筆, 這輪移除幾筆)。
+    """
+    old: dict[str, dict[str, str]] = {}
+    if APPEAL_CLEARED_PATH.exists():
+        with APPEAL_CLEARED_PATH.open(encoding="utf-8-sig", newline="") as f:
+            for row in csv.DictReader(f):
+                if row.get("doc_no"):
+                    old[row["doc_no"].strip()] = row
+
+    added = removed = 0
+    for a, b in changed:
+        doc = b.doc_no
+        if not doc:
+            continue
+        if _pending(a.note) and not _pending(b.note) and not _settled(b.note):
+            if doc not in old:
+                old[doc] = {
+                    "doc_no": doc, "unit_code": b.unit_code,
+                    "law_code": b.law_code, "employer": b.employer,
+                    "was": a.note, "cleared_on": day,
+                }
+                added += 1
+        elif (_pending(b.note) or _settled(b.note)) and doc in old:
+            del old[doc]
+            removed += 1
+
+    if old or APPEAL_CLEARED_PATH.exists():
+        APPEAL_CLEARED_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with APPEAL_CLEARED_PATH.open("w", newline="", encoding="utf-8-sig") as f:
+            w = csv.DictWriter(f, fieldnames=CLEARED_FIELDS)
+            w.writeheader()
+            for row in sorted(old.values(), key=lambda r: r["cleared_on"]):
+                w.writerow({k: row.get(k, "") for k in CLEARED_FIELDS})
+    return added, removed
+
+
 def group_counts(rows: dict[str, Row]) -> Counter[tuple[str, str]]:
     c: Counter[tuple[str, str]] = Counter()
     for r in rows.values():
@@ -368,6 +432,18 @@ def write_report(d: Diff, shrinks: list[Shrink], day: str,
               f"{a.note or '（空）'} | {b.note or '（空）'} |")
         if len(appeals) > 200:
             A(f"\n…另外 {len(appeals) - 200:,} 筆見 changes.csv\n")
+
+    cleared = [(a, b) for a, b in d.changed
+               if _pending(a.note) and not _pending(b.note) and not _settled(b.note)]
+    if cleared:
+        A("\n## ⚠ 訴願中的備註被清空（結果未公開）\n")
+        A("來源不再刊載訴願狀態，**不等於原處分維持**。駁回還是撤銷我們看不到。")
+        A("這些處分字號會寫進 `data/appeal_cleared.csv`，"
+          "查詢頁顯示「本案曾公告訴願中，現行公告未載訴願狀態；結果未公開」。\n")
+        A("| 公告日期 | 事業單位 | 處分字號 | 原本寫 |")
+        A("|---|---|---|---|")
+        for a, b in cleared:
+            A(f"| {b.announced} | {b.employer} | {b.doc_no} | {a.note} |")
 
     if d.removed:
         A("\n## 消失的公告（前 50 筆）\n")
@@ -512,6 +588,7 @@ def main(argv: list[str] | None = None) -> int:
         return promote(a.accept_shrink, shrinks)
 
     redo = reannounced(d.added, old)
+    n_cleared, n_uncleared = update_appeal_cleared(d.changed, day)
     path = write_report(d, shrinks, day, len(old), len(new), redo)
     append_log(day, len(old), len(new), d, shrinks, len(redo))
     write_snapshot(new, day)
@@ -521,6 +598,9 @@ def main(argv: list[str] | None = None) -> int:
           f"實際新的處分 {len(d.added) - len(redo):,}）")
     print(f"消失 {len(d.removed):,}　內容變更 {len(d.changed):,}"
           f"（其中訴願狀態 {len(appeal_changes(d.changed)):,}）")
+    if n_cleared or n_uncleared:
+        print(f"訴願中的備註被清空 {n_cleared:,} 筆、恢復 {n_uncleared:,} 筆"
+              f" → {APPEAL_CLEARED_PATH}")
     if shrinks:
         print(f"\n⚠ {len(shrinks)} 組筆數變少，**先看報告**再決定要不要 promote：")
         for s in shrinks[:10]:

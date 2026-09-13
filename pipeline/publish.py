@@ -128,7 +128,7 @@ def compact_violation(r: dict) -> list:
         content,
         fine,
         severity_of(fine, content),
-        appeal_of(r.get("remark", "")),
+        appeal_of(r.get("remark", ""), r.get("doc_no", "")),
         r.get("doc_no", ""),
         [h["code"] for h in hazards_of(r.get("law") or "", content)],
         1 if is_fatal(content) else 0,
