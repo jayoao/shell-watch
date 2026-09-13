@@ -31,6 +31,9 @@ web/.vite/
 data/*
 !data/.gitkeep
 !data/README.md
+# 地址 → 經緯度。⚠ 確認過只有地址與座標，沒有公司名、沒有人名。
+# 地址本身是商工登記的公開欄位，座標來自 BSD 授權的公開資料集。
+!data/geocode.csv
 
 # 標註工作檔（含真實姓名，絕對不進 git）
 *_review.csv
