@@ -449,7 +449,14 @@ def main(argv: list[str] | None = None) -> int:
     use_utf8_stdout()
     p = argparse.ArgumentParser(description="重抓一輪並跟上一輪比對")
     p.add_argument("--baseline", action="store_true",
-                   help="只把現在的 data/raw 存成基準快照，不抓任何東西")
+                   help="只把某個 raw 目錄存成基準快照，不抓任何東西")
+    p.add_argument("--from", dest="src", default=str(RAW),
+                   help="--baseline 要讀哪個目錄（預設 data/raw）")
+    # ⚠ 快照的檔名是「那一輪抓取的日期」，不是跑這支程式的日期。
+    #   補做舊的快照時一定要給 --date，不然歷史索引會把 9/02 抓的資料
+    #   記成今天抓的 —— 之後要回答「那天這筆公告在不在」就會答錯。
+    p.add_argument("--date", default=None,
+                   help="快照要記成哪一天（YYYY-MM-DD，預設今天）")
     p.add_argument("--diff-only", action="store_true",
                    help="不重抓，直接比 data/raw 與 data/raw_new")
     p.add_argument("--promote", action="store_true",
@@ -461,14 +468,15 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--delay", type=float, default=2.0)
     a = p.parse_args(argv)
 
-    day = date.today().isoformat()
+    day = a.date or date.today().isoformat()
 
     if a.baseline:
-        if not RAW.exists():
-            print(f"沒有 {RAW}，先跑 python -m crawler.mol", file=sys.stderr)
+        src = Path(a.src)
+        if not src.exists():
+            print(f"沒有 {src}，先跑 python -m crawler.mol", file=sys.stderr)
             return 1
-        print(f"讀 {RAW} …")
-        rows = read_dir(RAW)
+        print(f"讀 {src} …")
+        rows = read_dir(src)
         path = write_snapshot(rows, day)
         print(f"基準快照 {len(rows):,} 筆 → {path} "
               f"（{path.stat().st_size / 1e6:.1f} MB）")
