@@ -250,13 +250,21 @@ def summarize(unit: str, law: str, body: bytes) -> Coverage:
 # ─────────────────────────── 主流程 ───────────────────────────
 
 
-def raw_path(unit: str, law: str) -> Path:
-    return RAW_DIR / f"{UNIT_CODES[unit]}_{LAW_CODES[law]}.csv"
+def raw_path(unit: str, law: str, dest: Path = RAW_DIR) -> Path:
+    return dest / f"{UNIT_CODES[unit]}_{LAW_CODES[law]}.csv"
 
 
 def crawl(units: list[str], laws: list[str], *,
-          force: bool = False, delay: float = DEFAULT_DELAY) -> list[Coverage]:
-    RAW_DIR.mkdir(parents=True, exist_ok=True)
+          force: bool = False, delay: float = DEFAULT_DELAY,
+          dest: Path = RAW_DIR) -> list[Coverage]:
+    """抓到 dest（預設 data/raw）。
+
+    ⚠ dest 要可以換掉，是為了 pipeline.refresh：重抓一輪的時候**不可以直接
+      蓋掉 data/raw**。蓋掉之後就沒有舊的可以比對，而且萬一這次抓壞了
+      （網站改版、被擋、抓到一半斷線），原本好好的資料就沒了。
+      重抓一律先進 data/raw_new/，比對過、檢查過才換上去。
+    """
+    dest.mkdir(parents=True, exist_ok=True)
     sess = MolSession(delay=delay)
     coverage: list[Coverage] = []
     total = len(units) * len(laws)
@@ -265,7 +273,7 @@ def crawl(units: list[str], laws: list[str], *,
     for unit in units:
         for law in laws:
             done += 1
-            path = raw_path(unit, law)
+            path = raw_path(unit, law, dest)
             tag = f"[{done}/{total}] {unit} × {law}"
 
             if path.exists() and not force:
