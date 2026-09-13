@@ -21,11 +21,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   MapContainer,
+  TileLayer,
   GeoJSON,
   CircleMarker,
+  Marker,
   Popup,
   useMap,
 } from "react-leaflet";
+import { divIcon } from "leaflet";
+import type { Feature, Geometry } from "geojson";
+import type { Layer, PathOptions } from "leaflet";
 import type { GeoJsonObject } from "geojson";
 import type { DistrictDataset, DistrictRow } from "../types/geo";
 import raw from "../data/osha_district.json";
@@ -70,17 +75,78 @@ const BOUNDARIES = boundaries as unknown as GeoJsonObject;
  *   同一個 token 在兩個主題的明暗關係剛好相反，所以湊不出來。
  *   在 tokens.css 另外定義了 --map-land / --map-sea 兩個專用 token。
  */
-const LAND = {
-  color: "var(--line-strong)",
-  weight: 0.7,
-  fillColor: "var(--map-land)",
-  fillOpacity: 1,
-} as const;
+/**
+ * 底圖：內政部國土測繪中心「台灣通用電子地圖」（WMTS，政府開放資料）。
+ *
+ * ⚠ 不要換回 tile.openstreetmap.org —— 那是志工出錢跑的伺服器，有使用政策，
+ *   公開網站直接打會被封，而且是部署之後才會知道（我們已經踩過一次，
+ *   整張圖變成一格一格的「Access blocked / 403」）。
+ *
+ * ⚠ 圖磚是外部依賴，展示當天可能連不上。所以**我們自己的行政區界永遠疊在上面**：
+ *   圖磚掛掉時畫面仍然是一張有邊界、有縣市名的地圖，
+ *   不是空白、也不是一堆錯誤圖片。這是刻意的雙層設計，不要把任何一層拿掉。
+ */
+const BASEMAP_URL =
+  "https://wmts.nlsc.gov.tw/wmts/EMAP/default/GoogleMapsCompatible/{z}/{y}/{x}";
+const BASEMAP_ATTR =
+  '圖資：<a href="https://maps.nlsc.gov.tw/">內政部國土測繪中心</a>';
 
 const TAIWAN_BOUNDS: [[number, number], [number, number]] = [
   [21.85, 119.95],
   [25.35, 122.05],
 ];
+
+/**
+ * 建立地圖時用的安全初值。
+ *
+ * ⚠ **不要把 bounds 交給 MapContainer。** react-leaflet 的 bounds prop 是在
+ *   「建立地圖的那一刻」就呼叫 fitBounds 的，而那一刻容器往往還沒有正確尺寸：
+ *     尺寸偏小 → 算出來的縮放偏高 → 畫面只剩北台灣
+ *     尺寸是 0 → 除以零 → 中心點變成 NaN → 丟出
+ *                「Invalid LatLng object: (NaN, NaN)」→ **整個 React 樹掛掉、整頁空白**
+ *   兩種都實際發生過，後者是在正式站上。
+ *   所以建立時給固定的 center/zoom（永遠算得出來），真正的 fitBounds
+ *   交給 KeepSized，等容器確定有尺寸之後才做。
+ */
+const INIT_CENTER: [number, number] = [23.7, 120.98];
+const INIT_ZOOM = 7;
+
+/**
+ * 縣市標籤的落點：各縣市所有鄉鎮市區的面積加權形心。
+ *
+ * ⚠ 有四個是手動挪過的，因為「市」被「縣」包起來時兩個形心會疊在一起：
+ *   新北市（台北市在它裡面）、嘉義縣（嘉義市在它裡面）、新竹縣（新竹市在它裡面）。
+ *   挪過的落點仍在該縣市境內（新北→樹林三峽、嘉義縣→番路、新竹縣→尖石）。
+ */
+const COUNTY_LABELS: [string, number, number][] = [
+  ["基隆市", 25.1427, 121.781], ["台北市", 25.083, 121.5534],
+  ["新北市", 24.93, 121.42], ["桃園市", 24.9022, 121.2586],
+  ["新竹市", 24.7866, 120.9485], ["新竹縣", 24.62, 121.25],
+  ["苗栗縣", 24.483, 120.9232], ["台中市", 24.2382, 120.8932],
+  ["彰化縣", 23.9585, 120.484], ["南投縣", 23.8429, 120.9822],
+  ["雲林縣", 23.6853, 120.3802], ["嘉義市", 23.4805, 120.4481],
+  ["嘉義縣", 23.42, 120.72], ["台南市", 23.1505, 120.3256],
+  ["高雄市", 22.9994, 120.6202], ["屏東縣", 22.4841, 120.6767],
+  ["宜蘭縣", 24.5705, 121.6404], ["花蓮縣", 23.7535, 121.3787],
+  ["台東縣", 22.8624, 121.0412], ["澎湖縣", 23.5456, 119.5763],
+  ["金門縣", 24.4515, 118.368], ["連江縣", 26.1784, 120.0465],
+];
+
+/** 沒有圖磚就沒有地名，所以自己畫。描邊用陸地色，壓在海上或陸上都看得見。 */
+const countyIcon = (name: string) =>
+  divIcon({
+    className: "",
+    iconSize: [0, 0],
+    html:
+      // ⚠ 底圖是淺色的（不管頁面是深色還是淺色主題），所以標籤顏色不能用
+      //   --ink 系列 —— 深色主題下那是淺灰字，壓在淺色底圖上會看不見。
+      //   --map-label / --map-label-halo 兩個主題同值，就是為了這件事。
+      '<span style="position:absolute;transform:translate(-50%,-50%);' +
+      "white-space:nowrap;font-size:11px;font-weight:700;letter-spacing:.02em;" +
+      "color:var(--map-label);text-shadow:0 0 3px var(--map-label-halo)," +
+      "0 0 3px var(--map-label-halo),0 0 3px var(--map-label-halo)," +
+      '0 0 3px var(--map-label-halo);">' + name + "</span>",
+  });
 
 /** 危害型態代碼 → 名稱。分類在 pipeline/hazard.py 做，前端只查表。 */
 const HAZARD_NAME: Record<string, string> = Object.fromEntries(
@@ -106,16 +172,44 @@ const METRIC_LABEL: Record<Metric, string> = {
 };
 
 /**
- * 圓點半徑（像素）。用平方根是因為人眼看的是**面積**不是半徑 ——
- * 直接拿數值當半徑的話，10 倍的值會畫成 100 倍大的圓。
+ * 數值 → 分級（0 = 無資料，1..5 由淺到深）。
  *
- * ⚠ 最大值只給到 15px。西部工業帶的鄉鎮市區本來就擠，
- *   圓再大一點整條海岸線就糊成一塊藍色，看不出哪個區是哪個區。
- *   （試過 22px，實測就是糊掉。）
+ * ⚠ 這一頁原本是在每個區的**幾何中心畫一個圓點**。那是錯的圖種：
+ *   資料的單位是「一個行政區」，不是「一個地點」。放大到街道層級之後，
+ *   那個圓點看起來像在宣稱「事情發生在這裡」，但它不代表任何一家公司的位置
+ *   —— 實測 377 個形心裡有 9 個甚至落在自己的區外（凹形的區會這樣）。
+ *   密度（每千家）本來就該用填色的面來表示，不是點。
+ *
+ * 分級用「相對於最大值的平方根」切，不是等距 —— 數值分布極度右偏
+ * （五股區 193.7，中位數不到 30），等距切的話 90% 的區會全部落在第一級。
+ */
+const BINS = 5;
+
+function binOf(value: number, max: number): number {
+  if (!(value > 0) || !(max > 0)) return 0;
+  const t = Math.sqrt(value / max);
+  return Math.min(BINS, Math.max(1, Math.ceil(t * BINS)));
+}
+
+/**
+ * 分級 → 行政區的填色不透明度。
+ *
+ * ⚠ 上限只到 0.42，比沒有底圖時淡很多 —— 底下是真實地圖，
+ *   填太實等於把街道蓋掉，那就失去「在真實的地方」的意義了。
+ */
+const BIN_ALPHA = [0, 0.1, 0.18, 0.26, 0.34, 0.42];
+
+/**
+ * 圓點半徑（像素）。用平方根是因為人眼看的是**面積**不是半徑。
+ *
+ * ⚠ 這個圓點是**該區的代表點**，不是任何一筆紀錄的位置 ——
+ *   它畫在行政區的幾何中心。所以行政區的淡填色一定要留著：
+ *   那是在告訴使用者「這個數字屬於整片區域」，
+ *   不是屬於圓點底下那棟建築物。兩層是一組的，不要只留一層。
  */
 function radiusFor(value: number, max: number): number {
-  if (value <= 0 || max <= 0) return 0;
-  return 2 + Math.sqrt(value / max) * 10;
+  if (!(value > 0) || !(max > 0)) return 0;
+  return 3 + Math.sqrt(value / max) * 13;
 }
 
 /**
@@ -131,40 +225,62 @@ function rateSE2(n: number, base: number): number {
 }
 
 /**
- * ⚠⚠ 這個元件不是裝飾，沒有它整張圖在正式站上是**空白的**。
+ * ⚠⚠ 這個元件不是裝飾，沒有它整張圖在正式站上是**空白的**，或是縮放錯的。
  *
- * Leaflet 在建立地圖時量一次容器尺寸就**快取起來**。如果那一刻容器的寬度
- * 是 0（分頁在背景、視窗還在開、CSS 還沒套上、lazy chunk 比樣式先到），
- * 它會把裁切範圍算成 0 寬，然後**每一個圖形的 d 都變成 "M0 0"** ——
- * DOM 裡 667 個 path 都在，畫面上什麼都沒有，而且不會有任何錯誤訊息。
+ * Leaflet 建立地圖時量一次容器尺寸就**快取起來**，之後只有 invalidateSize()
+ * 或視窗 resize 才會重算。這一頁踩過的兩種災情都來自那一次量錯：
  *
- * 實際踩到的樣子：本機一切正常、部署到 Cloudflare 之後整張圖空白。
- * 本機之所以「正常」，是因為開發時視窗被改過大小，
- * 觸發了 Leaflet 自己的 resize 處理把尺寸救回來 —— 等於把證據擦掉了。
+ *   量到 0 寬   → 裁切範圍 0 寬 → 每個圖形的 d 都變成 "M0 0"
+ *                 DOM 裡 667 個 path 都在、一個錯誤都沒有、畫面全空
  *
- * 所以用 ResizeObserver 盯著容器：
- *   · 每次尺寸變化都 invalidateSize()，把快取的尺寸更新
- *   · 第一次量到「寬度真的大於 0」時才套用預設檢視（fitBounds）
- *     ⚠ 之後的 resize 不再 fitBounds —— 不然使用者放大到某個區去看，
- *       一改視窗大小就被彈回全台，那比不會自動調整更煩。
+ *   量到過大   → 縮放算得太高 → 畫面只剩北台灣
+ *                 成因：leaflet.css 還沒載入時，.leaflet-pane 的
+ *                 position:absolute 還不存在，667 個圖形與 22 個標籤
+ *                 用正常文件流排開，容器被撐成好幾千 px 高。
+ *
+ * ⚠ 第二種特別陰險，因為**尺寸後來會自己修好**（CSS 一載入容器就縮回正常，
+ *   ResizeObserver 也確實更新了 Leaflet 的尺寸）——錯的只剩縮放。
+ *   所以「只在第一次套用預設檢視」是錯的設計：第一次正是最不可信的那一次。
+ *
+ * 現在的規則：**在使用者自己動地圖之前，每次尺寸變化都重新套用預設檢視。**
+ * 使用者一旦拖曳、縮放或按下 +／−，就不再自動重設 —— 不然他放大到某個區
+ * 在看，一改視窗大小就被彈回全台，那比不會自動調整更煩。
+ *
+ * 「使用者動過」是用容器上的真實輸入事件判斷的（pointerdown／wheel／keydown），
+ * 不是用 Leaflet 的 zoomstart —— 因為 fitBounds 自己也會觸發 zoomstart，
+ * 用那個判斷會變成「第一次自動 fit 之後就再也不 fit」，等於繞回原來的 bug。
  */
 function KeepSized({ bounds }: { bounds: [[number, number], [number, number]] }) {
   const map = useMap();
-  const fitted = useRef(false);
+  const userMoved = useRef(false);
 
   useEffect(() => {
     const el = map.getContainer();
+    const markUser = () => {
+      userMoved.current = true;
+    };
+
     const sync = () => {
       map.invalidateSize({ animate: false });
-      if (!fitted.current && el.clientWidth > 0 && el.clientHeight > 0) {
-        map.fitBounds(bounds, { padding: [10, 10] });
-        fitted.current = true;
-      }
+      if (userMoved.current) return;
+      if (el.clientWidth <= 0 || el.clientHeight <= 0) return;
+      map.fitBounds(bounds, { padding: [10, 10], animate: false });
     };
+
     sync();
     const ro = new ResizeObserver(sync);
     ro.observe(el);
-    return () => ro.disconnect();
+
+    el.addEventListener("pointerdown", markUser, { passive: true });
+    el.addEventListener("wheel", markUser, { passive: true });
+    el.addEventListener("keydown", markUser);
+
+    return () => {
+      ro.disconnect();
+      el.removeEventListener("pointerdown", markUser);
+      el.removeEventListener("wheel", markUser);
+      el.removeEventListener("keydown", markUser);
+    };
   }, [map, bounds]);
 
   return null;
@@ -174,6 +290,7 @@ export default function OshaDistrictMap() {
   const data = raw as unknown as DistrictDataset;
 
   const [metric, setMetric] = useState<Metric>("rate");
+  const [selected, setSelected] = useState<DistrictRow | null>(null);
   const [hazardFilter, setHazardFilter] = useState<string>("");
   const [countyFilter, setCountyFilter] = useState<string>("");
 
@@ -237,6 +354,52 @@ export default function OshaDistrictMap() {
     [rows, valueOf],
   );
 
+  /** 目前畫得出來的區：key → 資料列。被篩掉的區不在裡面，就不填色。 */
+  const shown = useMemo(() => {
+    const m = new Map<string, DistrictRow>();
+    for (const r of rows) m.set(r.k, r);
+    return m;
+  }, [rows]);
+
+  /** 行政區的填色。沒有資料（或被篩掉）的區維持陸地本色。 */
+  const styleFor = useMemo(
+    () =>
+      (feature?: Feature<Geometry, { k: string }>): PathOptions => {
+        const r = feature && shown.get(feature.properties.k);
+        const bin = r ? binOf(valueOf(r), max) : 0;
+        // ⚠ 沒資料的區 fillOpacity 要是 0，不是填成陸地色 ——
+        //   底下有底圖，填實了等於把地圖蓋掉。
+        return {
+          color: "var(--line-strong)",
+          weight: 0.8,
+          fillColor: metric === "fatal" ? "var(--sev-high)" : "var(--accent)",
+          fillOpacity: bin === 0 ? 0 : BIN_ALPHA[bin],
+        };
+      },
+    [shown, valueOf, max, metric],
+  );
+
+  /**
+   * 點一個區就開它的 Popup。
+   * ⚠ 用 useMemo 綁在同一組相依上，並且讓 GeoJSON 的 key 一起變 ——
+   *   不然 onEachFeature 會抓到舊的 closure，點出來是上一次篩選的數字。
+   */
+  const onEachFeature = useMemo(
+    () => (feature: Feature<Geometry, { k: string }>, layer: Layer) => {
+      layer.on("click", () => setSelected(shown.get(feature.properties.k) ?? null));
+    },
+    [shown],
+  );
+
+  /**
+   * 篩選條件一改就把開著的 Popup 關掉。
+   * ⚠ 不關的話，被篩掉的區（例如切到「每千家」之後分母不足的區）
+   *   的 Popup 還開著，畫面上會有一個地圖上已經不存在的區在報數字。
+   */
+  useEffect(() => {
+    setSelected((cur) => (cur && shown.has(cur.k) ? cur : null));
+  }, [shown]);
+
   const ranked = useMemo(
     () => [...rows].sort((a, b) => valueOf(b) - valueOf(a)),
     [rows, valueOf],
@@ -270,12 +433,13 @@ export default function OshaDistrictMap() {
           lineHeight: 1.7,
         }}
       >
-        <strong>圓點的位置是事業單位的「商工登記地址」，不是職災的發生地點。</strong>
+        <strong>顏色深淺是依事業單位的「商工登記地址」歸戶到行政區，不是職災的發生地點。</strong>
         <br />
         職安法的 {data.osha_total.toLocaleString()} 筆公告裡，只有 189 筆填了發生地點（0.25%），
         無法用來定位。公司登記在台北、工地在桃園是營造業的常態，
         所以這張圖回答的是「被處分的事業單位登記在哪裡」，
-        不是「哪裡容易出事」。圓點畫在該區的幾何中心，不是任何一筆紀錄的實際位置。
+        不是「哪裡容易出事」。整個行政區一起上色，是因為這份資料的解析度就是「一個區」——
+        再細的位置我們沒有，也不會假裝有。
       </div>
 
       <p className="sw-muted" style={{ marginTop: -4 }}>
@@ -353,8 +517,8 @@ export default function OshaDistrictMap() {
         }}
       >
         <MapContainer
-          bounds={TAIWAN_BOUNDS}
-          boundsOptions={{ padding: [10, 10] }}
+          center={INIT_CENTER}
+          zoom={INIT_ZOOM}
           /*
            * ⚠ zoomSnap 預設是 1，縮放只能是整數級。
            *   本島在這個框裡剛好卡在 7 跟 8 中間 —— 只能取整數的話
@@ -362,7 +526,7 @@ export default function OshaDistrictMap() {
            */
           zoomSnap={0.25}
           minZoom={6}
-          /* 沒有圖磚了，容器底色就是「海」 —— 要比陸地暗，見 LAND 的註解 */
+          /* 圖磚還沒載入（或載不到）時看到的底色 */
           style={{ height: "100%", width: "100%", background: "var(--map-sea)" }}
           /*
            * 滾輪縮放維持開啟 —— 這是實際使用後決定的。
@@ -375,91 +539,165 @@ export default function OshaDistrictMap() {
           scrollWheelZoom
         >
           <KeepSized bounds={TAIWAN_BOUNDS} />
-          <GeoJSON data={BOUNDARIES} style={() => LAND} interactive={false} />
+          <TileLayer url={BASEMAP_URL} attribution={BASEMAP_ATTR} maxZoom={20} />
+          {COUNTY_LABELS.map(([name, lat, lng]) => (
+            <Marker
+              key={name}
+              position={[lat, lng]}
+              icon={countyIcon(name)}
+              interactive={false}
+              keyboard={false}
+            />
+          ))}
 
-          {/* 大圓先畫、小圓後畫 —— 不然彰化那一帶的小區會被鄰居蓋住點不到 */}
+          {/*
+            ⚠ 資料圖層是**面**，不是點。
+              每個行政區用自己的形狀填色，所以放大到任何倍率都不會出現
+              「這個點宣稱事情發生在這裡」的問題 —— 整個區都被塗到，
+              那才是這份資料真正的解析度。
+              key 要含 metric／篩選條件：react-leaflet 的 GeoJSON 不會因為
+              style 函式變了就重畫，要換 key 強制重建。
+          */}
+          <GeoJSON
+            key={`v-${metric}-${hazardFilter}-${countyFilter}-${max}`}
+            data={BOUNDARIES}
+            style={styleFor}
+            onEachFeature={onEachFeature}
+          />
+
+          {/*
+            圓點層。大圓先畫、小圓後畫 —— 不然西部工業帶的小區
+            會被鄰居整個蓋住，連點都點不到。
+          */}
           {ranked.map((r) => {
             const v = valueOf(r);
             if (v <= 0) return null;
-            /* 用 --accent 不是 --accent-fill —— 深色主題下 accent-fill
-               壓在深色陸地上對比不夠。 */
-            const color = metric === "fatal" ? "var(--sev-high)" : "var(--accent)";
             return (
               <CircleMarker
                 key={r.k}
                 center={[r.lat, r.lng]}
                 radius={radiusFor(v, max)}
                 pathOptions={{
-                  color,
-                  fillColor: color,
-                  /*
-                   * 填色要淡、外框要清楚。
-                   * ⚠ 西部工業帶的鄉鎮市區本來就擠，300 個圓一定會重疊。
-                   *   填得越實，重疊處越糊成一塊；改成淡填色＋明顯外框之後，
-                   *   重疊的圓會讀成「幾個圈圈疊在一起」而不是「一坨藍色」。
-                   */
-                  fillOpacity: 0.22,
-                  opacity: 0.9,
-                  weight: 1.4,
+                  color: "var(--map-label-halo)",
+                  weight: 1.2,
+                  fillColor:
+                    metric === "fatal" ? "var(--sev-high)" : "var(--accent-fill)",
+                  fillOpacity: 0.85,
                 }}
-              >
-                <Popup>
-                  <div style={{ minWidth: 230, lineHeight: 1.65 }}>
-                    <strong>{r.k}</strong>
-                    <div style={{ color: "var(--ink-3)", fontSize: 12 }}>
-                      以登記地址歸戶，非事故發生地點
-                    </div>
-                    <hr style={{ margin: "6px 0", border: 0, borderTop: "1px solid var(--line)" }} />
-                    <div>
-                      職安法裁處
-                      {hazardFilter && `（${HAZARD_NAME[hazardFilter]}）`}
-                      ：{countOf(r).toLocaleString()} 筆
-                    </div>
-                    {r.base >= MIN_BASE ? (
-                      <div>
-                        每千家登記事業單位{" "}
-                        {((1000 * countOf(r)) / r.base).toFixed(1)}
-                        {" ± "}
-                        {rateSE2(countOf(r), r.base).toFixed(1)}
-                        <span style={{ color: "var(--ink-3)" }}>（±2SE）</span>
-                      </div>
-                    ) : (
-                      <div style={{ color: "var(--ink-3)" }}>
-                        現存登記事業單位僅 {r.base.toLocaleString()} 家，
-                        分母太小，不計算率
-                      </div>
-                    )}
-                    {/* ⚠ 措辭固定：「涉及」不是「造成」。有些公告罰的是
-                        「未於八小時內通報死亡災害」，寫成「造成死亡」
-                        就是把通報違規講成殺人。 */}
-                    {fatalOf(r) > 0 && (
-                      <div style={{ color: "var(--sev-high)", fontWeight: 700 }}>
-                        其中 {fatalOf(r)} 筆公告涉及死亡災害
-                      </div>
-                    )}
-                    {pendingOf(r) > 0 && (
-                      <div style={{ color: "var(--warn)" }}>
-                        {pendingOf(r)} 筆行政救濟尚未終結，原處分是否維持仍待確定
-                      </div>
-                    )}
-                    <div style={{ color: "var(--ink-2)", marginTop: 4 }}>
-                      有裁處紀錄的事業單位 {r.co.toLocaleString()} 家
-                      {" / "}
-                      現存登記 {r.base.toLocaleString()} 家
-                    </div>
-                    <div style={{ marginTop: 4 }}>
-                      主要危害型態：
-                      {Object.entries(r.haz)
-                        .slice(0, 4)
-                        .map(([h, c]) => `${HAZARD_NAME[h] ?? h} ${c}`)
-                        .join("、") || "（本區無可歸類的職安法裁處）"}
-                    </div>
-                  </div>
-                </Popup>
-              </CircleMarker>
+                eventHandlers={{ click: () => setSelected(r) }}
+              />
             );
           })}
+
+          {selected && (
+            <Popup
+              position={[selected.lat, selected.lng]}
+              eventHandlers={{ remove: () => setSelected(null) }}
+            >
+              <div style={{ minWidth: 230, lineHeight: 1.65 }}>
+                      <strong>{selected.k}</strong>
+                      <div style={{ color: "var(--ink-3)", fontSize: 12 }}>
+                        以登記地址歸戶，非事故發生地點。
+                        圓點是這個行政區的代表點，不是任何一筆紀錄的位置。
+                      </div>
+                      <hr style={{ margin: "6px 0", border: 0, borderTop: "1px solid var(--line)" }} />
+                      <div>
+                        職安法裁處
+                        {hazardFilter && `（${HAZARD_NAME[hazardFilter]}）`}
+                        ：{countOf(selected).toLocaleString()} 筆
+                      </div>
+                      {selected.base >= MIN_BASE ? (
+                        <div>
+                          每千家登記事業單位{" "}
+                          {((1000 * countOf(selected)) / selected.base).toFixed(1)}
+                          {" ± "}
+                          {rateSE2(countOf(selected), selected.base).toFixed(1)}
+                          <span style={{ color: "var(--ink-3)" }}>（±2SE）</span>
+                        </div>
+                      ) : (
+                        <div style={{ color: "var(--ink-3)" }}>
+                          現存登記事業單位僅 {selected.base.toLocaleString()} 家，
+                          分母太小，不計算率
+                        </div>
+                      )}
+                      {/* ⚠ 措辭固定：「涉及」不是「造成」。有些公告罰的是
+                          「未於八小時內通報死亡災害」，寫成「造成死亡」
+                          就是把通報違規講成殺人。 */}
+                      {fatalOf(selected) > 0 && (
+                        <div style={{ color: "var(--sev-high)", fontWeight: 700 }}>
+                          其中 {fatalOf(selected)} 筆公告涉及死亡災害
+                        </div>
+                      )}
+                      {pendingOf(selected) > 0 && (
+                        <div style={{ color: "var(--warn)" }}>
+                          {pendingOf(selected)} 筆行政救濟尚未終結，原處分是否維持仍待確定
+                        </div>
+                      )}
+                      <div style={{ color: "var(--ink-2)", marginTop: 4 }}>
+                        有裁處紀錄的事業單位 {selected.co.toLocaleString()} 家
+                        {" / "}
+                        現存登記 {selected.base.toLocaleString()} 家
+                      </div>
+                      <div style={{ marginTop: 4 }}>
+                        主要危害型態：
+                        {Object.entries(selected.haz)
+                          .slice(0, 4)
+                          .map(([h, c]) => `${HAZARD_NAME[h] ?? h} ${c}`)
+                          .join("、") || "（本區無可歸類的職安法裁處）"}
+                      </div>
+                    </div>
+            </Popup>
+          )}
         </MapContainer>
+      </div>
+
+      {/* 圖例。顏色一旦拿來編碼數值就一定要有圖例，不然深淺只是裝飾。 */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          flexWrap: "wrap",
+          maxWidth: 660,
+          margin: "10px auto 0",
+          fontSize: 12,
+          color: "var(--ink-2)",
+        }}
+      >
+        <span>{METRIC_LABEL[metric]}：</span>
+        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <i
+            style={{
+              width: 16,
+              height: 12,
+              background: "transparent",
+              border: "1px solid var(--line-strong)",
+              display: "inline-block",
+            }}
+          />
+          無資料
+        </span>
+        {[1, 2, 3, 4, 5].map((bin) => (
+          <span key={bin} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <i
+              style={{
+                width: 16,
+                height: 12,
+                background: metric === "fatal" ? "var(--sev-high)" : "var(--accent)",
+                opacity: BIN_ALPHA[bin],
+                border: "1px solid var(--line-strong)",
+                display: "inline-block",
+              }}
+            />
+            {metric === "rate"
+              ? (max * (bin / BINS) ** 2).toFixed(0)
+              : Math.round(max * (bin / BINS) ** 2).toLocaleString()}
+          </span>
+        ))}
+        <span style={{ color: "var(--ink-3)" }}>（上界）</span>
+        <span style={{ color: "var(--ink-3)" }}>
+          圓點大小同樣代表數值，位置是該行政區的中心
+        </span>
       </div>
 
       <h2 style={{ fontSize: 17, margin: "20px 0 8px" }}>
@@ -522,8 +760,13 @@ export default function OshaDistrictMap() {
         各縣市的資料公開期間長短不一（有些縣市不到 2 年，基隆市與新竹市的職安法一筆都沒有），
         跨地區比較請一併考慮這一點。
         <br />
-        行政區界為簡化後的鄉鎮市區界（來源：g0v/twgeojson），僅作為底圖，
-        不得用於任何界線或面積的認定；本頁不向任何外部圖磚伺服器取圖。
+        面量圖會放大大面積行政區的視覺份量（花蓮秀林鄉的面積是台北市中正區的數百倍），
+        比較時請看數字，不要只看色塊大小。
+        <br />
+        底圖為內政部國土測繪中心「台灣通用電子地圖」；
+        行政區界為簡化後的鄉鎮市區界（來源：g0v/twgeojson），
+        不得用於任何界線或面積的認定。行政區界由本站自行提供，
+        因此即使底圖服務暫時無法連線，邊界與資料仍然顯示得出來。
         <br />
         預設檢視只框住本島；金門縣與連江縣的資料也在圖上，要縮小才看得到。
         地圖可用滾輪、左上角的 + / − 或雙擊縮放。
