@@ -532,8 +532,8 @@ export default function Home() {
       {outcome?.kind === "choose" && (
         <div className="sw-card" style={{ marginTop: 16 }}>
           <p style={{ marginTop: 0 }}>
-            有 {outcome.candidates.length} 家公司的名稱是「{q.trim()}」開頭，
-            請選擇你要查的那一家：
+            {outcome.note ??
+              `有 ${outcome.candidates.length} 家公司的名稱是「${q.trim()}」開頭，請選擇你要查的那一家：`}
           </p>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {outcome.candidates.map((c) => (

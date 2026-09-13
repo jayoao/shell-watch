@@ -173,6 +173,38 @@ async function findByCore(name: string, shards: number): Promise<string[]> {
   return shard?.a?.[key] ?? [];
 }
 
+/**
+ * 組織型態字尾。⚠ 使用者常常打到一半就按查詢。
+ *
+ * 這個查詢系統只有兩種鍵查得到：**完整公司名**與**核心名**（去掉組織型態字尾）。
+ * 實測「旭隆實業」查得到（核心名，分片 982）、「旭隆實業股份有限公司」查得到
+ * （完整名，分片 1214），但中間的「旭隆實業股份」**兩種鍵都不是**，
+ * 而且它自己雜湊到分片 413 —— 連「附近有沒有像的」都掃不到，因為翻錯本子了。
+ *
+ * 沒有索引檔就做不到前綴搜尋（索引 17 萬個公司名本身就要好幾 MB，
+ * 那會犧牲掉「一次查詢只下載一片」這個設計）。所以改成：查不到的時候，
+ * 把尾端「打到一半的組織型態」切掉再試一次。
+ */
+const ORG_SUFFIX = [
+  "股份有限公司", "有限公司", "無限公司", "兩合公司",
+  "分公司", "公司", "企業社", "工作室", "商行", "事務所", "工程行",
+];
+
+/** 把尾端打到一半的組織型態切掉，回傳值得再試一次的候選字串（長的優先）。 */
+export function trimPartialOrgSuffix(q: string): string[] {
+  const out: string[] = [];
+  for (const suf of ORG_SUFFIX) {
+    for (let k = suf.length; k >= 1; k--) {
+      const frag = suf.slice(0, k);
+      if (q.length > frag.length && q.endsWith(frag)) {
+        const cut = q.slice(0, -frag.length);
+        if (cut && cut !== q && !out.includes(cut)) out.push(cut);
+      }
+    }
+  }
+  return out.sort((a, b) => b.length - a.length);
+}
+
 const SOURCE_URL = "https://announcement.mol.gov.tw/";
 
 function toViolations(
@@ -218,7 +250,7 @@ function summariseHazards(vs: ViolationRef[]) {
 /** 查詢的四種結果。查不到跟沒資料是兩件事，UI 的說法完全不同。 */
 export type LookupOutcome =
   | { kind: "hit"; result: LookupResult }
-  | { kind: "choose"; candidates: string[] }   // 核心名對到多家，要使用者選
+  | { kind: "choose"; candidates: string[]; note?: string }  // 要使用者選
   | { kind: "miss" }                           // 有資料，但沒有這家的紀錄
   | { kind: "nodata" };                        // 完整資料沒部署，只有展示樣本
 
@@ -240,7 +272,28 @@ export async function lookup(query: string): Promise<LookupOutcome> {
     if (cands.length > 1) return { kind: "choose", candidates: cands };
     if (cands.length === 1) self = await findEntry(cands[0], shards);
   }
-  if (!self) return { kind: "miss" };
+  if (!self) {
+    // 尾端可能是打到一半的組織型態（「旭隆實業股份」）。切掉再試。
+    //
+    // ⚠ 這條路一律走 choose，**不可以直接跳進去**，即使只對到一家。
+    //   切字串是猜測，猜測不能替使用者決定他在看哪一家公司的裁處紀錄 ——
+    //   猜錯就是把 A 公司的紀錄顯示成 B 公司的，那是名譽損害。
+    for (const cut of trimPartialOrgSuffix(normName(query))) {
+      const cands = await findByCore(cut, shards);
+      const exact = cands.length ? [] : ((await findEntry(cut, shards)) ? [cut] : []);
+      const hits = cands.length ? cands : exact;
+      if (hits.length) {
+        return {
+          kind: "choose",
+          candidates: hits,
+          note: `找不到「${query.trim()}」。`
+            + `這個查詢系統要完整公司名稱，或是去掉「股份有限公司」等字尾的名稱。`
+            + `以「${cut}」找到以下結果：`,
+        };
+      }
+    }
+    return { kind: "miss" };
+  }
 
   const own = toViolations(self.v, haz);
 
