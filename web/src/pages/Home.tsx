@@ -37,7 +37,7 @@ import type {
 } from "../types/contracts";
 import sample from "../data/lookup.sample.json";
 import { getMeta, hashMismatch, lookup } from "../lib/lookup";
-import type { LookupOutcome, Meta } from "../lib/lookup";
+import type { LookupOutcome, Meta, RegistryHit } from "../lib/lookup";
 import "../styles/home.css";
 
 const DATA = sample as unknown as {
@@ -130,6 +130,18 @@ function strengthLabel(c: LinkedCompany): string {
 /* ══════════════════════════════════════════════════════════════
    共用小元件
    ══════════════════════════════════════════════════════════════ */
+
+/** 獨立佐證（同地址、同縣市⋯）。⚠ 跟 lookup.ts 的 independentCount 同一條規則。 */
+function independentEv(c: LinkedCompany) {
+  return c.evidence.filter(
+    (e) => e.kind !== "same_name" && e.kind !== "rare_name");
+}
+
+/** 姓名訊號（同名、罕見）。它們是同一個訊號的兩種說法，不是兩項證據。 */
+function nameEv(c: LinkedCompany) {
+  return c.evidence.filter(
+    (e) => e.kind === "same_name" || e.kind === "rare_name");
+}
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -594,9 +606,17 @@ function Result({ hit }: { hit: LookupResult }) {
     ...linkedAll.flatMap((c) => c.violations),
   ].filter(isPending).length;
 
+  // ⚠⚠ 當**所有**連結都只有姓名相同的時候，那個數字本身就是暗示。
+  //   實測「大裕機電股份有限公司」：本身 1 筆，而「同名負責人其他公司」
+  //   顯示 9 筆 —— 那 9 筆來自 5 個很可能完全無關的同名者。
+  //   數字照給（我們不替使用者刪資料），但標籤要把話講完。
+  const allWeak = linkedAll.length > 0 && hit.summary.max_independent === 0;
+
   const stats: [number, string, boolean][] = [
     [hit.summary.own_violation_count, "本身的裁處紀錄", false],
-    [hit.summary.linked_violation_count, "同名負責人其他公司的裁處紀錄", false],
+    [hit.summary.linked_violation_count,
+     allWeak ? "同名者其他公司的裁處紀錄（僅姓名相同）"
+             : "同名負責人其他公司的裁處紀錄", false],
     [hit.summary.fatal_count ?? 0, "公告涉及死亡災害", true],
     [pendingCount, "行政救濟尚未終結", false],
   ];
@@ -673,10 +693,7 @@ function Result({ hit }: { hit: LookupResult }) {
               {p.linked_companies.length} 家公司 ·{" "}
               {p.linked_companies.reduce((n, c) => n + c.violations.length, 0)} 筆裁處
             </p>
-            {p.linked_companies
-              .slice()
-              .sort((a, b) => b.confidence - a.confidence)
-              .map((c, i) => <Linked key={`${c.tax_id}-${i}`} c={c} />)}
+            <LinkedGroups list={p.linked_companies} />
           </section>
         ))}
 
@@ -734,19 +751,76 @@ function Linked({ c }: { c: LinkedCompany }) {
           </p>
         )}
       </div>
-      {/* 證據強度：文字 ＋ 完整的佐證句子。⚠ 沒有分數，理由見檔頭。 */}
+      {/* 證據強度。⚠ 沒有分數，理由見檔頭與 contracts.ts 的 independent。
+          ⚠⚠ 兩組一定要分開列。2026-09-15 外部檢視戳到的矛盾就是：
+             標題寫「兩項獨立佐證」，底下卻列了四條，而使用者沒辦法知道
+             哪兩條算數。姓名相同與姓名罕見講的是同一件事，
+             它們是**這個姓名有多罕見**，不是第二個線索。 */}
       <div className="linked-ev">
         <p className="kicker" style={{ margin: "0 0 5px" }}>證據強度</p>
         <p className="linked-ev-h">{strengthLabel(c)}</p>
-        <ul className="linked-ev-list">
-          {c.evidence.map((e, i) => (
-            <li key={i} style={e.kind === "same_name" ? { color: "var(--ink-3)" } : undefined}>
-              {e.detail}
-            </li>
-          ))}
+        {independentEv(c).length > 0 && (
+          <>
+            <p className="ev-group">獨立佐證</p>
+            <ul className="linked-ev-list">
+              {independentEv(c).map((e, i) => <li key={i}>{e.detail}</li>)}
+            </ul>
+          </>
+        )}
+        <p className="ev-group">姓名訊號<span className="ev-note">（不計入獨立佐證）</span></p>
+        <ul className="linked-ev-list ev-weak">
+          {nameEv(c).map((e, i) => <li key={i}>{e.detail}</li>)}
         </ul>
       </div>
     </div>
+  );
+}
+
+/**
+ * 一個負責人名下的連結，分成兩組顯示。
+ *
+ * ⚠⚠ 為什麼要分組：2026-09-15 的外部檢視抽樣了 945 個連結對，
+ *   **56%（527 個）除了「姓名相同」之外沒有任何佐證**，
+ *   只有 4.7% 有姓名以外的獨立佐證。
+ *
+ *   我們的立場是「不判定身分，只呈現有多少佐證」。但把零佐證的連結
+ *   跟有獨立佐證的連結**並排列在一起**，呈現本身就變成一種暗示 ——
+ *   使用者看到的是「這個負責人名下有 12 家公司」，而不是
+ *   「有 1 家有實際佐證，另外 11 家只是名字一樣」。
+ *
+ *   所以：有獨立佐證的照常列；只有姓名相同的另外一組、預設收合、
+ *   標題就寫清楚它是什麼。**不是藏起來** —— 藏起來等於替使用者
+ *   決定那些不值得看，而且筆數照樣講出來。
+ */
+function LinkedGroups({ list }: { list: LinkedCompany[] }) {
+  const [open, setOpen] = useState(false);
+  const sorted = [...list].sort((a, b) => b.independent - a.independent);
+  const strong = sorted.filter((c) => c.independent > 0);
+  const weak = sorted.filter((c) => c.independent === 0);
+  return (
+    <>
+      {strong.map((c, i) => <Linked key={`s-${c.tax_id}-${i}`} c={c} />)}
+      {weak.length > 0 && (
+        <div className="weak-group">
+          {/* ⚠ 沒有前一組的時候不能寫「另外」。實測「大裕機電股份有限公司」
+              五條連結全是零佐證，畫面會變成「另外 5 家…」而上面什麼都沒有。 */}
+          <p className="weak-h">
+            {strong.length > 0 ? "另外 " : "這 "}<b>{weak.length}</b> 家公司的負責人
+            <b>姓名相同</b>，但除了姓名之外<b>沒有其他佐證</b>。
+          </p>
+          <p className="weak-p">
+            同名在台灣很常見 —— 「陳志明」這個姓名在全國就出現在 467 家公司上，
+            那是 467 個不同的人。這一組<b>很可能與這家公司無關</b>，
+            列出來只是因為我們不替你做判斷。
+          </p>
+          <button className="linkish" onClick={() => setOpen((v) => !v)}>
+            {open ? "收合這 " + weak.length + " 家" : `還是要看這 ${weak.length} 家`}
+          </button>
+          {open && weak.map((c, i) => <Linked key={`w-${c.tax_id}-${i}`} c={c} />)}
+        </div>
+      )}
+      {strong.length === 0 && weak.length === 0 && null}
+    </>
   );
 }
 
@@ -823,20 +897,37 @@ export default function Home() {
         onSubmit={(e) => { e.preventDefault(); void run(q); }}
       >
         <label className="kicker" htmlFor="q">公司完整名稱</label>
+        {/* ⚠ 不要只靠 <form> 的隱含送出（implicit submission）。
+            2026-09-15 外部檢視回報「按 Enter 沒反應」，我用兩種自動化
+            都無法確定是網站的問題還是工具合成按鍵的問題 ——
+            兩邊送進來的 keydown 都是 trusted 但不觸發 submit。
+
+            結論是：這個問題不需要先查清楚。決賽評審會親手按 Enter，
+            而顯式處理只要三行、沒有任何副作用。**與其確定，不如保證。** */}
         <input
           id="q"
           className="sw-input"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="例：國城營造有限公司"
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+              e.preventDefault();
+              if (!busy && q.trim()) void run(q);
+            }
+          }}
+          placeholder="例：台積電、國城營造有限公司"
           autoComplete="off"
         />
         <button className="sw-btn" type="submit" disabled={busy || !q.trim()}>
           {busy ? "查詢中" : "查詢"}
         </button>
+        {/* ⚠ 這句話原本寫「少一個字、用簡稱或商標名都查不到」。
+            簡稱查詢與商工登記存在性索引上線之後它就不成立了，
+            但它在首頁又擺了一天 —— 功能改了、文案沒跟上，
+            是這個專案最容易累積的一種謊。改文案要跟功能同一筆 commit。 */}
         {fresh && (
           <p className="search-note">
-            比對的是<b>完整的法定名稱</b>。少一個字、用簡稱或商標名都查不到。
+            打完整的法定名稱最準。打簡稱（例如「台積電」）會列出候選讓你選。
           </p>
         )}
       </form>
@@ -865,7 +956,8 @@ export default function Home() {
         <Choose outcome={outcome} asked={asked} onPick={(n) => { setQ(n); void run(n); }} />
       )}
 
-      {!busy && outcome?.kind === "miss" && <Miss asked={asked} meta={meta} />}
+      {!busy && outcome?.kind === "miss"
+        && <Miss asked={asked} meta={meta} registry={outcome.registry} />}
 
       {!busy && outcome?.kind === "nodata" && (
         <div className="band">
@@ -967,45 +1059,127 @@ function Choose({ outcome, asked, onPick }: {
   );
 }
 
+/** 西元年 → 「西元 1981 年」。⚠ 標示不換算，跟結果頁的 estLabel 一致。 */
+function regEst(y: number): string {
+  return y > 0 ? `設立 西元 ${y} 年` : "";
+}
+
 /**
- * 查無。⚠ 「查無紀錄」不等於「這家公司沒問題」——
- *   這一段是使用者最容易誤讀的地方，所以話要說滿。
+ * 查無。
+ *
+ * ⚠⚠ 2026-09-15 的教訓：指導老師拿他合作的廠商
+ *   「保吉生化學股份有限公司」來查，得到「查無」，結論是我們的搜尋不夠聰明。
+ *   實際上他一個字都沒打錯 —— 那家公司在商工登記是核准設立、1981 年，
+ *   而勞動部的裁處紀錄是 0 筆。
+ *
+ *   **那是關於他合作廠商的好消息，而這一頁把它講成了一次失敗**，
+ *   而且第一句話就問他「名稱是完整的法定名稱嗎？」。
+ *
+ *   所以查無分成兩種，說法完全不同：
+ *     registry 有值  這家公司在商工登記存在 → 講「沒有裁處紀錄」，
+ *                    **不要**問他是不是打錯了
+ *     registry 沒值  這個名稱在商工登記也查不到 → 這時候才輪到「可能打錯了」
+ *
+ * ⚠ 版面也一起改了。原本這一頁第一屏有兩百多字，把真正的答案埋掉。
+ *   現在第一屏只留答案與一句最關鍵的警語，其餘收進「為什麼」。
+ *   警語不是刪掉 —— 刪掉會變成我們在暗示「沒紀錄 = 安全」。
  */
-function Miss({ asked, meta }: { asked: string; meta: Meta | null | undefined }) {
+function Miss({ asked, meta, registry }: {
+  asked: string;
+  meta: Meta | null | undefined;
+  registry?: RegistryHit;
+}) {
+  const [why, setWhy] = useState(false);
+  const closed = registry && registry.status !== "核准設立"
+    && registry.status !== "核准停業";
   return (
     <div className="miss">
-      <h1 className="res-title" style={{ fontSize: 22 }}>
-        查無「{asked}」的公開裁處紀錄。
-      </h1>
-      <div className="band">
-        <p>查無紀錄不代表這家公司沒有問題。</p>
-        <p>
-          這一頁只能告訴你「主管機關公告過什麼」。沒有公告，可能是沒有違規，
-          也可能是沒被檢查、還沒公告，或是該縣市的公告已經下架。
-        </p>
-      </div>
-      <div className="block">
-        <div className="kicker" style={{ marginBottom: 10 }}>先確認這三件事</div>
-        <ol className="checks">
-          <li>
-            名稱是<b>完整的法定名稱</b>嗎？招牌名、品牌名、簡稱都查不到。
-            營業登記上可能是「○○食品行」而不是你看到的店名。
-          </li>
-          <li>是<b>分公司</b>嗎？分公司與本公司分開公告，兩個名稱都要試。</li>
-          <li>
-            是<b>人力派遣</b>嗎？你的面試公司與實際的僱用單位可能不是同一家；
-            勞動契約上的名稱才是要查的那一個。
-          </li>
-        </ol>
-      </div>
-      <p className="fineprint rule-top">
-        {meta
-          ? `本站涵蓋 ${meta.companies.toLocaleString("zh-TW")} 家事業單位、` +
-            `${meta.violations.toLocaleString("zh-TW")} 筆公告，9 部法規、民國 100–115 年。`
-          : "本站涵蓋 9 部法規、民國 100–115 年的公開裁處紀錄。"}
-        {" "}各縣市公告保存期間不一：
-        <b>基隆市與新竹市的職業安全衛生法公告在本站一筆都沒有</b>。
+      {registry ? (
+        <>
+          <h1 className="res-title" style={{ fontSize: 22 }}>
+            {asked}
+          </h1>
+          <p className="miss-lead">
+            這家公司在<b>經濟部商工登記</b>查得到，
+            而本站涵蓋的勞動部公告裡<b>沒有它的裁處紀錄</b>。
+          </p>
+          <dl className="fields" style={{ marginTop: 12 }}>
+            {registry.status && (
+              <Field label="登記現況">
+                <span style={{ color: closed ? "var(--fatal)" : "var(--ink-2)" }}>
+                  {registry.status}
+                </span>
+              </Field>
+            )}
+            {regEst(registry.established) && (
+              <Field label="設立">
+                <span style={{ color: "var(--ink-2)" }}>
+                  {regEst(registry.established).replace(/^設立 /, "")}
+                </span>
+              </Field>
+            )}
+          </dl>
+          {closed && (
+            <div className="band" style={{ marginTop: 14 }}>
+              <p>
+                ⚠ 這個名稱目前的登記現況是<b>{registry.status}</b>。
+                如果你是在應徵這家公司，請先確認實際的僱用單位是哪一家。
+              </p>
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          <h1 className="res-title" style={{ fontSize: 22 }}>
+            查無「{asked}」。
+          </h1>
+          <p className="miss-lead">
+            這個名稱在<b>商工登記與勞動部公告裡都查不到</b>，
+            所以很可能不是它的法定全名。
+          </p>
+          <ol className="checks" style={{ marginTop: 14 }}>
+            <li>
+              招牌名、品牌名、簡稱都查不到 ——
+              營業登記上可能是「○○食品行」而不是你看到的店名。
+            </li>
+            <li>分公司與本公司分開公告，兩個名稱都要試。</li>
+            <li>
+              人力派遣的話，<b>勞動契約上的名稱</b>才是要查的那一個。
+            </li>
+          </ol>
+        </>
+      )}
+
+      {/* ⚠ 這句話不可以收進展開裡。使用者只看第一屏就離開是常態，
+          而「沒紀錄 ≠ 沒問題」是這一頁唯一不能漏掉的一句。 */}
+      <p className="miss-caveat">
+        沒有裁處紀錄<b>不等於</b>沒有問題。這一頁只能告訴你主管機關公告過什麼。
       </p>
+
+      <button className="linkish" onClick={() => setWhy((v) => !v)}>
+        {why ? "收合" : "為什麼？"}
+      </button>
+      {why && (
+        <div className="block" style={{ marginTop: 10 }}>
+          <p>
+            沒有公告，可能是沒有違規，也可能是<b>沒被檢查</b>、還沒公告，
+            或是該縣市的公告<b>已經下架</b>。
+          </p>
+          <p className="fineprint" style={{ marginTop: 10 }}>
+            {meta
+              ? `本站涵蓋 ${meta.companies.toLocaleString("zh-TW")} 家事業單位、`
+                + `${meta.violations.toLocaleString("zh-TW")} 筆公告，`
+                + `9 部法規、民國 100–115 年。`
+              : "本站涵蓋 9 部法規、民國 100–115 年的公開裁處紀錄。"}
+            {" "}各縣市公告保存期間不一：
+            <b>基隆市與新竹市的職業安全衛生法公告在本站一筆都沒有</b>。
+          </p>
+          <p className="fineprint" style={{ marginTop: 10 }}>
+            商工登記資料來自經濟部商工登記公示資料查詢服務。
+            要看統一編號、登記地址與完整的登記事項，請到該系統查詢。
+          </p>
+        </div>
+      )}
     </div>
   );
 }

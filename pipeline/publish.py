@@ -80,7 +80,16 @@ SHARED_ADDR_LIMIT = 10
 # 用途跟 SHARDS 不同：SHARDS 是「知道完整名稱，直接算出在哪一片」；
 # 這一組是「只知道簡稱」，沒辦法算雜湊，只能拿第一個字去撈一疊候選回來比。
 # 256 片是為了讓常見首字（台、大、新、中）那一疊不要大到要下載好幾百 KB。
-PREFIX_SHARDS = 256          # 跟 join.py 同一個門檻：會計師事務所、商務中心
+PREFIX_SHARDS = 256
+
+# ── 商工登記存在性索引的分片數 ──────────────────────────────
+# 由 pipeline/registry.py 產生，**不在這支程式裡跑**（370 萬筆、107 MB，
+# 而且只有商工登記快照更新時才會變）。這裡只負責把片數寫進 meta.json，
+# 讓前端知道要去哪一片找。
+#
+# ⚠ 改這個數字要重跑 registry.py，否則前端會去抓不存在的分片編號，
+#   症狀是「每一家公司都變成查不到登記」—— 不會報錯。
+REGISTRY_SHARDS = 4096          # 跟 join.py 同一個門檻：會計師事務所、商務中心
 
 
 def fnv1a(s: str) -> int:
@@ -397,12 +406,19 @@ def main(argv=None) -> int:
                     continue
                 seen.add((gp, other))
                 conf, ev = evidence_for(company, other, g, facts, addr_users)
-                by_principal_linked[gp].append([other, conf, ev])
+                # ⚠⚠ conf 只拿來排序，**不寫進分片**。
+                #   2026-09-15 外部檢視：我們對外說「不打分」，但分片的 JSON
+                #   裡每條連結都帶著 0–1 的分數，打開 DevTools 就看得到。
+                #   「有分數卻藏起來」比「沒有分數」更難解釋。
+                #   而且那個分數是 ev 清單的函數（0.35 = 同名＋罕見、
+                #   0.75 = 再加同地址、1.0 = 四項全中），沒有帶任何
+                #   畫面上看不到的資訊 —— 既然如此就不要送它。
+                by_principal_linked[gp].append((conf, [other, ev]))
         if by_principal_linked:
             entry["ps"] = [
-                [gp, sorted(v, key=lambda x: -x[1])]
+                [gp, [pair for _c, pair in sorted(v, key=lambda x: -x[0])]]
                 for gp, v in sorted(by_principal_linked.items(),
-                                    key=lambda kv: -max(x[1] for x in kv[1]))
+                                    key=lambda kv: -max(x[0] for x in kv[1]))
             ]
             # 公司自己的公告用的是別種寫法時，老實說出來 ——
             # 那是來源資料的差異，藏起來只會讓畫面自相矛盾。
@@ -514,6 +530,9 @@ def main(argv=None) -> int:
         "version": datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S"),
         "shards": SHARDS,
         "x_shards": PREFIX_SHARDS,
+        # ⚠ 只有 web/public/data/g/ 真的存在時才寫。沒有索引卻宣稱有，
+        #   前端會對每一次查不到都發一個 404 請求。
+        **({"g_shards": REGISTRY_SHARDS} if (out / "g").is_dir() else {}),
         "companies": total,
         "violations": sum(len(v) for v in by_company.values()),
         "source": "勞動部違反勞動法令事業單位（雇主）查詢系統、經濟部商工登記公示資料",

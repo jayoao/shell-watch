@@ -218,6 +218,41 @@
   overflow-wrap: anywhere;
 }
 
+/* ── 佐證分組 ─────────────────────────────── */
+.ev-group {
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em;
+  color: var(--ink-3); margin: 10px 0 3px;
+}
+.ev-note { letter-spacing: 0; }
+/* 姓名訊號降權：它們不是第二個線索，視覺上也不該跟獨立佐證等重。 */
+.ev-weak li { color: var(--ink-3); }
+
+/* ── 僅同名的連結（預設收合） ───────────────── */
+/* ⚠ 不是藏起來 —— 家數照樣寫在標題上，按一下就展開。
+   藏起來等於替使用者決定那些不值得看。 */
+.weak-group {
+  border: 1px solid var(--rule); border-left: 3px solid var(--ink-3);
+  padding: 12px 14px; margin-top: 16px;
+}
+.weak-h { font-size: 13.5px; line-height: 1.7; margin: 0 0 6px; }
+.weak-p {
+  font-size: 12.5px; line-height: 1.75; color: var(--ink-2); margin: 0 0 8px;
+}
+
+/* ── 查無（版面） ─────────────────────────── */
+/* ⚠ 第一屏只留答案跟一句警語。原本這一頁有兩百多字，
+   使用者（包括指導老師）看完只記得「查不到」，記不得為什麼。 */
+.miss-lead {
+  font-size: 15px; line-height: 1.7; margin: 10px 0 0;
+  overflow-wrap: anywhere;
+}
+/* 這句永遠常駐，不可以收進展開裡 —— 收起來等於暗示「沒紀錄 = 安全」。 */
+.miss-caveat {
+  font-size: 12.5px; line-height: 1.75; color: var(--pending-ink);
+  background: var(--pending-soft); border-left: 3px solid var(--pending);
+  padding: 9px 11px; margin: 16px 0 10px;
+}
+
 /* ── 撞名選擇 ─────────────────────────────── */
 .choose { margin-top: 18px; }
 .cand-list { list-style: none; margin: 6px 0 0; padding: 0; }

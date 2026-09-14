@@ -66,13 +66,27 @@ interface RawEntry {
   p?: string;
   /** 依「組的負責人姓名」分群的連結。同一家公司在來源裡有兩種姓名寫法時，
    *  會有兩筆 —— 連結是靠哪一種寫法對上的，就掛在哪一種底下。 */
-  ps?: [string, [string, number, [string, string][]][]][];
+  ps?: [string, [string, [string, string][]][]][];
   /** 這家公司的公告裡出現過、但不是最常見的其他姓名寫法 */
   alt?: string[];
   /** 得獎與驗證。[kind, 原始全名, 證書編號或獎別, 有效期起, 有效期迄, 是否有效] */
   cr?: [string, string, string, string, string, number][];
   /** 重大職災。[角色, 日期, 災害類型, 罹災人數, 工程名稱, 場所, 檢查機構, 比對方式, 對造] */
   ic?: [string, string, string, number, string, string, string, string, string][];
+}
+
+/**
+ * 一條連結有幾項**獨立**佐證。
+ *
+ * ⚠ same_name（姓名相同）與 rare_name（姓名罕見）都不算。兩者講的是
+ *   同一件事：這個姓名。罕見只是讓「同名巧合」的機率變低，沒有提供
+ *   第二個獨立的線索。算成兩項等於把同一個訊號數兩次。
+ *
+ * ⚠ 這個函式同時是**排序依據**。以前排序用的是分片裡的 0–1 分數，
+ *   那個分數已經拿掉了（見 contracts.ts 的 independent 註解）。
+ */
+export function independentCount(ev: { kind: EvidenceKind }[]): number {
+  return ev.filter((e) => e.kind !== "same_name" && e.kind !== "rare_name").length;
 }
 
 /** 分片。e = 完整名稱 → 資料；a = 核心名 → 完整名稱清單 */
@@ -91,6 +105,8 @@ export interface Meta {
   shards: number;
   /** 首字索引的分片數。舊的資料沒有這個欄位，缺的時候就當作沒有索引。 */
   x_shards?: number;
+  /** 商工登記存在性索引的分片數。只有 registry.py 跑過才會有。 */
+  g_shards?: number;
   companies: number;
   violations: number;
   source: string;
@@ -312,6 +328,60 @@ export async function searchAbbrev(query: string, meta: Meta): Promise<string[]>
   return scored.slice(0, ABBREV_LIMIT).map((x) => x[3]);
 }
 
+// ── 商工登記存在性索引 ──────────────────────────────────────
+//
+// 2026-09-15：指導老師拿他合作的廠商「保吉生化學股份有限公司」來查，
+// 得到「查無」，結論是我們的搜尋不夠聰明。實際查下去，他**一個字都沒打錯**：
+// 那家公司在商工登記是「核准設立、1981 年」，而勞動部的裁處紀錄是 0 筆。
+//
+// ⚠⚠ 也就是說，那是一個關於他合作廠商的**好消息**，而我們把它講成了
+//   一次失敗，第一句話還問他「名稱是完整的法定名稱嗎？」。
+//   要修的不是比對，是**答案**——資料庫裡沒有的東西，再厲害的模糊比對
+//   或語言模型都猜不出來。
+//
+// 所以查不到的時候多抓一片商工登記（約 26 KB），把「查無」分成兩種：
+//   登記查得到 → 這家公司存在，只是沒有裁處紀錄
+//   登記查不到 → 這時候才輪到「你可能打錯了」
+const registryCache = new Map<number, Promise<Record<string, number> | null>>();
+
+/** ⚠ 跟 pipeline/registry.py 的 STATUS_CODE 對照表一模一樣 */
+const STATUS_LABEL: Record<number, string> = {
+  1: "核准設立", 2: "核准停業", 3: "歇業", 4: "解散",
+  5: "撤銷", 6: "廢止", 7: "歇業/撤銷", 8: "解散已清算完結",
+};
+
+export interface RegistryHit {
+  /** 登記現況。查得到但代碼不認識時是空字串 */
+  status: string;
+  /** 設立年（西元）。0 代表來源沒有這個欄位 */
+  established: number;
+}
+
+function getRegistry(n: number): Promise<Record<string, number> | null> {
+  let p = registryCache.get(n);
+  if (!p) {
+    p = getJSON<Record<string, number>>(`g/${n}.json`);
+    registryCache.set(n, p);
+  }
+  return p;
+}
+
+/** 這個名稱在經濟部商工登記裡存不存在。沒有索引或查不到都回 null。 */
+export async function findInRegistry(
+  query: string, meta: Meta,
+): Promise<RegistryHit | null> {
+  const key = normName(query);
+  const gs = meta.g_shards ?? 0;
+  if (!gs || !key) return null;
+  const shard = await getRegistry(fnv1a(key) % gs);
+  const packed = shard?.[key];
+  if (packed === undefined) return null;
+  return {
+    status: STATUS_LABEL[Math.floor(packed / 10000)] ?? "",
+    established: packed % 10000,
+  };
+}
+
 const SOURCE_URL = "https://announcement.mol.gov.tw/";
 
 /**
@@ -405,7 +475,9 @@ export type LookupOutcome =
   //   abbrev  使用者打的是簡稱，系統用字面猜的
   | { kind: "choose"; candidates: Candidate[]; note?: string;
       reason?: "core" | "suffix" | "abbrev" }
-  | { kind: "miss" }                           // 有資料，但沒有這家的紀錄
+  // 有資料，但沒有這家的裁處紀錄。registry 有值 = 這個名稱在商工登記查得到，
+  // 也就是「這家公司存在，而且紀錄乾淨」，不是「你可能打錯了」。
+  | { kind: "miss"; registry?: RegistryHit }
   | { kind: "nodata" };                        // 完整資料沒部署，只有展示樣本
 
 /**
@@ -430,6 +502,19 @@ export async function lookup(query: string): Promise<LookupOutcome> {
     if (cands.length === 1) self = await findEntry(cands[0], shards);
   }
   if (!self) {
+    // ⚠⚠ 順序很重要，而且就是這一題踩出來的：先問商工登記這個名稱**存不存在**，
+    //   再決定要不要開始猜。
+    //
+    //   「保吉生化學股份有限公司」在商工登記是核准設立的真公司，裁處 0 筆。
+    //   如果先跑下面的切字尾與簡稱比對，畫面會變成「這些是字面上像的公司」
+    //   並列出幾家不相干的公司 —— 那比「查無」更糟，因為它在一個
+    //   **已經有明確答案**的問題上改用猜的。
+    //
+    //   名稱在商工登記查得到 = 這是一家真的公司，使用者沒打錯，
+    //   結論就是「紀錄乾淨」。不要再猜。
+    const reg = await findInRegistry(query, meta);
+    if (reg) return { kind: "miss", registry: reg };
+
     // 尾端可能是打到一半的組織型態（「旭隆實業股份」）。切掉再試。
     //
     // ⚠ 這條路一律走 choose，**不可以直接跳進去**，即使只對到一家。
@@ -478,8 +563,11 @@ export async function lookup(query: string): Promise<LookupOutcome> {
   const principals: Principal[] = [];
   for (const [gp, entries] of self.ps ?? []) {
     const linked: LinkedCompany[] = [];
-    for (const [otherName, confidence, ev] of entries) {
+    for (const [otherName, ev] of entries) {
       const other = await findEntry(otherName, shards);
+      const evidence = ev.map(([kind, detail]) => ({
+        kind: kind as EvidenceKind, detail,
+      }));
       linked.push({
         tax_id: other?.t ?? "",
         name: otherName,
@@ -488,10 +576,8 @@ export async function lookup(query: string): Promise<LookupOutcome> {
         // ⚠ entity 表沒有存「公司狀況日期」，寧可給 null 也不要把
         //   「解散」這種狀態字塞進日期欄位騙過型別檢查。
         dissolved: null,
-        confidence,
-        evidence: ev.map(([kind, detail]) => ({
-          kind: kind as EvidenceKind, detail,
-        })),
+        independent: independentCount(evidence),
+        evidence,
         violations: other ? toViolations(other.v, haz) : [],
       });
     }
@@ -531,7 +617,7 @@ export async function lookup(query: string): Promise<LookupOutcome> {
       linked_violation_count: linked.reduce((n, c) => n + c.violations.length, 0),
       linked_osha_count: linked.reduce(
         (n, c) => n + c.violations.filter((v) => v.law.includes("職業安全")).length, 0),
-      highest_confidence: linked.reduce((m, c) => Math.max(m, c.confidence), 0),
+      max_independent: linked.reduce((m, c) => Math.max(m, c.independent), 0),
       hazards: summariseHazards(all),
       fatal_count: all.filter((v) => v.fatal).length,
     },

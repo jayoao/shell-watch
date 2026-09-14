@@ -108,8 +108,22 @@ export interface LinkedCompany {
   status: string;              // 登記現況
   established: string | null;
   dissolved: string | null;
-  /** 0–1。這不是「是同一個人的機率」，是「證據強度」 */
-  confidence: number;
+  /**
+   * **獨立佐證的項數**（0、1 或 2）。不是分數、不是機率。
+   *
+   * ⚠ 這個欄位取代了原本的 `confidence: number`（0–1 的分數）。
+   *   2026-09-15 外部檢視指出：我們對外說「不打分」，但分片的 JSON 裡
+   *   每一條連結都帶著一個 0–1 的分數，打開 DevTools 就看得到。
+   *   **「有分數卻藏起來」比「沒有分數」更難解釋。**
+   *
+   *   查下去那個分數是 evidence 清單的**函數**（0.35 = 同名＋罕見、
+   *   0.75 = 再加同地址、1.0 = 四項全中），沒有帶任何畫面上看不到的資訊。
+   *   既然如此就不要送它 —— 前端自己數獨立佐證有幾項，用來排序。
+   *   現在資料層跟說法一致：沒有分數這個東西。
+   *
+   * ⚠ same_name 與 rare_name **都不算**。兩者講的是同一件事：這個姓名。
+   */
+  independent: number;
   evidence: Evidence[];
   violations: ViolationRef[];
 }
@@ -214,7 +228,8 @@ export interface LookupResult {
     own_violation_count: number;
     linked_violation_count: number;
     linked_osha_count: number;
-    highest_confidence: number;
+    /** 這個負責人名下所有連結裡，獨立佐證最多的那一條有幾項 */
+    max_independent: number;
     /** ⚠ 選填。這個負責人名下所有公司被罰過的危害型態，多到少排序。
      *  這是「防災」的那一塊：告訴求職者該注意什麼，而不只是「有違規」。 */
     hazards?: { code: string; name: string; count: number }[];

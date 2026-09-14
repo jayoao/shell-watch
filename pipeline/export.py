@@ -341,7 +341,15 @@ def build(company: str, by_company, principal_of, by_principal,
                     #   「解散」這種狀態字塞進日期欄位騙過型別檢查。
                     #   要補的話是改 gcis/load.py 多存一欄。
                     "dissolved": None,
-                    "confidence": round(min(1.0, conf), 2),
+                    # ⚠⚠ 契約 2026-09-15 改了：不再給 0–1 的分數，改給
+                    #   **獨立佐證的項數**。理由見 web/src/types/contracts.ts。
+                    #   簡單說：對外講「不打分」而 JSON 裡藏著分數，
+                    #   打開 DevTools 就穿幫，而且那個分數是 ev 的函數，
+                    #   本來就沒有帶畫面上看不到的資訊。
+                    #   conf 仍然拿來排序，只是不輸出。
+                    "independent": sum(
+                        1 for e in ev
+                        if e["kind"] not in ("same_name", "rare_name")),
                     "evidence": ev,
                     "violations": violations_of(by_company.get(other, []), anonymize),
                 })
@@ -371,8 +379,8 @@ def build(company: str, by_company, principal_of, by_principal,
             "linked_osha_count": sum(
                 1 for c in linked_all for v in c["violations"]
                 if "職業安全" in v["law"]),
-            "highest_confidence": max((c["confidence"] for c in linked_all),
-                                      default=0.0),
+            "max_independent": max((c["independent"] for c in linked_all),
+                                   default=0),
             # 防災：這個負責人名下（含本公司）被罰過哪幾種危害，多到少。
             "hazards": _summarise_hazards(own, linked_all),
             "fatal_count": (sum(1 for v in own if v["fatal"])
@@ -444,13 +452,14 @@ def main(argv=None) -> int:
         print(f"\n範例：{r['query']}")
         print(f"  本身違規 {r['summary']['own_violation_count']} 筆，"
               f"關聯公司違規 {r['summary']['linked_violation_count']} 筆，"
-              f"最高證據強度 {r['summary']['highest_confidence']}")
+              f"最多 {r['summary']['max_independent']} 項獨立佐證")
         for c in r["principals"][0]["linked_companies"][:2]:
-            print(f"  → {c['name']}（{c['status']}）強度 {c['confidence']}")
+            print(f"  → {c['name']}（{c['status']}）"
+                  f"獨立佐證 {c['independent']} 項")
             for e in c["evidence"]:
                 print(f"      · {e['detail'][:60]}")
-    print("\n⚠ confidence 是**證據強度**不是機率。畫面上一定要同時顯示證據清單，")
-    print("   只顯示數字會讓使用者以為那是「是同一人的機率」。")
+    print("\n⚠ independent 是**獨立佐證的項數**，不是分數也不是機率。")
+    print("   姓名相同與姓名罕見都不算 —— 兩者講的是同一件事：這個姓名。")
     return 0
 
 
