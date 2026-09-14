@@ -33,7 +33,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type {
-  Candidate, Credential, LinkedCompany, LookupResult, ViolationRef,
+  Candidate, Credential, Incident, LinkedCompany, LookupResult, ViolationRef,
 } from "../types/contracts";
 import sample from "../data/lookup.sample.json";
 import { getMeta, hashMismatch, lookup } from "../lib/lookup";
@@ -458,6 +458,92 @@ function CredGroup({ kind, list }: { kind: Credential["kind"]; list: Credential[
   );
 }
 
+/** 西元 YYYYMMDD → 「民國 YYY/MM/DD」。⚠ 這裡換算，因為要跟其他日期並排比較。 */
+function incDate(d: string): string {
+  if (!/^\d{8}$/.test(d)) return d;
+  const y = Number(d.slice(0, 4)) - 1911;
+  return `民國 ${y}/${d.slice(4, 6)}/${d.slice(6, 8)}`;
+}
+
+const INC_PREVIEW = 4;
+
+/**
+ * 重大職業災害。
+ *
+ * ⚠⚠ 三件事不可以搞錯，錯了就是誣指：
+ *
+ * 一、`casualties` 是**罹災人數**，含受傷。畫面上一個字都不能寫「死亡」。
+ *
+ * 二、`role` 分成事業單位與業主。業主是發包工地的人，罹災的勞工**不是他僱的**。
+ *    把業主寫成「這家公司死了人」是把承攬商的事故算到定作人頭上。
+ *    兩者都要顯示——業主的承攬管理責任正是職安法第 27 條在講的事——
+ *    但必須寫清楚是哪一種身分。
+ *
+ * 三、`match === "name"` 代表這一筆是靠**名稱**對上的，不是統編。
+ *    來源有 14.7% 的列沒有統編。靠名字對有可能對到同名的另一家公司，
+ *    所以要標記出來讓使用者自己判斷。
+ *
+ * ⚠ 涵蓋範圍只有 2024-07 之後、約 500 筆。「沒有」不等於「沒發生過」，
+ *   這句話一定要出現在畫面上。
+ */
+function Incidents({ list }: { list: Incident[] }) {
+  const [all, setAll] = useState(false);
+  if (!list.length) return null;
+  const shown = all ? list : list.slice(0, INC_PREVIEW);
+  const rest = list.length - shown.length;
+  const guessed = list.filter((x) => x.match === "name").length;
+  return (
+    <section className="side-block">
+      <h2 className="side-h">重大職業災害</h2>
+      <p className="side-p">
+        來自勞動部重大職業災害公開網。
+        ⚠ <b>只涵蓋 2024 年 7 月之後</b>，全國約 500 筆。
+        這裡沒有紀錄，不代表這家公司沒發生過職災。
+      </p>
+      <ul className="inc-list">
+        {shown.map((x, i) => (
+          <li key={i} className={x.role === "owner" ? "inc-owner" : undefined}>
+            <div className="inc-head">
+              <span className="inc-date">{incDate(x.date)}</span>
+              <span className="inc-type">{x.disaster}</span>
+              <span className="inc-cas">罹災 {x.casualties} 人</span>
+            </div>
+            <div className="inc-role">
+              {x.role === "owner"
+                ? <>這家公司是<b>工程業主</b>（定作人）。
+                    罹災勞工屬於{x.counterpart ? `「${x.counterpart}」` : "承攬廠商"}，
+                    不是這家公司僱用的。</>
+                : <>罹災勞工屬於<b>這家公司</b>。
+                    {x.counterpart && x.counterpart !== "無"
+                      && <>工程業主為「{x.counterpart}」。</>}</>}
+            </div>
+            {x.site && <div className="inc-site">場所{"\u3000"}{x.site}</div>}
+            {x.project && <div className="inc-proj">工程{"\u3000"}{x.project}</div>}
+            <div className="fineprint">
+              {x.agency}
+              {x.match === "name" && "　⚠ 這一筆是以名稱比對，非統一編號"}
+            </div>
+          </li>
+        ))}
+      </ul>
+      {rest > 0 && (
+        <button className="linkish" onClick={() => setAll(true)}>
+          再顯示 {rest} 筆
+        </button>
+      )}
+      {all && list.length > INC_PREVIEW && (
+        <button className="linkish" onClick={() => setAll(false)}>收合</button>
+      )}
+      {guessed > 0 && (
+        <p className="fineprint" style={{ marginTop: 12 }}>
+          其中 {guessed} 筆的來源沒有統一編號，只能以名稱比對；
+          同名的另一家公司也會對上，請自行確認。
+        </p>
+      )}
+    </section>
+  );
+}
+
 /**
  * 得獎與驗證 —— 「職安履歷」的正面那一半。
  *
@@ -607,6 +693,7 @@ function Result({ hit }: { hit: LookupResult }) {
       </div>
 
       <div className="res-haz">
+        <Incidents list={hit.company.incidents ?? []} />
         <Credentials list={hit.company.credentials ?? []} />
         <HazardPanel hit={hit} />
       </div>
@@ -814,7 +901,20 @@ function Choose({ outcome, asked, onPick }: {
         {/* ⚠ 只對到一家也要走這裡，不可以直接跳進去。切字尾是猜測，
             猜測不能替使用者決定他在看哪一家公司的裁處紀錄。
             但話要講對 ——「我們沒辦法判斷你要查哪一家」在只有一家時是廢話。 */}
-        {cands.length === 1 ? (
+        {outcome.reason === "abbrev" ? (
+          /* ⚠ 簡稱這條路跟「撞名」完全是兩件事，說法不能共用。
+             實測「全聯」會列出「全國聯合工程有限公司」—— 因為全聯實業
+             根本不在本站的資料裡（本站只收錄被裁處過的事業單位）。
+             如果只寫「請選一家」，使用者會以為其中一家就是全聯。
+             所以這裡要先講「你要找的那家如果沒有紀錄，它不會出現」。 */
+          <p>
+            這些是<b>字面上像</b>的公司，不是系統認為你要找的那一家。
+            本站只收錄<b>被主管機關裁處過</b>的事業單位 ——
+            你要找的公司如果沒有裁處紀錄，它不會出現在這份清單裡，
+            而清單上的是<b>另外幾家不同的公司</b>。
+            請看統一編號與登記地址再決定要不要點進去。
+          </p>
+        ) : cands.length === 1 ? (
           <p>
             只對到這一家，不過這是把你打的字切掉字尾之後找出來的，
             不是你原本輸入的名稱。<b>請自己確認是不是這一家</b>再往下看。

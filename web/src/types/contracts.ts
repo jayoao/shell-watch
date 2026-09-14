@@ -164,6 +164,35 @@ export interface Credential {
   active: boolean;
 }
 
+/**
+ * 一起重大職業災害。
+ *
+ * ⚠ casualties 是**罹災人數**（來源欄位「罹災人數（數量）」），**不是死亡人數**。
+ *   它包含受傷。任何地方都不可以把它寫成「死亡 N 人」。
+ *
+ * ⚠ role 決定這家公司在這起事故裡是什麼身分，兩者的意義完全不同：
+ *     "unit"   罹災勞工所屬的事業單位
+ *     "owner"  工程的業主（定作人）—— 人不是他僱的，但工地是他發包的
+ *   混在一起講會變成誣指。
+ */
+export interface Incident {
+  role: "unit" | "owner";
+  /** 發生日期 YYYYMMDD（西元） */
+  date: string;
+  /** 官方的災害類型分類，不是本系統規則歸類的危害型態 */
+  disaster: string;
+  /** ⚠ 罹災人數，含受傷 */
+  casualties: number;
+  project: string;
+  /** 場所（肇災處）。⚠ 這是災害真的發生的地方，不是公司登記地址。 */
+  site: string;
+  agency: string;
+  /** "tax" = 靠統一編號對上的；"name" = 只靠名稱對上的，可信度較低 */
+  match: "tax" | "name";
+  /** 對造：role 是 unit 時為業主，是 owner 時為罹災勞工所屬的事業單位 */
+  counterpart: string;
+}
+
 export interface LookupResult {
   query: string;
   company: {
@@ -176,6 +205,9 @@ export interface LookupResult {
     /** ⚠ 選填。得獎與驗證。沒有不代表這家公司沒得過獎 ——
      *  只代表在我們涵蓋的四份名單裡沒有正規化後完全相同的名稱。 */
     credentials?: Credential[];
+    /** ⚠ 選填。重大職業災害。只涵蓋 2024-07 之後約兩年、500 筆，
+     *  沒有不代表這家公司沒發生過職災。 */
+    incidents?: Incident[];
   };
   principals: Principal[];
   summary: {

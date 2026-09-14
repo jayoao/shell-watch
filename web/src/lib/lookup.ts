@@ -16,8 +16,8 @@
  *   那種 bug 沒有對拍測試會找很久。
  */
 import type {
-  Candidate, Credential, EvidenceKind, Hazard, LinkedCompany, LookupResult,
-  Principal, Severity, ViolationRef,
+  Candidate, Credential, EvidenceKind, Hazard, Incident, LinkedCompany,
+  LookupResult, Principal, Severity, ViolationRef,
 } from "../types/contracts";
 
 /** ⚠ 跟 pipeline/publish.py 的 fnv1a() 對拍，見 tests/test_publish.py */
@@ -71,6 +71,8 @@ interface RawEntry {
   alt?: string[];
   /** 得獎與驗證。[kind, 原始全名, 證書編號或獎別, 有效期起, 有效期迄, 是否有效] */
   cr?: [string, string, string, string, string, number][];
+  /** 重大職災。[角色, 日期, 災害類型, 罹災人數, 工程名稱, 場所, 檢查機構, 比對方式, 對造] */
+  ic?: [string, string, string, number, string, string, string, string, string][];
 }
 
 /** 分片。e = 完整名稱 → 資料；a = 核心名 → 完整名稱清單 */
@@ -87,6 +89,8 @@ export interface Meta {
   /** 這一次發布的版本字串（UTC 時間戳）。用來破分片的快取。 */
   version?: string;
   shards: number;
+  /** 首字索引的分片數。舊的資料沒有這個欄位，缺的時候就當作沒有索引。 */
+  x_shards?: number;
   companies: number;
   violations: number;
   source: string;
@@ -229,6 +233,85 @@ export function trimPartialOrgSuffix(q: string): string[] {
   return out.sort((a, b) => b.length - a.length);
 }
 
+// ── 簡稱查詢 ────────────────────────────────────────────────
+//
+// 「台積電」這種簡稱，兩種既有的鍵都對不到：它不是完整名稱，也不是核心名
+// （核心名只是砍掉「股份有限公司」字尾，不會從中間挑字）。而使用者——
+// 包括第一次打開這個網站的人——打的就是簡稱。
+//
+// ⚠ 為什麼不做全文索引：17 萬個公司名的索引本身好幾 MB，會犧牲掉
+//   「一次查詢只下載一片」這個設計。改成**只用第一個字**當鍵，
+//   把同首字的公司名切成 256 片，查不到的時候才下載其中一片。
+//
+// ⚠⚠ 這個做法的限制要講清楚：比對是**從第一個字錨定**的子序列。
+//   「台積電」→「台灣積體電路製造股份有限公司」找得到（台…積…電 依序出現）；
+//   「積體電路」找不到，因為它不是從「台」開始。多數人從頭簡稱，
+//   但這不是全文搜尋，不要對外說成搜尋引擎。
+const prefixCache = new Map<number, Promise<Record<string, string[]> | null>>();
+
+/** ⚠ 跟 pipeline/publish.py 的 prefix_shard() 對拍 */
+function prefixShard(ch: string, n: number): number {
+  return fnv1a(ch) % n;
+}
+
+function getPrefix(n: number): Promise<Record<string, string[]> | null> {
+  let p = prefixCache.get(n);
+  if (!p) {
+    p = getJSON<Record<string, string[]>>(`x/${n}.json`);
+    prefixCache.set(n, p);
+  }
+  return p;
+}
+
+/**
+ * name 是否依序包含 q 的每一個字。回傳「鬆緊程度」，數字越小越貼。
+ * 對不上回 -1。
+ *
+ * 鬆緊 = 最後一個配對字的位置 − q 的長度。
+ * 「台積電」對「台灣積體電路製造⋯」→ 電在第 5 位，5 − 3 = 2；
+ * 對「台北市積善電機⋯」之類位置更後面的就會拿到更大的數字，排後面。
+ */
+function subseqScore(q: string, name: string): number {
+  let i = 0;
+  let last = -1;
+  for (let j = 0; j < name.length && i < q.length; j++) {
+    if (name[j] === q[i]) {
+      i += 1;
+      last = j;
+    }
+  }
+  return i === q.length ? last - q.length : -1;
+}
+
+const ABBREV_MIN = 2;      // 一個字的查詢會撈回幾千家，沒有意義
+const ABBREV_LIMIT = 12;
+
+/** 用簡稱找候選完整公司名。找不到就回空陣列。 */
+export async function searchAbbrev(query: string, meta: Meta): Promise<string[]> {
+  const q = normName(query);
+  const xs = meta.x_shards ?? 0;
+  if (!xs || q.length < ABBREV_MIN) return [];
+  const bucket = await getPrefix(prefixShard(q[0], xs));
+  const names = bucket?.[q[0]];
+  if (!names?.length) return [];
+  const scored: [number, number, number, string][] = [];
+  names.forEach((name, pos) => {
+    const sc = subseqScore(q, normName(name));
+    // 走到這裡代表完整名稱與核心名都已經試過且查不到，
+    // 所以不會有「完全相同卻被當成候選」的情形。
+    if (sc >= 0) scored.push([Math.min(2, sc >> 1), pos, name.length, name]);
+  });
+  // ⚠ 排序刻意**不是**「貼的排最前面」。實測「台積電」的四個候選裡，
+  //   「台積光電科技有限公司」比「台灣積體電路製造股份有限公司」更貼
+  //   （字連在一起），但使用者要找的顯然是後者。
+  //
+  //   所以貼合度只粗分三級（0–1 / 2–3 / 4 以上），同一級之內改用索引順序 ——
+  //   索引是依裁處筆數由多到少排的，等於用「規模」當次要線索。
+  //   這是猜測，不是判定：候選卡上有統編、地址、裁處筆數，讓使用者自己認。
+  scored.sort((a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2]);
+  return scored.slice(0, ABBREV_LIMIT).map((x) => x[3]);
+}
+
 const SOURCE_URL = "https://announcement.mol.gov.tw/";
 
 /**
@@ -257,6 +340,16 @@ async function describe(names: string[], shards: number): Promise<Candidate[]> {
                address: null, violation_count: 0 });
   }
   return out;
+}
+
+function toIncidents(raw: NonNullable<RawEntry["ic"]>): Incident[] {
+  return raw.map(([role, date, disaster, casualties, project, site, agency,
+                   match, counterpart]) => ({
+    role: role === "o" ? "owner" : "unit",
+    date, disaster, casualties, project, site, agency,
+    match: match === "n" ? "name" : "tax",
+    counterpart,
+  }));
 }
 
 function toViolations(
@@ -306,7 +399,12 @@ function summariseHazards(vs: ViolationRef[]) {
 /** 查詢的四種結果。查不到跟沒資料是兩件事，UI 的說法完全不同。 */
 export type LookupOutcome =
   | { kind: "hit"; result: LookupResult }
-  | { kind: "choose"; candidates: Candidate[]; note?: string }  // 要使用者選
+  // 要使用者自己選。reason 是「為什麼會走到選單」，三種的說法完全不同：
+  //   core    核心名撞名（「大同」對到好幾家真的不同的公司）
+  //   suffix  使用者把組織型態字尾打到一半
+  //   abbrev  使用者打的是簡稱，系統用字面猜的
+  | { kind: "choose"; candidates: Candidate[]; note?: string;
+      reason?: "core" | "suffix" | "abbrev" }
   | { kind: "miss" }                           // 有資料，但沒有這家的紀錄
   | { kind: "nodata" };                        // 完整資料沒部署，只有展示樣本
 
@@ -326,7 +424,8 @@ export async function lookup(query: string): Promise<LookupOutcome> {
   if (!self) {
     const cands = await findByCore(query, shards);
     if (cands.length > 1) {
-      return { kind: "choose", candidates: await describe(cands, shards) };
+      return { kind: "choose", candidates: await describe(cands, shards),
+               reason: "core" };
     }
     if (cands.length === 1) self = await findEntry(cands[0], shards);
   }
@@ -343,12 +442,27 @@ export async function lookup(query: string): Promise<LookupOutcome> {
       if (hits.length) {
         return {
           kind: "choose",
+          reason: "suffix",
           candidates: await describe(hits, shards),
           note: `找不到「${query.trim()}」。`
             + `這個查詢系統要完整公司名稱，或是去掉「股份有限公司」等字尾的名稱。`
             + `以「${cut}」找到以下結果：`,
         };
       }
+    }
+    // 最後一招：簡稱。「台積電」→「台灣積體電路製造股份有限公司」。
+    //
+    // ⚠ 一律走 choose，**永遠不要自動跳進唯一的那一家**。子序列比對是猜的，
+    //   猜錯就是把 A 公司的裁處紀錄顯示成 B 公司的。使用者自己點，
+    //   看到的就是他自己選的公司。
+    const abbrev = await searchAbbrev(query, meta);
+    if (abbrev.length) {
+      return {
+        kind: "choose",
+        reason: "abbrev",
+        candidates: await describe(abbrev, shards),
+        note: `本站沒有名稱正好是「${query.trim()}」的事業單位。`,
+      };
     }
     return { kind: "miss" };
   }
@@ -404,6 +518,7 @@ export async function lookup(query: string): Promise<LookupOutcome> {
       established: self.e,
       address: self.a,
       own_violations: own,
+      incidents: self.ic ? toIncidents(self.ic) : undefined,
       credentials: (self.cr ?? []).map(
         ([kind, unit, detail, validFrom, validTo, act]) => ({
           kind: kind as Credential["kind"], unit, detail,

@@ -65,6 +65,7 @@ from pipeline.refine import load_facts                               # noqa: E40
 RECORDS = Path("data/records.csv")
 RANKED = Path("data/ranked.csv")
 CREDENTIAL = Path("data/credential.csv")
+INCIDENT = Path("data/incident.csv")
 DB = Path("data/gcis.duckdb")
 OUT = Path("web/public/data")
 
@@ -73,7 +74,13 @@ OUT = Path("web/public/data")
 # 檔案數仍遠低於 Cloudflare Pages 的 20,000 上限。
 # ⚠ 改這個數字要重新產生全部分片，前端會從 meta.json 讀，不用改程式。
 SHARDS = 2048
-SHARED_ADDR_LIMIT = 10          # 跟 join.py 同一個門檻：會計師事務所、商務中心
+SHARED_ADDR_LIMIT = 10
+
+# ── 首字索引的分片數 ────────────────────────────────────────
+# 用途跟 SHARDS 不同：SHARDS 是「知道完整名稱，直接算出在哪一片」；
+# 這一組是「只知道簡稱」，沒辦法算雜湊，只能拿第一個字去撈一疊候選回來比。
+# 256 片是為了讓常見首字（台、大、新、中）那一疊不要大到要下載好幾百 KB。
+PREFIX_SHARDS = 256          # 跟 join.py 同一個門檻：會計師事務所、商務中心
 
 
 def fnv1a(s: str) -> int:
@@ -109,6 +116,11 @@ def core_name(company: str) -> str:
     """去掉組織型態字尾的核心名。砍不掉或砍完太短就回空字串。"""
     t = _ORG_TAIL.sub("", norm_name(company))
     return t if len(t) >= 2 and t != norm_name(company) else ""
+
+
+def prefix_shard(ch: str) -> int:
+    """首字 → 索引分片編號。⚠ 前端 lookup.ts 有一份一模一樣的。"""
+    return fnv1a(ch) % PREFIX_SHARDS
 
 
 def compact_violation(r: dict) -> list:
@@ -282,9 +294,58 @@ def main(argv=None) -> int:
         print(f"⚠ 沒有 {CREDENTIAL}，這次不含得獎／驗證"
               f"（跑 python -m pipeline.credential 產生）")
 
+    # ── 3.6 重大職業災害 ─────────────────────────────────────
+    #
+    # ⚠ 一家公司被掛上「這裡發生過死傷」是很重的指控，對錯了就是毀謗。
+    #   所以兩種角色分開存，比對規則也不同：
+    #
+    #     事業單位（u）  統編優先；沒有統編的列才退回正規化後**完全相同**的
+    #                    名稱，而且標記 match="n"，前端要講出來這是靠名字對的。
+    #     業主（o）      **只認統編**。業主欄位是自由填寫的（「無」「同上」
+    #                    「台電」都出現過），拿名字去對會把不相干的公司
+    #                    掛上別人工地的死亡事故。
+    #
+    # ⚠ casualties 是**罹災人數**，不是死亡人數。來源欄位叫「罹災人數（數量）」，
+    #   包含受傷。前端不可以寫成「死亡」。
+    inc_u_tax: dict[str, list] = defaultdict(list)
+    inc_u_name: dict[str, list] = defaultdict(list)
+    inc_o_tax: dict[str, list] = defaultdict(list)
+    inc_rows = 0
+    if INCIDENT.exists():
+        with INCIDENT.open(encoding="utf-8-sig", newline="") as f:
+            for r in csv.DictReader(f):
+                tax = (r.get("tax_id") or "").strip()
+                otax = (r.get("owner_tax_id") or "").strip()
+                owner = (r.get("owner") or "").strip()
+                try:
+                    cas = int(r.get("casualties") or 0)
+                except ValueError:
+                    cas = 0
+                base = [r.get("date", ""), r.get("disaster", ""), cas,
+                        r.get("project", ""), r.get("site", ""),
+                        r.get("agency", "")]
+                inc_rows += 1
+                if tax:
+                    inc_u_tax[tax].append(["u", *base, "t", owner])
+                else:
+                    key = (r.get("match_key") or "").strip()
+                    if key:
+                        inc_u_name[key].append(["u", *base, "n", owner])
+                if len(otax) == 8 and otax.isdigit():
+                    inc_o_tax[otax].append(["o", *base, "t",
+                                            (r.get("unit") or "").strip()])
+        print(f"重大職災　{inc_rows:,} 筆　"
+              f"統編索引 {len(inc_u_tax):,} 家（事業單位）／"
+              f"{len(inc_o_tax):,} 家（業主）")
+    else:
+        print(f"⚠ 沒有 {INCIDENT}，這次不含重大職災"
+              f"（跑 python -m crawler.moldata 再跑 python -m pipeline.incident）")
+
     # ── 4. 切片 ──────────────────────────────────────────────
     # e = 完整名稱 → 資料；a = 核心名 → 完整名稱清單
     shards: list[dict] = [{"e": {}, "a": {}} for _ in range(SHARDS)]
+    # 首字索引：第一個字 → 完整公司名清單。查不到的時候才會下載其中一片。
+    prefix: list[dict] = [{} for _ in range(PREFIX_SHARDS)]
     names = sorted(by_company)
     merged = 0
     if a.limit:
@@ -305,6 +366,22 @@ def main(argv=None) -> int:
         cr = creds.get(norm_name(company))
         if cr:
             entry["cr"] = cr
+        # 重大職災。同一筆可能同時對到（極少見：公司自己當業主也當承攬商），
+        # 用「角色＋日期＋場所」去重，不要在畫面上出現兩次一模一樣的事故。
+        tax_id = fact.get("id", "")
+        ic: list = []
+        seen_inc: set = set()
+        for row in (inc_u_tax.get(tax_id, []) if tax_id else []) \
+                + inc_u_name.get(norm_name(company), []) \
+                + (inc_o_tax.get(tax_id, []) if tax_id else []):
+            k = (row[0], row[1], row[5])
+            if k in seen_inc:
+                continue
+            seen_inc.add(k)
+            ic.append(row)
+        if ic:
+            ic.sort(key=lambda x: x[1], reverse=True)
+            entry["ic"] = ic
 
         # ⚠ 依**組的負責人姓名**分群，不要壓成一份清單。
         #   連結是靠某一種寫法對上的；把它掛在公司自己最常見的寫法底下，
@@ -343,6 +420,11 @@ def main(argv=None) -> int:
         core = core_name(company)
         if core:
             shards[fnv1a(core) % SHARDS]["a"].setdefault(core, []).append(company)
+        # 首字索引。⚠ 用 norm_name 後的第一個字，跟前端的 normName 一致；
+        #   不然「臺灣⋯」會進 臺 那一疊，而使用者打「台積電」去找 台。
+        if key:
+            prefix[prefix_shard(key[0])].setdefault(key[0], []).append(
+                (len(entry["v"]), company))
 
     # ── 5. 寫檔 ──────────────────────────────────────────────
     out = a.out
@@ -365,6 +447,36 @@ def main(argv=None) -> int:
         (cdir / f"{i}.json").write_text(body, encoding="utf-8")
         sizes.append(len(body.encode()))
         total += len(sh["e"])
+
+    # ── 首字索引 ────────────────────────────────────────────
+    # ⚠ 每一疊依「裁處筆數多的排前面」。前端比對完之後還會再排一次，
+    #   但同分的時候就靠這個順序 —— 使用者打「台積電」想找的多半是大公司，
+    #   不是某家剛好也叫這三個字開頭的小店。
+    xdir = out / "x"
+    if xdir.exists():
+        try:
+            shutil.rmtree(xdir)
+        except OSError as e:
+            print(f"清不掉舊的 {xdir}：{e}", file=sys.stderr)
+            return 1
+    xdir.mkdir(parents=True, exist_ok=True)
+    xsizes = []
+    xchars = 0
+    for i, bucket in enumerate(prefix):
+        body_obj = {}
+        for ch, pairs in bucket.items():
+            seen_n: set = set()
+            ordered = []
+            for _cnt, nm in sorted(pairs, key=lambda x: (-x[0], len(x[1]))):
+                if nm in seen_n:
+                    continue
+                seen_n.add(nm)
+                ordered.append(nm)
+            body_obj[ch] = ordered
+            xchars += 1
+        body = json.dumps(body_obj, ensure_ascii=False, separators=(",", ":"))
+        (xdir / f"{i}.json").write_text(body, encoding="utf-8")
+        xsizes.append(len(body.encode()))
 
     haz = {code: {"name": name, "duty": duty}
            for code, name, _p, duty in HAZARDS}
@@ -401,6 +513,7 @@ def main(argv=None) -> int:
         #   「有效至 民國 117/10/12」變成「有效至 1」。不是報錯，是說謊。
         "version": datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S"),
         "shards": SHARDS,
+        "x_shards": PREFIX_SHARDS,
         "companies": total,
         "violations": sum(len(v) for v in by_company.values()),
         "source": "勞動部違反勞動法令事業單位（雇主）查詢系統、經濟部商工登記公示資料",
@@ -417,6 +530,12 @@ def main(argv=None) -> int:
     print(f"  核心名別名 {aliases:,} 個，其中 {ambiguous:,} 個對到多家公司"
           f"（{100 * ambiguous / aliases:.1f}%，前端會讓使用者選）"
           if aliases else "  沒有核心名別名")
+    inc_hit = sum(1 for sh in shards for e in sh["e"].values() if e.get("ic"))
+    if inc_rows:
+        print(f"  重大職災對到 {inc_hit:,} 家")
+    print(f"  首字索引 {xchars:,} 個首字寫進 {PREFIX_SHARDS} 片，"
+          f"每片 {min(xsizes) / 1024:.0f}–{max(xsizes) / 1024:.0f} KB"
+          f"（⚠ 最大那片就是查不到時要下載的量）")
     print(f"  每片 {min(sizes) / 1024:.0f}–{max(sizes) / 1024:.0f} KB，"
           f"平均 {sum(sizes) / len(sizes) / 1024:.0f} KB")
     print(f"  → {cdir}（不進 git，部署時直接上傳）")
