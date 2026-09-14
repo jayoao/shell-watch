@@ -17,7 +17,7 @@
  */
 import type {
   Candidate, Credential, EvidenceKind, Hazard, Incident, LinkedCompany,
-  LookupResult, Principal, Severity, ViolationRef,
+  LookupResult, Principal, Severity, Succession, ViolationRef,
 } from "../types/contracts";
 
 /** ⚠ 跟 pipeline/publish.py 的 fnv1a() 對拍，見 tests/test_publish.py */
@@ -73,6 +73,8 @@ interface RawEntry {
   cr?: [string, string, string, string, string, number][];
   /** 重大職災。[角色, 日期, 災害類型, 罹災人數, 工程名稱, 場所, 檢查機構, 比對方式, 對造] */
   ic?: [string, string, string, number, string, string, string, string, string][];
+  /** 時序型樣態。對造完整名稱 → [角色, 舊公司最後裁處年, 新公司設立年, 是否同年] */
+  sc?: Record<string, [string, number, number, number]>;
 }
 
 /**
@@ -568,6 +570,15 @@ export async function lookup(query: string): Promise<LookupOutcome> {
       const evidence = ev.map(([kind, detail]) => ({
         kind: kind as EvidenceKind, detail,
       }));
+      const raw = self.sc?.[otherName];
+      const succession: Succession | undefined = raw
+        ? {
+            role: raw[0] === "before" ? "before" : "after",
+            old_last_violation: raw[1],
+            new_established: raw[2],
+            same_year: raw[3] === 1,
+          }
+        : undefined;
       linked.push({
         tax_id: other?.t ?? "",
         name: otherName,
@@ -577,6 +588,7 @@ export async function lookup(query: string): Promise<LookupOutcome> {
         //   「解散」這種狀態字塞進日期欄位騙過型別檢查。
         dissolved: null,
         independent: independentCount(evidence),
+        succession,
         evidence,
         violations: other ? toViolations(other.v, haz) : [],
       });

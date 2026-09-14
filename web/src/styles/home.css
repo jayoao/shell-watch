@@ -227,6 +227,27 @@
 /* 姓名訊號降權：它們不是第二個線索，視覺上也不該跟獨立佐證等重。 */
 .ev-weak li { color: var(--ink-3); }
 
+/* ── 時序型樣態 ───────────────────────────── */
+/* ⚠ 視覺上要跟佐證清單分得開 —— 它回答的是另一個問題。
+   用虛線框而不是實線，因為它比佐證弱：兩個日期的先後不是證據。
+   ⚠ 不要用 --fatal。那是「有人死了」的顏色，不是「時間上有先後」的顏色。 */
+.succ {
+  margin-top: 12px; padding: 9px 11px;
+  border: 1px dashed var(--rule-2);
+}
+.succ-h {
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em;
+  color: var(--ink-3); margin: 0 0 4px;
+}
+.succ-p { font-size: 12.5px; line-height: 1.75; margin: 0; }
+.succ-note {
+  font-size: 11.5px; line-height: 1.7; color: var(--ink-3); margin: 5px 0 0;
+}
+.succ-warn {
+  font-size: 11.5px; line-height: 1.7; color: var(--pending-ink);
+  background: var(--pending-soft); padding: 6px 8px; margin: 6px 0 0;
+}
+
 /* ── 僅同名的連結（預設收合） ───────────────── */
 /* ⚠ 不是藏起來 —— 家數照樣寫在標題上，按一下就展開。
    藏起來等於替使用者決定那些不值得看。 */

@@ -66,6 +66,7 @@ RECORDS = Path("data/records.csv")
 RANKED = Path("data/ranked.csv")
 CREDENTIAL = Path("data/credential.csv")
 INCIDENT = Path("data/incident.csv")
+SUCCESSION = Path("data/succession.csv")
 DB = Path("data/gcis.duckdb")
 OUT = Path("web/public/data")
 
@@ -350,6 +351,31 @@ def main(argv=None) -> int:
         print(f"⚠ 沒有 {INCIDENT}，這次不含重大職災"
               f"（跑 python -m crawler.moldata 再跑 python -m pipeline.incident）")
 
+    # ── 3.7 時序型樣態 ───────────────────────────────────────
+    #
+    # tools/succession.py 算出來的：舊公司已停業、新公司設立於舊公司
+    # 最後一次裁處之後。這是**樣態訊號**，不是身分訊號。
+    #
+    # ⚠⚠ 兩者不可以相加，也不可以混在同一個清單裡。
+    #   「先前的公司都已停業」在身分那把尺上實測是 0.98 倍 —— 完全沒效果。
+    #   它回答的是另一個問題：這幾家是不是同一個人（身分）vs
+    #   這個樣子像不像收掉再開（樣態）。所以它獨立存成 sc，
+    #   前端也要獨立顯示，不能塞進 evidence 清單裡充數。
+    #
+    # ⚠ 只掛在**有獨立佐證**的連結上。身分都站不住的時候談樣態沒有意義，
+    #   那只是「兩個同名的人各自開過公司」。
+    succ: dict[tuple[str, str], tuple[int, int, int]] = {}
+    if SUCCESSION.exists():
+        with SUCCESSION.open(encoding="utf-8-sig", newline="") as f:
+            for r in csv.DictReader(f):
+                succ[(r["old_company"], r["new_company"])] = (
+                    int(r["old_last_violation"]), int(r["new_established"]),
+                    int(r["same_year"]))
+        print(f"時序型樣態　{len(succ):,} 對")
+    else:
+        print(f"⚠ 沒有 {SUCCESSION}，這次不含時序型樣態"
+              f"（跑 python -m tools.succession 產生）")
+
     # ── 4. 切片 ──────────────────────────────────────────────
     # e = 完整名稱 → 資料；a = 核心名 → 完整名稱清單
     shards: list[dict] = [{"e": {}, "a": {}} for _ in range(SHARDS)]
@@ -414,6 +440,23 @@ def main(argv=None) -> int:
                 #   0.75 = 再加同地址、1.0 = 四項全中），沒有帶任何
                 #   畫面上看不到的資訊 —— 既然如此就不要送它。
                 by_principal_linked[gp].append((conf, [other, ev]))
+        # 時序型樣態：掛在「有獨立佐證」的連結上，用對造的完整名稱當鍵。
+        sc: dict[str, list] = {}
+        me = norm_name(company)
+        for gp_entries in by_principal_linked.values():
+            for _conf, (other_name, ev) in gp_entries:
+                if all(e[0] in ("same_name", "rare_name") for e in ev):
+                    continue          # 身分站不住，不談樣態
+                o = norm_name(other_name)
+                if (o, me) in succ:                  # 對造是舊的那一家
+                    last, est, sy = succ[(o, me)]
+                    sc[other_name] = ["after", last, est, sy]
+                elif (me, o) in succ:                # 本公司是舊的那一家
+                    last, est, sy = succ[(me, o)]
+                    sc[other_name] = ["before", last, est, sy]
+        if sc:
+            entry["sc"] = sc
+
         if by_principal_linked:
             entry["ps"] = [
                 [gp, [pair for _c, pair in sorted(v, key=lambda x: -x[0])]]

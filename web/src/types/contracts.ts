@@ -124,8 +124,40 @@ export interface LinkedCompany {
    * ⚠ same_name 與 rare_name **都不算**。兩者講的是同一件事：這個姓名。
    */
   independent: number;
+  /**
+   * 時序型樣態。沒有就是 undefined。
+   *
+   * ⚠⚠ 這是**樣態訊號**，不是身分訊號，兩者不可以相加，
+   *   也不可以塞進 evidence 清單裡充數。
+   *   「先前的公司都已停業」在身分那把尺上實測是 0.98 倍 —— 完全沒效果。
+   *   它回答的是另一個問題：
+   *       身分  這幾家是不是同一個人的？
+   *       樣態  這個樣子像不像收掉再開？
+   *   先確定身分站得住，才輪到談樣態。所以它只掛在 independent > 0 的連結上。
+   */
+  succession?: Succession;
   evidence: Evidence[];
   violations: ViolationRef[];
+}
+
+/**
+ * 舊公司已停業、新公司設立於舊公司最後一次裁處之後。
+ *
+ * ⚠ role 是**對造**在這一對裡的角色，不是本公司的：
+ *     "after"   對造是舊的那一家（本公司設立在它停業之後）
+ *     "before"  本公司是舊的那一家（對造設立在本公司停業之後）
+ *
+ * ⚠⚠ same_year 一定要顯示。商工登記的設立只有年份沒有月日，
+ *   設立年與最後裁處年相同時，先後順序有一年的模糊 ——
+ *   實測 590 組裡有 221 組（37.5%）是這種。藏起來就是灌水。
+ */
+export interface Succession {
+  role: "after" | "before";
+  /** 舊公司最後一次被裁處的西元年 */
+  old_last_violation: number;
+  /** 新公司的設立西元年 */
+  new_established: number;
+  same_year: boolean;
 }
 
 export interface Principal {

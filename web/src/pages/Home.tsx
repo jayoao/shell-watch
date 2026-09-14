@@ -131,6 +131,57 @@ function strengthLabel(c: LinkedCompany): string {
    共用小元件
    ══════════════════════════════════════════════════════════════ */
 
+/**
+ * 時序型樣態。
+ *
+ * ⚠⚠ 這一塊**刻意放在佐證清單之外**，而且用不同的視覺語言。
+ *   身分訊號回答「這幾家是不是同一個人的」，樣態訊號回答
+ *   「這個樣子像不像收掉再開」。把它塞進佐證清單裡，就是把兩個
+ *   不同的問題混成一個答案 —— 那正是這個專案一路在避免的事。
+ *
+ * ⚠ 措辭是紅線。只陳述兩個日期，不用「換殼」兩個字，不推論動機。
+ *   「符合這個樣態」跟「就是換殼」之間隔著動機與事實認定，
+ *   那是主管機關的事，不是我們的。
+ */
+function SuccessionBox({ c }: { c: LinkedCompany }) {
+  const s = c.succession;
+  if (!s) return null;
+  const gap = Math.abs(s.new_established - s.old_last_violation);
+  return (
+    <div className="succ">
+      <p className="succ-h">時序</p>
+      <p className="succ-p">
+        {s.role === "after" ? (
+          <>
+            <b>{c.name}</b> 於西元 {s.old_last_violation} 年最後一次被裁處，
+            目前登記現況為<b>{c.status || "不明"}</b>；
+            而本頁這家公司設立於西元 {s.new_established} 年。
+          </>
+        ) : (
+          <>
+            本頁這家公司於西元 {s.old_last_violation} 年最後一次被裁處後停業；
+            <b>{c.name}</b> 設立於西元 {s.new_established} 年。
+          </>
+        )}
+      </p>
+      {s.same_year ? (
+        /* ⚠ 這個警語不可以省。商工登記的設立只有年份沒有月日，
+           同年的先後順序講不清楚。實測 37.5% 的案例是這種。 */
+        <p className="succ-warn">
+          ⚠ 兩個年份<b>相同</b>。商工登記的設立只記到年，沒有月日，
+          所以<b>先後順序無法確定</b>。
+        </p>
+      ) : (
+        <p className="succ-note">相隔 {gap} 年。</p>
+      )}
+      <p className="succ-note">
+        這只是兩個日期的先後。本系統不推論原因，也不認定這兩家公司之間
+        有任何法律上的關係。
+      </p>
+    </div>
+  );
+}
+
 /** 獨立佐證（同地址、同縣市⋯）。⚠ 跟 lookup.ts 的 independentCount 同一條規則。 */
 function independentEv(c: LinkedCompany) {
   return c.evidence.filter(
@@ -771,6 +822,7 @@ function Linked({ c }: { c: LinkedCompany }) {
         <ul className="linked-ev-list ev-weak">
           {nameEv(c).map((e, i) => <li key={i}>{e.detail}</li>)}
         </ul>
+        <SuccessionBox c={c} />
       </div>
     </div>
   );
