@@ -48,6 +48,20 @@ from common import use_utf8_stdout            # noqa: E402
 
 COL_ID = "編號"
 
+# ⚠⚠ 「編號」只是列號，**不是身分**。兩份標註檔的 L001 有可能是兩家
+#    完全不同的公司 —— 2026-09-14 真的發生了：兩個人各自跑
+#    `make_review.py` 產生自己的檔案，100 組裡只有 2 個負責人重疊。
+#    那兩份檔案算出來的「kappa」是拿 A 的答案去比 B 的另一道題目，
+#    數字會長得很正常，但完全沒有意義。
+#
+#    `make_review.py` 有固定 SEED，但**固定 seed 不等於固定樣本**：
+#    來源資料一變（重抓、修解析器），抽出來的池子就變了。
+#    正確做法是**產生一次、把檔案傳給對方**，不是兩個人各跑一次。
+#
+#    所以這裡要先驗「兩份檔案在講同一批東西」。下面這些欄位只要有，
+#    就拿來當身分指紋比對。
+IDENTITY_COLS = ("負責人姓名", "原始欄位", "違反內容", "事業單位")
+
 # 三份標註檔的判斷欄名稱不一樣。不要寫死一個，也不要用「最後一欄」之類的
 # 猜測 —— 猜錯會安靜地讀到「理由」欄，然後算出一個看起來很正常的 kappa。
 LABEL_COLS = (
@@ -66,6 +80,31 @@ def label_col(fieldnames) -> str:
         + "\n  ".join(LABEL_COLS))
 
 
+# ⚠ 標註者會寫出選項以外的東西，那通常代表**選項不夠用**，不是他做錯。
+#   2026-09-14 的 T6：一位標註者有 10 筆寫成「資料不全」「資料不全（傾向可能）」
+#   「可能（部分證據很強）」。她想表達的是「無法判斷，而且是因為欄位缺值」
+#   與「可能，但偏強」—— 四個選項確實裝不下。
+#
+#   ⚠ 收斂規則要**寫死在程式裡並印出來**，不可以私下手動改標註檔。
+#     改檔案等於替對方重新作答，而且事後沒有人知道改了什麼。
+#     寫在這裡，任何人重跑都會看到同一條規則。
+NORMALIZE = (
+    ("資料不全", "無法判斷"),      # 缺欄位導致無法判斷 → 無法判斷
+    ("可能", "可能"),              # 「可能（部分證據很強）」→ 可能
+    ("無法判斷", "無法判斷"),
+)
+
+
+def canon(label: str) -> str:
+    t = (label or "").strip()
+    if t in ("是", "可能", "否", "無法判斷"):
+        return t
+    for prefix, to in NORMALIZE:
+        if t.startswith(prefix):
+            return to
+    return t                       # 認不出來就原樣留著，讓它在矩陣裡現形
+
+
 def read(path: Path) -> tuple[dict[str, str], str]:
     out: dict[str, str] = {}
     with path.open(encoding="utf-8-sig", newline="") as f:
@@ -73,10 +112,62 @@ def read(path: Path) -> tuple[dict[str, str], str]:
         col = label_col(rd.fieldnames)
         for r in rd:
             rid = (r.get(COL_ID) or "").strip()
-            lab = (r.get(col) or "").strip()
+            lab = canon(r.get(col) or "")
             if rid and lab:
                 out[rid] = lab
     return out, col
+
+
+def fingerprints(path: Path) -> tuple[dict[str, str], str] | tuple[None, None]:
+    """{編號: 身分指紋}。找不到可用的身分欄位就回 (None, None)。"""
+    with path.open(encoding="utf-8-sig", newline="") as f:
+        rd = csv.DictReader(f)
+        col = next((c for c in IDENTITY_COLS if c in (rd.fieldnames or ())), None)
+        if not col:
+            return None, None
+        out: dict[str, str] = {}
+        cur = None
+        for r in rd:
+            rid = (r.get(COL_ID) or "").strip()
+            if rid:
+                cur = rid
+                out[rid] = (r.get(col) or "").strip()
+            elif cur and not out.get(cur):
+                # 一組佔好幾列時，身分欄可能只填在第一列
+                out[cur] = (r.get(col) or "").strip()
+    return out, col
+
+
+def check_same_sample(pa: Path, pb: Path) -> None:
+    """⚠ 兩份檔案不是同一批樣本就直接停。理由見 IDENTITY_COLS 的說明。"""
+    fa, ca = fingerprints(pa)
+    fb, cb = fingerprints(pb)
+    if fa is None or fb is None or ca != cb:
+        print("（找不到共同的身分欄位，跳過樣本一致性檢查）", file=sys.stderr)
+        return
+    both = [k for k in fa if k in fb and fa[k] and fb[k]]
+    if not both:
+        return
+    same = sum(1 for k in both if fa[k] == fb[k])
+    if same == len(both):
+        return
+    print(f"\n⚠⚠ 這兩份檔案標的**不是同一批樣本**，不能算 kappa。\n"
+          f"      以「{ca}」比對 {len(both)} 個編號，只有 {same} 個相同"
+          f"（{100 * same / len(both):.0f}%）。\n"
+          f"      例如：", file=sys.stderr)
+    shown = 0
+    for k in both:
+        if fa[k] != fb[k]:
+            print(f"        {k}　{pa.name} = {fa[k]}　／　{pb.name} = {fb[k]}",
+                  file=sys.stderr)
+            shown += 1
+            if shown >= 3:
+                break
+    print("\n      「編號」只是列號，不是身分。兩個人各跑一次 make_review.py\n"
+          "      會得到兩批不同的樣本（固定 seed 也一樣，因為來源資料會變）。\n"
+          "      正確做法：**產生一次，把檔案傳給對方**，兩個人標同一個檔。\n",
+          file=sys.stderr)
+    raise SystemExit(2)
 
 
 def kappa(a: dict[str, str], b: dict[str, str]) -> tuple[float, int, dict]:
@@ -125,6 +216,7 @@ def main(argv: list[str]) -> int:
         if not p.exists():
             print(f"找不到 {p}", file=sys.stderr)
             return 1
+    check_same_sample(pa, pb)
     (a, ca), (b, cb) = read(pa), read(pb)
     # ⚠ 兩份檔案讀到不同的判斷欄 = 拿配對標註去跟嚴重度標註比。
     #   那會算出一個看起來很正常、但毫無意義的數字。
@@ -138,6 +230,22 @@ def main(argv: list[str]) -> int:
         return 1
 
     agree = sum(v for (x, y), v in matrix.items() if x == y)
+    raw_a = {k: v for k, v in
+             ((r[COL_ID].strip(), (r[ca] or "").strip())
+              for r in csv.DictReader(pa.open(encoding="utf-8-sig", newline="")))
+             if k}
+    raw_b = {k: v for k, v in
+             ((r[COL_ID].strip(), (r[cb] or "").strip())
+              for r in csv.DictReader(pb.open(encoding="utf-8-sig", newline="")))
+             if k}
+    odd = sorted({v for v in list(raw_a.values()) + list(raw_b.values())
+                  if v and v not in ("是", "可能", "否", "無法判斷")})
+    if odd:
+        print("⚠ 有選項以外的寫法，已依 tools/kappa.py 的 NORMALIZE 規則收斂：")
+        for v in odd:
+            print(f"    「{v}」→「{canon(v)}」")
+        print()
+
     print(f"標註任務：{ca}")
     print(f"共同標註 {n} 組")
     print(f"直接一致 {agree}/{n} = {100 * agree / n:.1f}%")
