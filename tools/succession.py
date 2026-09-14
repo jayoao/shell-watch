@@ -109,7 +109,18 @@ def load_last_violation() -> dict[str, int]:
 
 
 def load_facts(names: set[str]) -> dict[str, tuple[str, int]]:
-    """公司（正規化名）→ (登記現況, 設立西元年)。同名取資本額最大的。"""
+    """公司（正規化名）→ (登記現況, 設立西元年)。同名取資本額最大的。
+
+    ⚠⚠ **平手時一定要有確定的順序。**
+      第一版寫成「資本額比目前這筆大就換掉」，同名又同資本額的時候
+      留下來的是 DuckDB 先吐出來的那一筆 —— 而 SQL 沒有保證列的順序。
+      症狀是：同一份資料、同一支程式，跑兩次得到 590 組跟 589 組。
+      2026-09-15 真的發生了（A 層 45 vs 46）。
+
+      一份要拿去投稿的統計，**數字必須可以重現**。評審重跑一次得到
+      不一樣的數字，比數字難看嚴重得多。所以平手時用統一編號排序
+      —— 那是唯一一個保證唯一且穩定的鍵。
+    """
     import duckdb
     import pandas as pd
 
@@ -118,15 +129,18 @@ def load_facts(names: set[str]) -> dict[str, tuple[str, int]]:
     df = pd.DataFrame(sorted(names), columns=["name_norm"])          # noqa: F841
     con.execute("INSERT INTO want SELECT * FROM df")
     rows = con.execute("""
-        SELECT name_norm, status, established, coalesce(capital, 0) AS cap
+        SELECT name_norm, status, established, coalesce(capital, 0) AS cap, id
         FROM entity JOIN want USING(name_norm)
     """).fetchall()
-    best: dict[str, tuple[str, int, int]] = {}
-    for name, status, est, cap in rows:
+    best: dict[str, tuple[int, str, int, str]] = {}
+    for name, status, est, cap, eid in rows:
+        # 排序鍵 = (資本額大的優先, 統編小的優先)。第二項只是為了穩定，
+        # 沒有任何意義 —— 但「沒有意義而穩定」勝過「有意義而隨機」。
+        key = (-int(cap), str(eid or ""))
         cur = best.get(name)
-        if cur is None or cap > cur[2]:
-            best[name] = (status or "", int(est or 0), cap)
-    return {k: (v[0], v[1]) for k, v in best.items()}
+        if cur is None or key < (-cur[0], cur[3]):
+            best[name] = (int(cap), status or "", int(est or 0), str(eid or ""))
+    return {k: (v[1], v[2]) for k, v in best.items()}
 
 
 def main() -> int:

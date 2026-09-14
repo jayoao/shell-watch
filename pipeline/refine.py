@@ -73,9 +73,22 @@ def load_facts(con, wanted: set[str]) -> tuple[dict[str, dict], dict[str, int]]:
                    WHERE title <> '合夥人' GROUP BY 1) d
                ON d.id = e.id
     """).fetchall()
+    # ⚠⚠ **平手時一定要有確定的順序。**
+    #   原本寫成「資本額比目前這筆大就換掉」，同名又同資本額的時候留下來的
+    #   是 DuckDB 先吐出來的那一筆 —— 而 SQL 沒有保證列的順序。
+    #
+    #   2026-09-15 實測：同一份資料連續跑 publish，「重大職災對到」
+    #   在 380 家與 381 家之間跳動，因為職災是用 fact["id"]（統一編號）
+    #   去 join 的，而平手時挑到哪一個統編是隨機的。
+    #   tools/succession.py 有一模一樣的 bug，症狀是 588 / 589 / 590。
+    #
+    #   一份要拿去投稿的統計，數字必須可以重現。評審重跑得到不一樣的數字，
+    #   比數字難看嚴重得多。平手改用統一編號排序 —— 那個鍵沒有任何意義，
+    #   但它唯一而且穩定。**「沒有意義而穩定」勝過「有意義而隨機」。**
     for name, eid, kind, cap, est, status, addr, ndir in rows:
         cur = facts.get(name)
-        if cur is None or (cap or 0) > (cur["capital"] or 0):
+        key = (-(cap or 0), str(eid or ""))
+        if cur is None or key < (-(cur["capital"] or 0), str(cur["id"] or "")):
             facts[name] = {"id": eid, "kind": kind, "capital": cap,
                            "established": est, "status": status or "",
                            "addr": addr or "", "directors": ndir}
