@@ -23,7 +23,7 @@ function Masthead() {
   useEffect(() => { void getMeta().then(setMeta); }, []);
   return (
     <header className="sw-nav">
-      <span className="brand">換殼追蹤</span>
+      <span className="brand">職得調查</span>
       <nav>
         <NavLink to="/" className={({ isActive }) => (isActive ? "on" : "")} end>
           查詢
