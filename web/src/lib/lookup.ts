@@ -16,8 +16,8 @@
  *   那種 bug 沒有對拍測試會找很久。
  */
 import type {
-  Candidate, EvidenceKind, Hazard, LinkedCompany, LookupResult, Principal,
-  Severity, ViolationRef,
+  Candidate, Credential, EvidenceKind, Hazard, LinkedCompany, LookupResult,
+  Principal, Severity, ViolationRef,
 } from "../types/contracts";
 
 /** ⚠ 跟 pipeline/publish.py 的 fnv1a() 對拍，見 tests/test_publish.py */
@@ -69,6 +69,8 @@ interface RawEntry {
   ps?: [string, [string, number, [string, string][]][]][];
   /** 這家公司的公告裡出現過、但不是最常見的其他姓名寫法 */
   alt?: string[];
+  /** 得獎與驗證。[kind, 原始全名, 證書編號或獎別, 有效期起, 有效期迄, 是否有效] */
+  cr?: [string, string, string, string, string, number][];
 }
 
 /** 分片。e = 完整名稱 → 資料；a = 核心名 → 完整名稱清單 */
@@ -82,6 +84,8 @@ export interface Meta {
   /** 公司名 → 分片編號。前端算出來要一樣，見 getMeta() */
   hash_check?: Record<string, number>;
   generated_at: string;
+  /** 這一次發布的版本字串（UTC 時間戳）。用來破分片的快取。 */
+  version?: string;
   shards: number;
   companies: number;
   violations: number;
@@ -95,9 +99,26 @@ let metaPromise: Promise<Meta | null> | null = null;
 let hazardPromise: Promise<Record<string, { name: string; duty: string }>> | null = null;
 const shardCache = new Map<number, Promise<Shard | null>>();
 
-async function getJSON<T>(path: string): Promise<T | null> {
+/**
+ * 分片的版本字串。meta.json 一載到就設定，之後所有 /data/ 的請求都帶上
+ * `?v=...`。
+ *
+ * ⚠ 為什麼需要：分片檔名沒有內容雜湊（編號是 FNV-1a 算的，資料更新後
+ *   檔名不變），所以瀏覽器會把舊的分片留在快取裡。
+ *
+ * ⚠⚠ 這不只是「資料晚一點更新」。**欄位格式一改，舊分片配新程式會安靜地
+ *   錯位** —— 2026-09-14 實測：得獎欄位從 5 個元素變成 6 個之後，
+ *   拿到舊分片的畫面顯示「有效至 1 已到期」，而正確答案是
+ *   「有效期間 民國 114/10/13–民國 117/10/12」。畫面沒有報錯，只是每一欄
+ *   都往前移一格。那比看到錯誤訊息危險得多。
+ */
+let dataVersion = "";
+
+async function getJSON<T>(path: string, opts?: RequestInit): Promise<T | null> {
   try {
-    const r = await fetch(BASE + path);
+    const sep = path.includes("?") ? "&" : "?";
+    const url = BASE + path + (dataVersion ? `${sep}v=${dataVersion}` : "");
+    const r = await fetch(url, opts);
     if (!r.ok) return null;
     return (await r.json()) as T;
   } catch {
@@ -118,7 +139,10 @@ export let hashMismatch: string | null = null;
  *   看起來像資料沒部署好，其實是程式錯了。**一定要吵。**
  */
 export function getMeta(): Promise<Meta | null> {
-  metaPromise ??= getJSON<Meta>("meta.json").then((m) => {
+  // ⚠ meta.json 一定要重新驗證，它就是版本的來源。
+  //   它自己被快取住的話，下面那個 ?v= 會一直帶舊的版本號，等於沒破快取。
+  metaPromise ??= getJSON<Meta>("meta.json", { cache: "no-cache" }).then((m) => {
+    if (m?.version) dataVersion = m.version;
     if (m?.hash_check) {
       for (const [name, want] of Object.entries(m.hash_check)) {
         const got = fnv1a(normName(name)) % (m.shards || SHARDS_FALLBACK);
@@ -380,6 +404,11 @@ export async function lookup(query: string): Promise<LookupOutcome> {
       established: self.e,
       address: self.a,
       own_violations: own,
+      credentials: (self.cr ?? []).map(
+        ([kind, unit, detail, validFrom, validTo, act]) => ({
+          kind: kind as Credential["kind"], unit, detail,
+          valid_from: validFrom, valid_to: validTo, active: act === 1,
+        })),
     },
     principals,
     summary: {
