@@ -1,0 +1,91 @@
+/* 關於資料頁。沿用 tokens.css，不新增任何顏色。 */
+
+.about { max-width: 760px; margin: 0 auto; padding-bottom: 40px; }
+
+.about-title {
+  font-family: var(--serif); font-size: 30px; line-height: 1.15;
+  letter-spacing: -.02em; margin: 6px 0 12px;
+}
+.about-lead {
+  font-size: 15.5px; line-height: 1.75; margin: 0 0 8px;
+  padding-bottom: 18px; border-bottom: 2px solid var(--ink);
+}
+
+.about-sec { margin-top: 28px; }
+.about-h {
+  font-family: var(--serif); font-size: 18px; margin: 0 0 12px;
+  padding-bottom: 5px; border-bottom: 1px solid var(--rule);
+}
+.about-p { font-size: 13.5px; line-height: 1.8; margin: 0 0 8px; }
+.about-note {
+  font-size: 12.5px; line-height: 1.75; color: var(--pending-ink);
+  background: var(--pending-soft); border-left: 3px solid var(--pending);
+  padding: 9px 11px; margin: 12px 0 0;
+}
+
+/* 規模。⚠ 手機一定要能掉成一欄，數字很長。 */
+.about-nums {
+  margin: 0 0 14px; display: grid; gap: 14px 22px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+.about-nums div { border-top: 1px solid var(--rule); padding-top: 8px; }
+.about-nums dt { font-size: 22px; line-height: 1.2; }
+.about-nums dd {
+  margin: 3px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--ink-2);
+}
+
+/* 資料集清單 */
+.ds-list { list-style: none; margin: 0; padding: 0; counter-reset: ds; }
+.ds-list li {
+  border-bottom: 1px solid var(--rule); padding: 11px 0 11px 30px;
+  position: relative; counter-increment: ds;
+}
+.ds-list li::before {
+  content: counter(ds); position: absolute; left: 0; top: 13px;
+  font-family: var(--mono); font-size: 11px; color: var(--ink-3);
+}
+.ds-name {
+  display: block; font-size: 14.5px; line-height: 1.5; font-weight: 600;
+  color: var(--link); text-decoration: none; overflow-wrap: anywhere;
+}
+.ds-name:hover { text-decoration: underline; }
+/* ⚠ 網址要看得見。報名文件要抄的就是它，藏在 href 裡等於沒給。 */
+.ds-url {
+  font-size: 11px; color: var(--ink-3); margin-top: 3px;
+  overflow-wrap: anywhere;
+}
+.ds-use {
+  font-size: 12.5px; line-height: 1.7; color: var(--ink-2); margin-top: 5px;
+}
+
+/* 串接率。⚠ 表格是唯一允許橫向捲動的東西。 */
+.join-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.join-table th {
+  text-align: left; font-family: var(--mono); font-size: 10.5px;
+  letter-spacing: .05em; color: var(--ink-3); font-weight: 400;
+  border-bottom: 1px solid var(--ink); padding: 0 8px 5px 0;
+}
+.join-table td {
+  border-bottom: 1px solid var(--rule); padding: 9px 8px 9px 0;
+  vertical-align: top; line-height: 1.6;
+}
+.join-table .right { text-align: right; white-space: nowrap; }
+
+/* 已知缺口 */
+.gap-list { margin: 12px 0 0; }
+.gap-list div {
+  border-left: 3px solid var(--rule-2); padding: 0 0 0 12px; margin-bottom: 14px;
+}
+.gap-list dt { font-size: 14px; line-height: 1.6; font-weight: 600; }
+.gap-list dd {
+  margin: 4px 0 0; font-size: 12.5px; line-height: 1.75; color: var(--ink-2);
+}
+
+.about-foot {
+  margin-top: 30px; border-top: 1px solid var(--rule); padding-top: 14px;
+}
+
+@media (max-width: 560px) {
+  .about-title { font-size: 25px; }
+  .join-table { font-size: 12px; }
+}

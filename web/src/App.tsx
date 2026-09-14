@@ -14,6 +14,9 @@ import type { Meta } from "./lib/lookup";
  */
 const OshaDistrictMap = lazy(() => import("./pages/OshaDistrictMap"));
 
+/** 關於資料。純文字，很小，但沒有理由讓查詢頁載它。 */
+const About = lazy(() => import("./pages/About"));
+
 /**
  * 頁首。設計稿的作法是「報紙的報頭」：粗的刊名、細的分隔線、
  * 右邊一行等寬字的資料規模。不用 logo、不用陰影、不用圓角。
@@ -30,6 +33,9 @@ function Masthead() {
         </NavLink>
         <NavLink to="/osha" className={({ isActive }) => (isActive ? "on" : "")}>
           職安地圖
+        </NavLink>
+        <NavLink to="/about" className={({ isActive }) => (isActive ? "on" : "")}>
+          關於資料
         </NavLink>
       </nav>
       {/* ⚠ 資料規模只在桌機顯示（CSS 控制）。375px 放不下，
@@ -53,6 +59,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/osha" element={<OshaDistrictMap />} />
+            <Route path="/about" element={<About />} />
           </Routes>
         </Suspense>
       </main>
