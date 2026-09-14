@@ -1,6 +1,7 @@
 """算兩個人的標註一致率（Cohen's kappa）。
 
-    python -m tools.kappa data/link_review_我.csv data/link_review_她.csv
+    python -m tools.kappa data/link_review.csv data/link_review_nicole.csv
+    python -m tools.kappa data/parse_review.csv data/parse_review_nicole.csv --by 型態
 
 ────────────────────────────────────────────────────────────────
 為什麼要算 kappa 而不是直接算「答案一樣的比例」
@@ -18,6 +19,22 @@ kappa 把「碰巧一致」扣掉：
 
 kappa 低不代表誰標錯了，而是**判準不清楚**。
 低的時候要做的是回去把規則書寫清楚、重標，不是改資料。
+
+────────────────────────────────────────────────────────────────
+⚠ 整體 kappa 低的時候，先按類別拆開看（--by）
+────────────────────────────────────────────────────────────────
+2026-09-14 的實例：T3 欄位解析整體 kappa 只有 0.231，看起來像兩個人
+標得亂七八糟。按「型態」拆開之後：
+
+    系統有拆出結果的 150 筆   一致 150/150   kappa 1.000
+    系統說「拆不開」的 50 筆   一致   6/50    kappa 0.000
+
+一致性沒有問題，問題是**題目問錯了**。「拆得對嗎」對「拆不開」這種
+輸出沒有定義：一個人讀成「系統老實承認拆不開，判斷正確」，另一個讀成
+「這其實拆得開，沒拆就是錯」。兩種都站得住。
+
+**混在一起算的那個 0.231 沒有任何意義** —— 它把一個滿分的精確率
+跟一個定義爭議平均成一個中間值。拆開才看得到真相。
 """
 from __future__ import annotations
 
@@ -79,8 +96,27 @@ def kappa(a: dict[str, str], b: dict[str, str]) -> tuple[float, int, dict]:
     return k, n, matrix
 
 
+def read_col(path: Path, col: str) -> dict[str, str]:
+    """讀任意一欄（給 --by 用）。"""
+    out: dict[str, str] = {}
+    with path.open(encoding="utf-8-sig", newline="") as f:
+        for r in csv.DictReader(f):
+            rid = (r.get(COL_ID) or "").strip()
+            if rid:
+                out[rid] = (r.get(col) or "").strip()
+    return out
+
+
 def main(argv: list[str]) -> int:
     use_utf8_stdout()
+    by = None
+    if "--by" in argv:
+        i = argv.index("--by")
+        if i + 1 >= len(argv):
+            print("--by 後面要接欄位名稱，例如 --by 型態", file=sys.stderr)
+            return 1
+        by = argv[i + 1]
+        argv = argv[:i] + argv[i + 2:]
     if len(argv) != 2:
         print(__doc__.strip().split("\n")[2], file=sys.stderr)
         return 1
@@ -125,6 +161,25 @@ def main(argv: list[str]) -> int:
         for v, x, y in dis[:5]:
             print(f"  {v:>3} 組：一個標「{x}」，另一個標「{y}」")
         print("\n→ 這些就是規則書沒寫清楚的地方。先改規則書，再重標，不要改資料。")
+
+    # ⚠ 整體數字低的時候，一定要按類別拆開看一次。混在一起的 kappa
+    #   會把「某一類完全一致」跟「某一類完全不一致」平均掉。
+    if by:
+        strata = read_col(pa, by)
+        if not any(strata.values()):
+            print(f"\n{pa.name} 沒有「{by}」這一欄，或整欄是空的。", file=sys.stderr)
+            return 1
+        print(f"\n── 按「{by}」拆開 ──")
+        for g in sorted({v for k, v in strata.items() if k in a and k in b}):
+            ids = {k for k, v in strata.items() if v == g}
+            ka, kb = {k: v for k, v in a.items() if k in ids}, \
+                     {k: v for k, v in b.items() if k in ids}
+            kk, nn, mm = kappa(ka, kb)
+            ag = sum(v for (x, y), v in mm.items() if x == y)
+            print(f"  {g:<24} n={nn:<4} 一致 {ag:>3}/{nn:<4}"
+                  f"（{100 * ag / nn:5.1f}%）  kappa={kk:.3f}")
+        print("\n⚠ 如果某一類 kappa 接近 1、另一類接近 0，那不是標註品質問題，"
+              "\n   是**題目對那一類沒有定義**。整體的 kappa 這時候不要引用。")
     return 0
 
 
