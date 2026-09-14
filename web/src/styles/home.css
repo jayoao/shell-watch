@@ -167,6 +167,27 @@
   padding: 9px 11px; margin: 14px 0 0;
 }
 
+/* ── 得獎與驗證 ───────────────────────────── */
+.cred-group { margin-top: 14px; }
+.cred-kind {
+  display: block; font-family: var(--mono); font-size: 11px;
+  letter-spacing: .06em; color: var(--ink-3);
+  border-bottom: 1px solid var(--rule-2); padding-bottom: 4px;
+}
+.cred-list { list-style: none; margin: 0 0 6px; padding: 0; }
+.cred-list li { border-bottom: 1px solid var(--rule); padding: 8px 0; }
+.cred-unit {
+  display: block; font-size: 13.5px; line-height: 1.5; font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.cred-detail {
+  display: block; font-family: var(--mono); font-size: 11.5px;
+  color: var(--ink-2); margin-top: 2px;
+}
+/* ⚠ 到期的不藏起來也不用警示色 —— 它不是「危險」，是「已經過期」。
+   用灰階降權就好，用 --pending 會讓人以為有爭議。 */
+.cred-dead .cred-unit, .cred-dead .cred-detail { color: var(--ink-3); font-weight: 400; }
+
 /* ── 撞名選擇 ─────────────────────────────── */
 .choose { margin-top: 18px; }
 .cand-list { list-style: none; margin: 6px 0 0; padding: 0; }

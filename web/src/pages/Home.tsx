@@ -33,7 +33,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type {
-  Candidate, LinkedCompany, LookupResult, ViolationRef,
+  Candidate, Credential, LinkedCompany, LookupResult, ViolationRef,
 } from "../types/contracts";
 import sample from "../data/lookup.sample.json";
 import { getMeta, hashMismatch, lookup } from "../lib/lookup";
@@ -398,6 +398,106 @@ function HazardPanel({ hit }: { hit: LookupResult }) {
   );
 }
 
+const CRED_LABEL: Record<Credential["kind"], string> = {
+  national: "國家職業安全衛生獎",
+  star5: "推行職業安全衛生優良單位五星獎",
+  toshms: "TOSHMS 職安衛管理系統驗證",
+  perf: "職安衛管理系統績效審查",
+};
+
+/**
+ * 顯示順序：得獎在前，驗證在後。
+ *
+ * 得獎少而且難得（全國一年幾十家），驗證多（光台積電就 26 張廠區證書）。
+ * 照有效性排的話，使用者要滑過二十幾張證書才看得到得獎那一行。
+ */
+const CRED_ORDER: Credential["kind"][] = ["national", "star5", "toshms", "perf"];
+
+/** 每一類先顯示幾筆。⚠ 台積電有 26 張 TOSHMS，全攤開會把整頁佔滿。 */
+const CRED_PREVIEW = 3;
+
+function credLine(c: Credential): string {
+  // ⚠ 用陣列過濾再接，不要直接串 —— 績效審查的 detail 是空的，
+  //   直接串會在行首留下一個全形空白。
+  const span = c.valid_from && c.valid_to
+    ? `有效期間 ${c.valid_from}–${c.valid_to}`
+    : c.valid_to ? `有效至 ${c.valid_to}` : "";
+  return [c.detail, span, c.active ? "" : "已到期"]
+    .filter(Boolean).join("\u3000");
+}
+
+function CredGroup({ kind, list }: { kind: Credential["kind"]; list: Credential[] }) {
+  const [all, setAll] = useState(false);
+  // 有效的排前面，同組內保持來源順序
+  const sorted = [...list].sort((a, b) => Number(b.active) - Number(a.active));
+  const shown = all ? sorted : sorted.slice(0, CRED_PREVIEW);
+  const rest = sorted.length - shown.length;
+  return (
+    <div className="cred-group">
+      <div className="cred-kind">
+        {CRED_LABEL[kind]}
+        {sorted.length > 1 && `\u3000${sorted.length} 項`}
+      </div>
+      <ul className="cred-list">
+        {shown.map((c, i) => (
+          <li key={i} className={c.active ? undefined : "cred-dead"}>
+            <span className="cred-unit">{c.unit}</span>
+            {credLine(c) && <span className="cred-detail">{credLine(c)}</span>}
+          </li>
+        ))}
+      </ul>
+      {rest > 0 && (
+        <button className="linkish" onClick={() => setAll(true)}>
+          展開其餘 {rest} 個單位
+        </button>
+      )}
+      {all && sorted.length > CRED_PREVIEW && (
+        <button className="linkish" onClick={() => setAll(false)}>收合</button>
+      )}
+    </div>
+  );
+}
+
+/**
+ * 得獎與驗證 —— 「職安履歷」的正面那一半。
+ *
+ * 只列違規的畫面看起來像在指控。把得獎與驗證放在同一頁，系統才是
+ * 「呈現一家公司的職安紀錄」而不是「抓壞人」。
+ *
+ * ⚠⚠ `c.unit` 是來源的原始全名，**含廠區**（「…股份有限公司Fab8E廠」）。
+ *   一定要原樣顯示。簡化成公司名，就是把一個廠區的證書講成整家公司的
+ *   證書 —— 那是往有利的方向誤導，跟把 A 公司的違規掛到 B 公司同級。
+ *   實測台積電有 26 張分屬不同廠區的證書，一張都不能合併成「台積電通過驗證」。
+ *
+ * ⚠ 到期的不藏起來，標示「已到期」。藏起來會讓人以為從來沒驗證過；
+ *   當成有效則是背書。兩種都不對，所以照實寫。
+ */
+function Credentials({ list }: { list: Credential[] }) {
+  if (!list.length) return null;
+  const groups = CRED_ORDER
+    .map((k) => [k, list.filter((c) => c.kind === k)] as const)
+    .filter(([, v]) => v.length > 0);
+  const dead = list.filter((c) => !c.active).length;
+  return (
+    <section className="side-block">
+      <h2 className="side-h">得獎與驗證</h2>
+      <p className="side-p">
+        資料來自勞動部公開的得獎與驗證名單。
+        ⚠ <b>對象是下面寫的那個單位</b>——很多是廠區或分支，
+        不代表整家公司的每個場所都通過。
+      </p>
+      {groups.map(([k, v]) => <CredGroup key={k} kind={k} list={v} />)}
+      {dead > 0 && (
+        <p className="fineprint" style={{ marginTop: 12 }}>
+          其中 {dead} 項已到期，照實列出。
+          ⚠ 有效與否一律依截止日期判定，<b>不採用來源的「目前狀態」欄</b>
+          ——實測該欄位在已到期的項目上仍寫「通過」。
+        </p>
+      )}
+    </section>
+  );
+}
+
 /* ══════════════════════════════════════════════════════════════
    查詢結果
    ══════════════════════════════════════════════════════════════ */
@@ -507,6 +607,7 @@ function Result({ hit }: { hit: LookupResult }) {
       </div>
 
       <div className="res-haz">
+        <Credentials list={hit.company.credentials ?? []} />
         <HazardPanel hit={hit} />
       </div>
 

@@ -137,6 +137,33 @@ export interface Candidate {
   violation_count: number;
 }
 
+/**
+ * 得獎或驗證。「職安履歷」的正面那一半。
+ *
+ * ⚠⚠ `unit` 是**來源寫的原始全名，含廠區**（「…股份有限公司Fab8E」、
+ *   「…十二廠七期」）。UI **必須原樣顯示**，不可以簡化成公司名 ——
+ *   一個廠區通過驗證不代表整家公司都通過，簡化就是往有利的方向誤導。
+ *   把 A 公司的違規掛到 B 公司是名譽損害；把廠區的證書講成公司的證書
+ *   是幫沒通過的單位背書。方向相反，嚴重度一樣。
+ *
+ * ⚠ `active` 是**依截止日期算出來的**，不是抄來源的「目前狀態」欄。
+ *   實測績效審查 86 筆全寫「通過」，但其中 51 筆早就過期。
+ */
+export interface Credential {
+  /** toshms 驗證／perf 績效審查／star5 五星獎／national 國家職安獎 */
+  kind: "toshms" | "perf" | "star5" | "national";
+  /** ⚠ 原始全名，含廠區。顯示用這個。 */
+  unit: string;
+  /** 證書編號或獎別。績效審查沒有這個資訊，會是空字串 */
+  detail: string;
+  /** 有效期間起。格式「民國 YYY/MM/DD」，空字串代表沒有期限 */
+  valid_from: string;
+  /** 有效期間迄。⚠ 來源有民國與西元兩種寫法，pipeline 已統一換算成民國。 */
+  valid_to: string;
+  /** 現在仍有效（驗證），或為歷史得獎事實 */
+  active: boolean;
+}
+
 export interface LookupResult {
   query: string;
   company: {
@@ -146,6 +173,9 @@ export interface LookupResult {
     established: string | null;
     address: string | null;
     own_violations: ViolationRef[];
+    /** ⚠ 選填。得獎與驗證。沒有不代表這家公司沒得過獎 ——
+     *  只代表在我們涵蓋的四份名單裡沒有正規化後完全相同的名稱。 */
+    credentials?: Credential[];
   };
   principals: Principal[];
   summary: {

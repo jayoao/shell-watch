@@ -45,6 +45,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+from datetime import datetime, timezone
 import json
 import re
 import shutil
@@ -63,6 +64,7 @@ from pipeline.refine import load_facts                               # noqa: E40
 
 RECORDS = Path("data/records.csv")
 RANKED = Path("data/ranked.csv")
+CREDENTIAL = Path("data/credential.csv")
 DB = Path("data/gcis.duckdb")
 OUT = Path("web/public/data")
 
@@ -251,6 +253,35 @@ def main(argv=None) -> int:
                 groups_of[c].append(g)
     print(f"換殼組涵蓋　{len(groups_of):,} 家")
 
+    # ── 3.5 得獎與驗證 ───────────────────────────────────────
+    #
+    # ⚠ 這批資料錯了是「背書」：把 A 公司的 TOSHMS 驗證顯示成 B 公司的，
+    #   等於幫一家沒通過驗證的公司掛保證，求職者可能因此去了不安全的職場。
+    #   方向跟違規相反，嚴重度一樣。所以只用**正規化後完全相同**的名稱對，
+    #   不做任何模糊比對；對不上就不顯示。
+    #
+    # ⚠⚠ 存進分片的是 unit_raw（含廠區的原始全名），**不是** unit_legal。
+    #   「台灣積體電路製造股份有限公司十二廠七期」通過審查，不代表台積電
+    #   每個廠都通過。unit_legal 只是拿來 join 的鍵，不可以拿去顯示。
+    creds: dict[str, list] = defaultdict(list)
+    if CREDENTIAL.exists():
+        with CREDENTIAL.open(encoding="utf-8-sig", newline="") as f:
+            for r in csv.DictReader(f):
+                key = (r.get("match_key") or "").strip()
+                if not key:
+                    continue
+                creds[key].append([
+                    r["kind"], r["unit_raw"], r["detail"],
+                    r.get("valid_from", ""), r.get("valid_to", ""),
+                    int(r.get("active") or 0),
+                ])
+        hit = sum(1 for c in by_company if norm_name(c) in creds)
+        print(f"得獎／驗證　{sum(len(v) for v in creds.values()):,} 筆，"
+              f"對到 {hit:,} 家")
+    else:
+        print(f"⚠ 沒有 {CREDENTIAL}，這次不含得獎／驗證"
+              f"（跑 python -m pipeline.credential 產生）")
+
     # ── 4. 切片 ──────────────────────────────────────────────
     # e = 完整名稱 → 資料；a = 核心名 → 完整名稱清單
     shards: list[dict] = [{"e": {}, "a": {}} for _ in range(SHARDS)]
@@ -271,6 +302,9 @@ def main(argv=None) -> int:
         principal = principal_of.get(company, "")
         if principal:
             entry["p"] = principal
+        cr = creds.get(norm_name(company))
+        if cr:
+            entry["cr"] = cr
 
         # ⚠ 依**組的負責人姓名**分群，不要壓成一份清單。
         #   連結是靠某一種寫法對上的；把它掛在公司自己最常見的寫法底下，
@@ -356,6 +390,16 @@ def main(argv=None) -> int:
         "schema": 1,
         "hash_check": check,
         "generated_at": time.strftime("%Y-%m-%d"),
+        # ⚠ 分片的檔名沒有內容雜湊（編號是 FNV-1a 算的，資料更新後檔名不變），
+        #   所以前端要靠這個版本字串當 query string 去破快取。
+        #   **只用日期不夠** —— 同一天重新發布很常見（2026-09-14 就發了四次），
+        #   日期一樣的話使用者拿到的還是舊分片。
+        #
+        #   ⚠⚠ 為什麼這件事比「資料晚一點更新」嚴重：分片的欄位格式一改
+        #   （例如 cr 從 5 個元素變成 6 個），舊分片配新程式會**安靜地錯位**，
+        #   畫面照常顯示，只是每個欄位都往前移一格。實測就發生過：
+        #   「有效至 民國 117/10/12」變成「有效至 1」。不是報錯，是說謊。
+        "version": datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S"),
         "shards": SHARDS,
         "companies": total,
         "violations": sum(len(v) for v in by_company.values()),
