@@ -24,10 +24,19 @@
 #   no-cache 與 immutable 互相矛盾，瀏覽器怎麼處理沒有保證。
 #   目前是靠前端 fetch 的 { cache: "no-cache" } 擋住，但那只擋瀏覽器這一層。
 #   所以改成逐一列出真正要永久快取的路徑，讓 meta.json 一條規則都不沾。
+#
+# ⚠⚠ 代價是：**新增 data/ 底下的目錄，一定要記得回來補一條。**
+#   2026-09-15 就漏了一次 —— /data/g/（商工登記索引，4096 個檔）上線後
+#   拿到的是 Cloudflare 預設的 max-age=0, must-revalidate，
+#   等於每次查不到都重新驗證一次。不會報錯，只會變慢。
+#   漏掉的症狀永遠是「慢」而不是「壞」，所以不會有人回報。
 /data/c/*
   Cache-Control: public, max-age=31536000, immutable
 
 /data/x/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/data/g/*
   Cache-Control: public, max-age=31536000, immutable
 
 /data/hazards.json
