@@ -16,7 +16,21 @@
 #   變成 6 個），舊分片配新程式不是「資料舊」，是**每一欄往前移一格**。
 #   2026-09-14 實測畫面顯示「有效至 1」而正確是「有效至 民國 117/10/12」，
 #   而且不會報錯。所以改成版本化 + 永久快取，不要靠時間賭。
-/data/*
+#
+# ⚠⚠ 這裡**不可以**寫成 /data/*。Cloudflare Pages 會把所有比對到的規則
+#   **合併**，不是只取最specific 的那一條 —— 2026-09-14 實測 meta.json
+#   的回應標頭是
+#       Cache-Control: no-cache, public, max-age=31536000, immutable
+#   no-cache 與 immutable 互相矛盾，瀏覽器怎麼處理沒有保證。
+#   目前是靠前端 fetch 的 { cache: "no-cache" } 擋住，但那只擋瀏覽器這一層。
+#   所以改成逐一列出真正要永久快取的路徑，讓 meta.json 一條規則都不沾。
+/data/c/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/data/x/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/data/hazards.json
   Cache-Control: public, max-age=31536000, immutable
 
 /*
