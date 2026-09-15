@@ -178,7 +178,7 @@ a:hover { color: var(--ink); }
 /* 欄位標籤（統一編號、罰鍰、處分字號…）。等寬＋字距，當成小標看。 */
 .lbl {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 12px;
   letter-spacing: .06em;
   color: var(--ink-3);
   white-space: nowrap;
@@ -186,7 +186,7 @@ a:hover { color: var(--ink); }
 /* 區塊上方的小眉標（查詢結果、資料涵蓋範圍…） */
 .kicker {
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: 12px;
   letter-spacing: .12em;
   color: var(--ink-3);
 }
@@ -205,7 +205,7 @@ a:hover { color: var(--ink); }
 .sw-nav .brand { font-size: 16px; font-weight: 700; letter-spacing: -.01em; white-space: nowrap; }
 .sw-nav nav { display: flex; gap: 14px; }
 .sw-nav a {
-  font-family: var(--mono); font-size: 11px; letter-spacing: .08em;
+  font-family: var(--mono); font-size: 12px; letter-spacing: .08em;
   color: var(--ink-3); text-decoration: none; white-space: nowrap;
 }
 .sw-nav a.on { color: var(--ink); text-decoration: underline; }
@@ -223,7 +223,7 @@ a:hover { color: var(--ink); }
   }
   .sw-nav .scale {
     display: block; margin-left: auto;
-    font-family: var(--mono); font-size: 11.5px; color: var(--ink-3);
+    font-family: var(--mono); font-size: 12px; color: var(--ink-3);
   }
   .sw-shell { padding-bottom: 80px; }
 }
@@ -243,7 +243,7 @@ a:hover { color: var(--ink); }
 /* 標籤（涉及死亡災害／尚未確定）。方角，不是圓角膠囊 —— 圓角看起來像
    裝飾，方角看起來像檔案上的戳記。 */
 .tag {
-  font-family: var(--mono); font-size: 11px; letter-spacing: .04em;
+  font-family: var(--mono); font-size: 12px; letter-spacing: .04em;
   padding: 2px 7px; border-radius: 2px; white-space: nowrap;
 }
 .tag-fatal   { background: var(--fatal-tag-bg); color: var(--fatal-tag-fg); }
@@ -286,7 +286,7 @@ a:hover { color: var(--ink); }
    不能用 --ink（深色主題下會變成淺灰字壓在淺色底圖上）。 */
 .sw-cluster-label.leaflet-tooltip {
   background: none; border: 0; box-shadow: none; padding: 0;
-  color: #FFFFFF; font-weight: 800; font-size: 11px;
+  color: #FFFFFF; font-weight: 800; font-size: 12px;
   text-shadow: 0 1px 2px rgba(0,0,0,.45);
 }
 .sw-cluster-label.leaflet-tooltip::before { display: none; }

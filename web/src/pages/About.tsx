@@ -184,8 +184,10 @@ export default function About() {
           中高齡者及高齡者就業促進法）合計 342 筆。
         </p>
         <p className="about-note">
-          ⚠ 職安法佔 <b>11.8%</b>。本站是「勞動法遵的職安履歷」，
-          不是只看職安法——但地圖頁只用職安法那一部分。
+          ⚠ <b>筆數最多的不等於最嚴重的。</b>「63 萬筆裁處」聽起來像 63 萬次
+          職場危害，但其中 <b>73.7% 是「雇主沒有按時提繳勞工退休金」</b>
+          ——一條行政義務。職安法只佔 11.8%。
+          本站是「勞動法遵的職安履歷」，不是只看職安法；地圖頁只用職安法那一部分。
         </p>
       </section>
 
@@ -269,6 +271,23 @@ export default function About() {
             </div>
           ))}
         </dl>
+      </section>
+
+      <section className="about-sec">
+        <h2 className="about-h">這個網站怎麼運作</h2>
+        <p className="about-p">
+          純靜態網站，<b>沒有後端</b>。一次查詢只下載該公司所屬的資料分片
+          （約 14 KB），<b>你查了誰不會送到任何伺服器</b>，我們自己也不知道。
+        </p>
+        <p className="about-p">
+          查詢頁零外部請求。地圖頁的底圖來自內政部國土測繪中心，
+          那是全站唯一的外部依賴。
+        </p>
+        <p className="about-note">
+          ⚠ 網站設為 <code>noindex, nofollow</code>，不讓搜尋引擎收錄。
+          畫面上有真實的負責人姓名，那是勞動部公告的內容，
+          但我們沒有理由讓它更容易被搜尋到。
+        </p>
       </section>
 
       <footer className="about-foot">
