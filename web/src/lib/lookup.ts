@@ -54,6 +54,7 @@ type RawViolation = [
   string,          // 6 處分字號
   string[],        // 7 危害型態代碼
   number,          // 8 是否涉及死亡災害
+  string[],        // 9 人話標籤 [主題, 標籤]，對不到是空陣列
 ];
 
 interface RawEntry {
@@ -118,7 +119,7 @@ export interface Meta {
 const BASE = `${import.meta.env.BASE_URL}data/`;
 
 let metaPromise: Promise<Meta | null> | null = null;
-let hazardPromise: Promise<Record<string, { name: string; duty: string }>> | null = null;
+let hazardPromise: Promise<HazardDict> | null = null;
 const shardCache = new Map<number, Promise<Shard | null>>();
 
 /**
@@ -183,9 +184,10 @@ export function getMeta(): Promise<Meta | null> {
   return metaPromise;
 }
 
-function getHazards(): Promise<Record<string, { name: string; duty: string }>> {
-  hazardPromise ??= getJSON<Record<string, { name: string; duty: string }>>("hazards.json")
-    .then((h) => h ?? {});
+type HazardDict = Record<string, { name: string; duty: string; phrase?: string }>;
+
+function getHazards(): Promise<HazardDict> {
+  hazardPromise ??= getJSON<HazardDict>("hazards.json").then((h) => h ?? {});
   return hazardPromise;
 }
 
@@ -426,13 +428,15 @@ function toIncidents(raw: NonNullable<RawEntry["ic"]>): Incident[] {
 
 function toViolations(
   raw: RawViolation[],
-  haz: Record<string, { name: string; duty: string }>,
+  haz: HazardDict,
 ): ViolationRef[] {
   return raw
-    .map(([date, law, content, fine, severity, appeal, docNo, codes, fatal]) => {
+    .map(([date, law, content, fine, severity, appeal, docNo, codes, fatal,
+           plain]) => {
       const hazards: Hazard[] = codes
         .filter((c) => haz[c])
-        .map((c) => ({ code: c, name: haz[c].name, duty: haz[c].duty }));
+        .map((c) => ({ code: c, name: haz[c].name, duty: haz[c].duty,
+                       phrase: haz[c].phrase }));
       return {
         date,
         law,
@@ -449,6 +453,12 @@ function toViolations(
         source_url: SOURCE_URL,
         hazards,
         fatal: fatal === 1,
+        // ⚠ 舊分片沒有第 10 個欄位（plain），會是 undefined。
+        //   一定要防 —— 這正是 2026-09-14 那個快取 bug 的形狀：
+        //   欄位數一改，舊分片配新程式會安靜地錯位。
+        plain: plain?.length === 2
+          ? { topic: plain[0], label: plain[1] }
+          : undefined,
       };
     })
     .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));

@@ -77,6 +77,14 @@ export interface Hazard {
   name: string;                // 墜落、頭部防護、機械設備防護…
   /** 法規要求雇主做什麼。會直接顯示給使用者看，是完整句子 */
   duty: string;
+  /**
+   * ⚠ 選填。句式標籤（「高處作業墜落防護不足」），給「被罰過的事」長條用。
+   *
+   * ⚠ 跟 name 並存，**不要合併**。name 是短名，地圖頁的篩選晶片要用它；
+   *   phrase 在晶片上會爆版。兩個各有各的場合。
+   *   舊分片沒有這個欄位，缺的時候退回 name。
+   */
+  phrase?: string;
 }
 
 export interface ViolationRef {
@@ -100,6 +108,19 @@ export interface ViolationRef {
    *  不等於這家公司造成死亡 —— 有些是「未於八小時內通報死亡災害」，
    *  罰的是通報義務。措辭一定要寫「本筆公告涉及死亡災害」。 */
   fatal?: boolean;
+  /**
+   * ⚠ 選填。人話標籤 —— 把「勞動基準法第32條第2項」翻成「加班超過法定上限」。
+   *
+   * ⚠⚠ 這是**翻譯**，不是分類判定。一個條項對一個標籤，規則對照，
+   *   不用模型、不做相似度。對不到就是 undefined，畫面顯示「其他」，
+   *   **絕對不猜** —— 翻錯一個法條就是對一家具名公司做出不實指控。
+   *
+   * ⚠ 它**不取代法條原文**。展開之後一定要看得到原始的 law 與 content，
+   *   人話只是一個入口。
+   *
+   * 職業安全衛生法不走這條路，它走 hazards（危害型態）。
+   */
+  plain?: { topic: string; label: string };
 }
 
 export interface LinkedCompany {

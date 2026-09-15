@@ -58,7 +58,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from common import use_utf8_stdout                                   # noqa: E402
 from pipeline.export import (HAZARDS, SOURCE_URL, WEIGHTS, appeal_of,  # noqa: E402
                              hazards_of, severity_of)
-from pipeline.hazard import is_fatal                                 # noqa: E402
+from pipeline.hazard import HAZARD_PHRASE, is_fatal                  # noqa: E402
+from pipeline.plainlaw import plain_of                               # noqa: E402
 from pipeline.join import norm_addr, norm_name                       # noqa: E402
 from pipeline.refine import load_facts                               # noqa: E402
 
@@ -146,6 +147,7 @@ def compact_violation(r: dict) -> list:
         fine = 0
     content = (r.get("violation") or "").strip()
     law = r.get("law_article") or r.get("law") or ""
+    plain = plain_of(r.get("law") or "", law)
     return [
         r.get("disposition_date", ""),
         law,
@@ -156,6 +158,10 @@ def compact_violation(r: dict) -> list:
         r.get("doc_no", ""),
         [h["code"] for h in hazards_of(r.get("law") or "", content)],
         1 if is_fatal(content) else 0,
+        # ⚠ 人話標籤。[主題, 標籤] 或空陣列。
+        #   對不到就給空的，前端顯示「其他」—— **不要猜**。
+        #   職安法不進這裡（它走危害型態，見 pipeline/plainlaw.py 檔頭）。
+        list(plain[:2]) if plain else [],
     ]
 
 
@@ -537,7 +543,10 @@ def main(argv=None) -> int:
         (xdir / f"{i}.json").write_text(body, encoding="utf-8")
         xsizes.append(len(body.encode()))
 
-    haz = {code: {"name": name, "duty": duty}
+    # ⚠ phrase 是給查詢頁長條用的句式標籤，name 是給地圖頁篩選晶片用的短名。
+    #   兩者並存，不要合併 —— 見 pipeline/hazard.py 的 HAZARD_PHRASE。
+    haz = {code: {"name": name, "duty": duty,
+                  "phrase": HAZARD_PHRASE.get(code, name)}
            for code, name, _p, duty in HAZARDS}
     (out / "hazards.json").write_text(
         json.dumps(haz, ensure_ascii=False, indent=1), encoding="utf-8")
