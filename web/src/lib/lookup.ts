@@ -186,6 +186,15 @@ export function getMeta(): Promise<Meta | null> {
 
 type HazardDict = Record<string, { name: string; duty: string; phrase?: string }>;
 
+/** 人話標籤 → 法規要求雇主做什麼。載一次，全站共用。 */
+export type PlainDict = Record<string, { topic: string; duty: string }>;
+let plainPromise: Promise<PlainDict> | null = null;
+
+export function getPlainLaw(): Promise<PlainDict> {
+  plainPromise ??= getJSON<PlainDict>("plainlaw.json").then((d) => d ?? {});
+  return plainPromise;
+}
+
 function getHazards(): Promise<HazardDict> {
   hazardPromise ??= getJSON<HazardDict>("hazards.json").then((h) => h ?? {});
   return hazardPromise;

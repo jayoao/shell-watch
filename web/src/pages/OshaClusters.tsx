@@ -120,12 +120,22 @@ export default function Clusters({
             {single && (
               <Popup>
                 <div style={{ minWidth: 240, lineHeight: 1.65 }}>
-                  <strong>{c.one!.name}</strong>
-                  {/* ⚠ 這兩行不可以拿掉。圖釘落在真實門牌上，
-                      誤讀的代價是指著一棟具體的建築物說它出過事。 */}
+                  {/* ⚠ 公司名連到查詢頁。使用者在地圖上看到一家公司，
+                      下一個動作一定是想看它的完整紀錄 —— 2026-09-15 之前
+                      這裡是純文字，他得自己記住名字回首頁重打。
+                      網址格式跟 Home.tsx 的 pushState 一致，改一邊要改兩邊。 */}
+                  <strong>
+                    <a href={`/?q=${encodeURIComponent(c.one!.name)}`}
+                       style={{ color: "var(--link)" }}>
+                      {c.one!.name} →
+                    </a>
+                  </strong>
+                  {/* ⚠ 這一行不可以拿掉。圖釘落在真實門牌上，
+                      誤讀的代價是指著一棟具體的建築物說它出過事。
+                      ⚠ 2026-09-15 精簡過：原本三句，跟頁面頂端的警語重複。
+                      頂端講完整版，這裡留最關鍵的一句就好。 */}
                   <div style={{ color: "var(--ink-3)", fontSize: 12 }}>
-                    此處為該事業單位的商工登記地址，<b>不是職災的發生地點</b>。
-                    營造業的公司登記在台北、工地在桃園是常態。
+                    此處是<b>商工登記地址</b>，不是職災的發生地點。
                   </div>
                   <hr style={{ margin: "6px 0", border: 0, borderTop: "1px solid var(--line)" }} />
                   <div>職安法裁處 {c.one!.n.toLocaleString()} 筆</div>
@@ -138,7 +148,7 @@ export default function Clusters({
                   )}
                   {c.one!.pending > 0 && (
                     <div style={{ color: "var(--warn)" }}>
-                      {c.one!.pending} 筆行政救濟尚未終結，原處分是否維持仍待確定
+                      {c.one!.pending} 筆處分還沒定案（行政救濟程序尚未終結）
                     </div>
                   )}
                   {c.one!.haz && <div>主要危害型態：{hazName(c.one!.haz)}</div>}

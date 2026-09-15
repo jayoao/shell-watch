@@ -317,6 +317,8 @@ export default function OshaDistrictMap() {
   const [metric, setMetric] = useState<Metric>("rate");
   const [selected, setSelected] = useState<DistrictRow | null>(null);
   const [hazardFilter, setHazardFilter] = useState<string>("");
+  // 版面：警語預設收合。⚠ 收的是理由，不是警告。
+  const [why, setWhy] = useState(false);
   const [countyFilter, setCountyFilter] = useState<string>("");
 
   /** 點位資料。⚠ hazmask 的位元順序以檔案裡的 haz_order 為準，不要另外寫死一份。 */
@@ -474,53 +476,46 @@ export default function OshaDistrictMap() {
     <div>
       <h1 style={{ marginTop: 0, fontSize: 24 }}>職業安全衛生裁處分布圖</h1>
 
-      {/* ⚠ 這一塊是紅線，不是版面裝飾。拿掉它這張圖就會被讀成職災地圖。 */}
-      <div
-        style={{
-          background: "var(--warn-soft)",
-          color: "var(--on-warn-soft)",
-          border: "1px solid var(--warn)",
-          borderRadius: 10,
-          padding: "10px 14px",
-          margin: "0 0 14px",
-          lineHeight: 1.7,
-        }}
-      >
+      {/* ⚠⚠ 這一塊是紅線，不是版面裝飾。拿掉它這張圖就會被讀成職災地圖。
+          但 2026-09-15 外部檢視量到：375px 寬度下**地圖頂端在 890px**，
+          整個第一屏只有標題、這個金框、和資料來源段落 ——
+          「求職者點進職安地圖看到的是一頁文字，會以為走錯頁面」。
+
+          所以改成：最關鍵的那一句常駐，其餘收進「為什麼？」。
+          ⚠ 收起來的是**理由**，不是**警告**。那一句本身一個字都沒少。 */}
+      <div className="map-warn">
         <strong>
           {layer === "points"
             ? "圖釘是事業單位的「商工登記地址」，不是職災的發生地點。"
-            : "顏色深淺是依事業單位的「商工登記地址」歸戶到行政區，不是職災的發生地點。"}
+            : "顏色深淺依「商工登記地址」歸戶到行政區，不是職災的發生地點。"}
         </strong>
-        <br />
-        職安法的 {data.osha_total.toLocaleString()} 筆公告裡，只有 189 筆填了發生地點（0.25%），
-        無法用來定位。公司登記在台北、工地在桃園是營造業的常態，
-        所以這張圖回答的是「被處分的事業單位登記在哪裡」，
-        不是「哪裡容易出事」。
-        {layer === "points" ? (
-          <>
-            {" "}
-            <b>圖釘落在真實門牌上，所以特別容易被誤讀</b>——那是一棟具體的建築物，
-            但它可能只是登記處所（會計師事務所、負責人住家），與違規事實發生的位置無關。
-          </>
-        ) : (
-          " 整個行政區一起上色，是因為這份資料的解析度就是「一個區」——再細的位置我們沒有，也不會假裝有。"
+        <button className="linkish" onClick={() => setWhy((v) => !v)}>
+          {why ? "收合" : "為什麼？"}
+        </button>
+        {why && (
+          <div className="map-why">
+            <p>
+              職安法的 {data.osha_total.toLocaleString()} 筆公告裡，
+              只有 189 筆填了發生地點（0.25%），無法用來定位。
+              公司登記在台北、工地在桃園是營造業的常態，
+              所以這張圖回答的是「被處分的事業單位登記在哪裡」，
+              不是「哪裡容易出事」。
+            </p>
+            {layer === "points" ? (
+              <p>
+                <b>圖釘落在真實門牌上，所以特別容易被誤讀</b>——那是一棟具體的
+                建築物，但它可能只是登記處所（會計師事務所、負責人住家），
+                與違規事實發生的位置無關。
+              </p>
+            ) : (
+              <p>
+                整個行政區一起上色，是因為這份資料的解析度就是「一個區」——
+                再細的位置我們沒有，也不會假裝有。
+              </p>
+            )}
+          </div>
         )}
       </div>
-
-      <p className="sw-muted" style={{ marginTop: -4 }}>
-        資料來源：{data.source}（{data.generated_at} 產出）
-        {" · "}
-        {data.osha_mapped.toLocaleString()} / {data.osha_total.toLocaleString()} 筆
-        職安法裁處可歸到鄉鎮市區（
-        {((100 * data.osha_mapped) / data.osha_total).toFixed(1)}%），
-        分布在 {data.districts} 個區
-        {layer === "points" && (
-          <>
-            {" · "}
-            座標由地址比對 taiwan-address-data（BSD 授權，原始來源為內政部 TGOS）取得
-          </>
-        )}
-      </p>
 
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", margin: "4px 0 14px" }}>
         <label>
@@ -863,6 +858,24 @@ export default function OshaDistrictMap() {
           ))}
         </tbody>
       </table>
+
+      {/* ⚠ 資料來源與覆蓋率搬到地圖下方。它是必要的，但它不該擋在地圖前面
+          —— 使用者點進這一頁是要看圖的。2026-09-15 外部檢視量到 375px 下
+          地圖頂端在 890px，第一屏完全看不到地圖。 */}
+      <p className="sw-muted" style={{ marginTop: 16 }}>
+        資料來源：{data.source}（{data.generated_at} 產出）
+        {" · "}
+        {data.osha_mapped.toLocaleString()} / {data.osha_total.toLocaleString()} 筆
+        職安法裁處可歸到鄉鎮市區（
+        {((100 * data.osha_mapped) / data.osha_total).toFixed(1)}%），
+        分布在 {data.districts} 個區
+        {layer === "points" && (
+          <>
+            {" · "}
+            座標由地址比對 taiwan-address-data（BSD 授權，原始來源為內政部 TGOS）取得
+          </>
+        )}
+      </p>
 
       <p className="sw-muted" style={{ marginTop: 16, lineHeight: 1.8 }}>
         本頁僅呈現主管機關已公告之裁處紀錄的統計分布，不對任何事業單位或任何地區作出評價或認定。

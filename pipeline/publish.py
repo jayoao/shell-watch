@@ -59,7 +59,7 @@ from common import use_utf8_stdout                                   # noqa: E40
 from pipeline.export import (HAZARDS, SOURCE_URL, WEIGHTS, appeal_of,  # noqa: E402
                              hazards_of, severity_of)
 from pipeline.hazard import HAZARD_PHRASE, is_fatal                  # noqa: E402
-from pipeline.plainlaw import plain_of                               # noqa: E402
+from pipeline.plainlaw import PLAIN, plain_of                        # noqa: E402
 from pipeline.join import norm_addr, norm_name                       # noqa: E402
 from pipeline.refine import load_facts                               # noqa: E402
 
@@ -553,6 +553,15 @@ def main(argv=None) -> int:
     # ⚠ 地圖頁與查詢頁都要用危害型態表，而 web/public/data/ 不進 git。
     #   所以同一份也寫進 web/src/data/（15 筆，很小），由前端 import。
     #   改了 pipeline/hazard.py 就重跑 publish，兩邊才不會走鐘。
+    # ⚠ 人話標籤 → 法規要求雇主做什麼。
+    #   分片裡每筆只帶 [主題, 標籤]（重複 63 萬次的東西要短），
+    #   義務說明放這一份字典裡，前端載一次就好 —— 跟 hazards.json 同一個作法。
+    #   這一份是「素養提升」的另外 88%（職安法那 12% 走 hazards.json）。
+    plain_dict = {label: {"topic": topic, "duty": duty}
+                  for (topic, label, duty, _see) in PLAIN.values()}
+    (out / "plainlaw.json").write_text(
+        json.dumps(plain_dict, ensure_ascii=False, indent=1), encoding="utf-8")
+
     src_haz = Path("web/src/data/hazards.json")
     if src_haz.parent.exists():
         src_haz.write_text(
