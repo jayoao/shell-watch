@@ -252,6 +252,19 @@
 .cov-more { margin: 14px 0 0; font-size: 13px; }
 .cov-more a { color: var(--link); }
 
+/* ── 地圖頁的警語 ─────────────────────────── */
+/* ⚠ 常駐的是那一句紅線，收起來的是理由。
+   原本整塊六行金框擋在地圖前面，375px 下地圖頂端在 890px。 */
+.map-warn {
+  background: var(--warn-soft); color: var(--on-warn-soft);
+  border: 1px solid var(--warn); border-radius: 10px;
+  padding: 9px 12px; margin: 0 0 12px; line-height: 1.7; font-size: 13.5px;
+}
+.map-warn button.linkish { margin-left: 8px; }
+.map-why { margin-top: 8px; font-size: 12.5px; line-height: 1.75; }
+.map-why p { margin: 0 0 6px; }
+.map-why p:last-child { margin-bottom: 0; }
+
 /* ── 鍵盤焦點 ─────────────────────────────── */
 /* ⚠⚠ 2026-09-15 外部檢視抓到輸入框有 `outline: none`。
    那不是風格選擇，是無障礙 bug —— 只用鍵盤的人看不到游標在哪一格。
@@ -267,10 +280,21 @@
    不是加色：加色會讓「有一筆涉及死亡」看起來像「整列都是死亡」。 */
 .bars { margin: 14px 0 6px; }
 .bar-list { list-style: none; margin: 0 0 10px; padding: 0; }
-.bar-list li {
-  display: grid; grid-template-columns: 1fr 72px 30px;
-  gap: 4px 10px; align-items: center; padding: 5px 0;
+.bar-fam { margin-bottom: 10px; }
+/* 類別小標。⚠ 名稱是法規本身的定義域，不是我們排的嚴重度。 */
+.bar-famh {
+  font-family: var(--mono); font-size: 12px; letter-spacing: .06em;
+  color: var(--ink-3); margin: 0 0 2px;
+  border-bottom: 1px solid var(--rule); padding-bottom: 3px;
 }
+.bar-list li { padding: 2px 0; }
+.bar-row {
+  display: grid; grid-template-columns: 1fr 72px 30px;
+  gap: 4px 10px; align-items: center; padding: 6px 0;
+  width: 100%; background: none; border: 0; cursor: pointer;
+  text-align: left; color: var(--ink); font-family: var(--serif);
+}
+.bar-row:hover .bar-label { text-decoration: underline; }
 .bar-label {
   font-size: 13.5px; line-height: 1.4; overflow-wrap: anywhere;
 }
@@ -283,8 +307,8 @@
 }
 .bar-n { font-size: 12.5px; text-align: right; color: var(--ink-2); }
 .bar-fatal {
-  grid-column: 1 / -1; font-family: var(--mono); font-size: 12px;
-  color: var(--fatal); font-weight: 700;
+  font-family: var(--mono); font-size: 12px;
+  color: var(--fatal); font-weight: 700; margin: 0 0 4px;
 }
 
 /* ── 年度點陣 ─────────────────────────────── */
@@ -331,11 +355,18 @@
 .lawg-pending { color: var(--pending-ink); }
 .lawg button.linkish { margin-top: 8px; }
 
+/* 統計磚下面的出處小字。⚠ 兩個數字來源不同時一定要標，
+   不標就會變成「這個網站自相矛盾」。 */
+.stat-note {
+  display: block; font-family: var(--mono); font-size: 12px;
+  color: var(--ink-3); margin-top: 2px; line-height: 1.4;
+}
+
 /* ── 關聯公司可點 ─────────────────────────── */
 .linked-go {
   background: none; border: 0; padding: 0; cursor: pointer;
   font: inherit; color: var(--link); text-align: left;
-  overflow-wrap: anywhere;
+  overflow-wrap: anywhere; text-decoration: none;
 }
 .linked-go:hover { text-decoration: underline; }
 .linked-arrow { white-space: nowrap; }
@@ -400,10 +431,10 @@
 .choose { margin-top: 18px; }
 .cand-list { list-style: none; margin: 6px 0 0; padding: 0; }
 .cand-list li { border-top: 1px solid var(--rule); }
-.cand-list button {
+.cand-list a {
   display: block; width: 100%; text-align: left; background: none;
   border: 0; padding: 15px 0; cursor: pointer; color: var(--ink);
-  font-family: var(--serif);
+  font-family: var(--serif); text-decoration: none;
 }
 .cand-name {
   font-size: 16px; font-weight: 600; line-height: 1.4;

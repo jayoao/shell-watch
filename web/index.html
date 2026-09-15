@@ -6,6 +6,24 @@
     <!-- ⚠ 畫面上有真實姓名，不要被搜尋引擎收錄。見 public/robots.txt -->
     <meta name="robots" content="noindex, nofollow" />
     <meta name="description" content="以負責人為軸線，呈現公開裁處紀錄的關聯。本系統不對任何事業單位或個人作出認定。" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <!-- ⚠⚠ og 標籤刻意**不帶公司名、不帶每家公司的預覽圖**。
+         查詢結果現在有網址了（/?q=公司名），貼到 LINE 需要有像樣的預覽，
+         但「每家公司一張可傳播的卡片」跟我們 noindex, nofollow 的立場
+         互相矛盾 —— 那等於幫每一家公司產生一張社群卡片。
+         所以 og 一律用站名與通用說明，連結看起來正常，但不擴散個別公司。 -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="職得調查 · 求職安全雷達" />
+    <meta property="og:description" content="查的是公司，看見的是人。以負責人姓名為軸線，呈現勞動部公開的裁處紀錄與其關聯。本系統不對任何事業單位或個人作出評價或認定。" />
+    <meta property="og:site_name" content="職得調查" />
+    <!-- ⚠⚠ og:image 一定要是**完整網址**。
+         2026-09-15 我第一版寫成相對路徑 "/og.png" —— Facebook、LINE 的
+         爬蟲不會解析相對路徑，結果是「做了這個功能但它不會生效」，
+         而且不會有任何錯誤訊息，只有貼出去才會發現沒有預覽圖。
+         ⚠ 換網域的話這裡要跟著改。 -->
+    <meta property="og:url" content="https://shell-watch.pages.dev/" />
+    <meta property="og:image" content="https://shell-watch.pages.dev/og.png" />
+    <meta name="twitter:card" content="summary" />
     <title>職得調查 · 求職安全雷達</title>
   </head>
   <body>

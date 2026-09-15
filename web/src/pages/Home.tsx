@@ -36,8 +36,8 @@ import type {
   Candidate, Credential, Incident, LinkedCompany, LookupResult, ViolationRef,
 } from "../types/contracts";
 import sample from "../data/lookup.sample.json";
-import { getMeta, hashMismatch, lookup } from "../lib/lookup";
-import type { LookupOutcome, Meta, RegistryHit } from "../lib/lookup";
+import { getMeta, getPlainLaw, hashMismatch, lookup } from "../lib/lookup";
+import type { LookupOutcome, Meta, PlainDict, RegistryHit } from "../lib/lookup";
 import "../styles/home.css";
 
 const DATA = sample as unknown as {
@@ -194,6 +194,21 @@ function nameEv(c: LinkedCompany) {
     (e) => e.kind === "same_name" || e.kind === "rare_name");
 }
 
+/** 查詢網址。⚠ 跟 Home 的 pushState 用同一個格式，改一邊要改兩邊。 */
+function qHref(name: string): string {
+  return `/?q=${encodeURIComponent(name)}`;
+}
+
+/**
+ * 這是不是一個「單純的左鍵點擊」。
+ *
+ * ⚠ 中鍵、Ctrl/⌘/Shift/Alt + 點擊要**放行**給瀏覽器處理，
+ *   那是「開新分頁」「另存連結」的標準操作。攔下來等於把 <a> 變回 <button>。
+ */
+function plainClick(e: React.MouseEvent): boolean {
+  return e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey;
+}
+
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <>
@@ -348,9 +363,6 @@ type Facet = { key: string; label: string; test: (v: ViolationRef) => boolean };
  */
 const GROUP_MIN = 3;
 
-/** 長條最多幾列。⚠ 超過就併成「其他」——不要為了完整把畫面變回清單。 */
-const BAR_MAX = 6;
-
 /**
  * 「這家公司被罰過什麼」——一排橫條。
  *
@@ -375,53 +387,140 @@ const BAR_MAX = 6;
  *
  * ⚠ 對不到人話標籤的（1.3%）標「其他」，不猜。
  */
+/**
+ * 主題 → 類別。
+ *
+ * ⚠⚠ 外部檢視兩次建議「用三個顏色分成錢的問題／工時的問題／會死人的問題」。
+ *   目標我同意（與其反覆用文字提醒「筆數不等於嚴重度」，不如讓版面自己說話），
+ *   但**顏色不是對的工具**：tokens.css 只有三個有意義的顏色，
+ *   加三個新色會讓「涉及死亡災害」那個紅色不再突出。
+ *
+ * ⚠ 而且「會死人的問題」是**我們的嚴重度判斷**，那條紅線不能踩。
+ *   改成分組：類別名稱是**法規本身的定義域**——職安法管的就是人身安全，
+ *   那是法律寫的，不是我們排的。效果一樣，但我們沒有替使用者排嚴重度。
+ */
+const FAMILY: [string, string[]][] = [
+  ["人身安全", ["職業安全"]],
+  ["薪資與給付", ["工資", "退休金", "職災保險"]],
+  ["工時與休假", ["工時", "休假"]],
+  ["紀錄與配合檢查", ["出勤紀錄", "妨礙檢查"]],
+];
+
+function familyOf(topic: string): string {
+  for (const [fam, topics] of FAMILY) if (topics.includes(topic)) return fam;
+  return "其他";
+}
+
+/**
+ * 「被罰過的事」——整個結果頁唯一回答「這家公司到底怎麼了」的地方。
+ *
+ * ══════════════════════════════════════════════════════════════
+ * 為什麼把危害型態面板併進來
+ * ══════════════════════════════════════════════════════════════
+ * 2026-09-15 外部檢視：「結果頁有兩個區塊在講同一件事：『被罰過的事』
+ * 長條圖（墜落防護不足 231）和最下方的『被罰過的職安危害型態』（墜落 231），
+ * 數字幾乎一樣，但隔了兩千多 px。」
+ *
+ * 他說得對。原本的分工是長條講口語、面板講分類加法規義務，
+ * 但使用者不會知道那是同一件事的兩種寫法 —— 他只會覺得看到兩次。
+ * 合併成一個：口語標籤當主體，點開看「法規要求雇主做什麼」。
+ *
+ * ⚠ 合併之後**三件不能省的事**照樣要在（原本寫在危害型態面板的檔頭）：
+ *   1. 各類加總會大於公告筆數（一筆可能同時屬於多類），不要拿它當分母。
+ *   2. 沒有標籤的職安法公告是「公告文字未指明」，不是「沒有危害」。
+ *   3. 法規義務那段文字是教育內容，不是對這家公司的認定。
+ *
+ * ⚠ 長條的長度是**筆數不是嚴重度**。一家被查過十次的公司會比一家
+ *   從沒被查過的公司「看起來更糟」，那是稽核密度不是職場品質。
+ */
 function PlainBars({ vs }: { vs: ViolationRef[] }) {
-  const rows = useMemo(() => {
-    const m = new Map<string, { n: number; fatal: number }>();
+  const [duty, setDuty] = useState<PlainDict>({});
+  const [open, setOpen] = useState<string | null>(null);
+  useEffect(() => { void getPlainLaw().then(setDuty); }, []);
+
+  const groups = useMemo(() => {
+    const m = new Map<string, { n: number; fatal: number; topic: string; duty: string }>();
     for (const v of vs) {
-      // ⚠ 職安法走危害型態，用**句式**標籤（phrase）而不是短名（name），
-      //   不然「承攬管理」會跟「加班超過法定上限」並列，兩種命名風格
-      //   混在一起，使用者看不出為什麼有的像句子有的像名詞。
       const h = v.hazards && v.hazards.length ? v.hazards[0] : null;
-      const k = v.plain?.label ?? (h ? (h.phrase ?? h.name) : "其他");
-      const cur = m.get(k) ?? { n: 0, fatal: 0 };
+      const label = v.plain?.label ?? (h ? (h.phrase ?? h.name) : "其他");
+      const topic = v.plain?.topic ?? (h ? "職業安全" : "其他");
+      const cur = m.get(label)
+        ?? { n: 0, fatal: 0, topic, duty: h?.duty ?? "" };
       cur.n += 1;
       if (v.fatal) cur.fatal += 1;
-      m.set(k, cur);
+      if (!cur.duty && h?.duty) cur.duty = h.duty;
+      m.set(label, cur);
     }
-    const all = [...m.entries()].sort((a, b) => b[1].n - a[1].n);
-    if (all.length <= BAR_MAX) return all;
-    const head = all.slice(0, BAR_MAX - 1);
-    const tail = all.slice(BAR_MAX - 1);
-    head.push(["其他 " + tail.length + " 類", {
-      n: tail.reduce((a, x) => a + x[1].n, 0),
-      fatal: tail.reduce((a, x) => a + x[1].fatal, 0),
-    }]);
-    return head;
+    const byFam = new Map<string, [string, typeof m extends Map<string, infer V> ? V : never][]>();
+    for (const [label, x] of m) {
+      const fam = familyOf(x.topic);
+      const arr = byFam.get(fam) ?? [];
+      arr.push([label, x]);
+      byFam.set(fam, arr);
+    }
+    const order = [...FAMILY.map((f) => f[0]), "其他"];
+    return order
+      .filter((f) => byFam.has(f))
+      .map((f) => [f, byFam.get(f)!.sort((a, b) => b[1].n - a[1].n)] as const);
   }, [vs]);
-  if (rows.length < 2) return null;
-  const max = rows[0][1].n;
+
+  if (groups.length === 0) return null;
+  const max = Math.max(...groups.flatMap(([, r]) => r.map((x) => x[1].n)));
+  const fatalTotal = vs.filter((v) => v.fatal).length;
+
   return (
     <div className="bars">
       <div className="kicker" style={{ marginBottom: 9 }}>被罰過的事</div>
-      <ul className="bar-list">
-        {rows.map(([label, x]) => (
-          <li key={label}>
-            <span className="bar-label">{label}</span>
-            <span className="bar-track">
-              <span className="bar-fill" style={{ width: `${(x.n / max) * 100}%` }} />
-            </span>
-            <span className="bar-n num">{x.n}</span>
-            {x.fatal > 0 && (
-              <span className="bar-fatal">⚠ {x.fatal} 筆涉及死亡災害</span>
-            )}
-          </li>
-        ))}
-      </ul>
+      {groups.map(([fam, rows]) => (
+        <div key={fam} className="bar-fam">
+          <p className="bar-famh">{fam}</p>
+          <ul className="bar-list">
+            {rows.map(([label, x]) => {
+              const d = x.duty || duty[label]?.duty || "";
+              const isOpen = open === label;
+              return (
+                <li key={label}>
+                  <button className="bar-row"
+                          aria-expanded={isOpen}
+                          onClick={() => setOpen(isOpen ? null : label)}>
+                    <span className="bar-label">{label}</span>
+                    <span className="bar-track">
+                      <span className="bar-fill" style={{ width: `${(x.n / max) * 100}%` }} />
+                    </span>
+                    <span className="bar-n num">{x.n}</span>
+                  </button>
+                  {x.fatal > 0 && (
+                    <p className="bar-fatal">⚠ 其中 {x.fatal} 筆公告涉及死亡災害</p>
+                  )}
+                  {isOpen && d && (
+                    <div className="duty">
+                      <p className="kicker" style={{ margin: "0 0 5px" }}>
+                        法規要求雇主做什麼
+                      </p>
+                      <p className="duty-text">{d}</p>
+                      <p className="fineprint" style={{ margin: "8px 0 0" }}>
+                        這是法規的一般性要求，<b>不是對這家公司的認定</b>。
+                      </p>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
       <p className="fineprint">
-        長度是<b>筆數</b>，不是嚴重程度。筆數多寡受檢查與稽核頻率影響
-        ——被查過十次的公司不等於比從沒被查過的公司危險。
+        長度是<b>筆數</b>，不是嚴重程度——被查過十次的公司不等於比從沒被查過的
+        公司危險。一筆公告可能同時屬於多類，各類相加會大於公告筆數。
+        職安法公告沒有標籤時是「公告文字未指明」，不是「沒有危害」。
       </p>
+      {fatalTotal > 0 && (
+        <p className="warnbox">
+          共 {fatalTotal} 筆公告<b>涉及</b>死亡災害。「涉及」指公告文字提到
+          死亡災害，包含未依規定通報的情形，<b>不等於該公司造成死亡</b>。
+          詳情請以處分字號查閱原始公告。
+        </p>
+      )}
     </div>
   );
 }
@@ -636,80 +735,6 @@ function ViolationList({ vs, title, note }: {
       )}
 
       {note && hasZeroFine && <p className="fineprint rule-top">{note}</p>}
-    </section>
-  );
-}
-
-/* ══════════════════════════════════════════════════════════════
-   危害型態面板 —— 「視覺化防災」與「素養提升」就是這一塊
-   ══════════════════════════════════════════════════════════════
-   「這家公司違反職業安全衛生法」對求職者沒有用；
-   「這個負責人名下的公司被罰過 4 次墜落防護不足，而法規要求雇主在
-    二公尺以上作業設置護欄或母索」才是可以拿去現場對照的資訊。
-
-   ⚠ 三件事不能省：
-     1. 各類加總會大於公告筆數（一筆可能同時屬於多類），不要拿它當分母。
-     2. 沒有標籤的職安法公告是「公告文字未指明」，不是「沒有危害」。
-     3. 法規義務那段文字是給人看的教育內容，不是對這家公司的認定。
-   ══════════════════════════════════════════════════════════════ */
-function HazardPanel({ hit }: { hit: LookupResult }) {
-  const list = hit.summary.hazards ?? [];
-  const [open, setOpen] = useState<string | null>(list[0]?.code ?? null);
-
-  const duty = useMemo(() => {
-    const m: Record<string, string> = {};
-    const all = [
-      ...hit.company.own_violations,
-      ...hit.principals.flatMap((p) => p.linked_companies.flatMap((c) => c.violations)),
-    ];
-    for (const v of all) for (const h of v.hazards ?? []) m[h.code] = h.duty;
-    return m;
-  }, [hit]);
-
-  const fatal = hit.summary.fatal_count ?? 0;
-  if (list.length === 0 && fatal === 0) return null;
-  const openName = list.find((h) => h.code === open)?.name ?? "";
-
-  return (
-    <section className="side-block">
-      <h2 className="side-h">被罰過的職安危害型態</h2>
-      <p className="side-p">
-        依公告文字的關鍵字歸類（規則比對，非模型判定）。
-        一筆公告可能同時屬於多類，各類次數相加會大於公告筆數。
-        點一下看法規要求雇主做什麼。
-      </p>
-      <div className="chips">
-        {list.map((h) => (
-          <button
-            key={h.code}
-            className="sw-chip"
-            aria-pressed={open === h.code}
-            onClick={() => setOpen(open === h.code ? null : h.code)}
-          >
-            {h.name}{"　"}{h.count}
-          </button>
-        ))}
-      </div>
-
-      {open && duty[open] && (
-        <div className="duty">
-          <p className="kicker" style={{ margin: "0 0 5px" }}>
-            法規要求雇主做什麼 · {openName}
-          </p>
-          <p className="duty-text">{duty[open]}</p>
-          <p className="fineprint" style={{ margin: "8px 0 0" }}>
-            這是法規的一般性要求，不是對上述任何一家公司的認定。
-          </p>
-        </div>
-      )}
-
-      {fatal > 0 && (
-        <p className="warnbox">
-          其中 {fatal} 筆公告<b>涉及</b>死亡災害。「涉及」指公告文字提到死亡災害，
-          包含未依規定通報的情形，不等於該公司造成死亡。
-          詳情請以處分字號查閱原始公告。
-        </p>
-      )}
     </section>
   );
 }
@@ -939,13 +964,23 @@ function Result({ hit, onPick }: {
   //   數字照給（我們不替使用者刪資料），但標籤要把話講完。
   const allWeak = linkedAll.length > 0 && hit.summary.max_independent === 0;
 
-  const stats: [number, string, boolean][] = [
-    [hit.summary.own_violation_count, "本身的裁處紀錄", false],
+  // ⚠⚠ 2026-09-15 外部檢視抓到一個**自相矛盾**：國城營造上面寫
+  //   「公告涉及死亡災害 0」，往下捲卻有一筆重大職災罹災 1 人。
+  //   我們知道原因（一個是裁處公告的文字判讀、一個是重大職災公開網），
+  //   但**使用者不知道，他看到的就是這個網站在打自己臉**。
+  //   解法不是藏起來，是把兩個都寫出來並標明出處。
+  const incidentCount = hit.company.incidents?.length ?? 0;
+
+  // ⚠ 標籤一律用口語。「行政救濟尚未終結」對求職者是完全陌生的詞，
+  //   而它的意思其實很簡單：這筆處分還沒定案。
+  const stats: [number, string, string, boolean][] = [
+    [hit.summary.own_violation_count, "這家公司被罰過", "", false],
     [hit.summary.linked_violation_count,
-     allWeak ? "同名者其他公司的裁處紀錄（僅姓名相同）"
-             : "同名負責人其他公司的裁處紀錄", false],
-    [hit.summary.fatal_count ?? 0, "公告涉及死亡災害", true],
-    [pendingCount, "行政救濟尚未終結", false],
+     allWeak ? "同名者其他公司被罰過" : "負責人的其他公司被罰過",
+     allWeak ? "僅姓名相同，無其他佐證" : "", false],
+    [hit.summary.fatal_count ?? 0, "公告提到死亡災害", "依裁處公告的文字", true],
+    [incidentCount, "重大職業災害", "依重大職災公開網", incidentCount > 0],
+    [pendingCount, "這筆處分還沒定案", "還在行政救濟程序中", false],
   ];
 
   return (
@@ -981,12 +1016,15 @@ function Result({ hit, onPick }: {
           </p>
         </div>
         <dl className="stats">
-          {stats.map(([n, label, isFatal]) => (
+          {stats.map(([n, label, note, isFatal]) => (
             <div key={label} className="stat">
               <dt className="num" style={isFatal && n > 0 ? { color: "var(--fatal)" } : undefined}>
                 {n}
               </dt>
-              <dd>{label}</dd>
+              <dd>
+                {label}
+                {note && <span className="stat-note">{note}</span>}
+              </dd>
             </div>
           ))}
         </dl>
@@ -1039,7 +1077,6 @@ function Result({ hit, onPick }: {
       <div className="res-haz">
         <Incidents list={hit.company.incidents ?? []} />
         <Credentials list={hit.company.credentials ?? []} />
-        <HazardPanel hit={hit} />
       </div>
 
       <footer className="res-foot">
@@ -1062,11 +1099,16 @@ function Linked({ c, onPick }: { c: LinkedCompany; onPick?: (n: string) => void 
         {/* ⚠ 關聯公司要可以點進去。這是整站的核心賣點 ——
             使用者看到關聯公司的第一個反應就是想看那一家，
             2026-09-15 之前他必須自己複製名字回去重查。 */}
+        {/* ⚠ 用 <a href> 而不是 <button>。網址已經有了，就該讓使用者
+            中鍵／Ctrl+點擊開新分頁、右鍵複製連結 —— 比較好幾家候選公司
+            的時候那是最自然的動作。onClick 攔下來走 SPA 導航，
+            但**修飾鍵與中鍵放行**，交給瀏覽器處理。 */}
         <h3 className="linked-h">
           {onPick
-            ? <button className="linked-go" onClick={() => onPick(c.name)}>
+            ? <a className="linked-go" href={qHref(c.name)}
+                 onClick={(e) => { if (plainClick(e)) { e.preventDefault(); onPick(c.name); } }}>
                 {c.name}<span className="linked-arrow"> →</span>
-              </button>
+              </a>
             : c.name}
         </h3>
         <div className="linked-meta">
@@ -1211,6 +1253,13 @@ export default function Home() {
       if (u !== window.location.pathname + window.location.search) {
         window.history.pushState({ q: t }, "", u);
       }
+      // ⚠⚠ 換公司一定要捲回頂端。
+      //   2026-09-15 外部檢視：從丞捷營造滾到 1,383px 點「丞潔機電」，
+      //   新頁面停在 957px —— 使用者看到的是**另一家公司**的裁處清單中段，
+      //   而他不知道自己換了公司。
+      //   這個網站每一頁都在講「不要把 A 公司的紀錄看成 B 公司的」，
+      //   而我們自己的換頁行為正在製造那件事。這是誤讀風險，不是體驗問題。
+      window.scrollTo(0, 0);
     }
     setBusy(true);
     setAsked(t);
@@ -1272,11 +1321,20 @@ export default function Home() {
         <div className="hero">
           <div className="band" style={{ marginTop: 0 }}>
             <p style={{ fontSize: 26, lineHeight: 1.2, fontWeight: 700, letterSpacing: "-.02em" }}>
-              求職安全雷達
+              查的是公司，看見的是人
             </p>
+            {/* ⚠ 2026-09-15 標語從「面試前，把老闆的名字查一遍」改成這一句。
+                原本那句會讓人預期一個**輸入姓名的框** —— 我們沒有，
+                而且刻意不做（開放人名查詢會讓這個工具從「查公司」
+                變成「查人」，倫理量級不同）。
+
+                文案承諾產品沒有的東西，跟「功能改了文案沒跟上」是同一種謊，
+                只是方向相反。新的標語描述的是真實的機制：
+                輸入的是公司，呈現的軸線是人。 */}
             <p>
               勞動部的違法紀錄跟著公司走。公司收掉重開，紀錄就留在舊公司。
-              這裡把查詢的軸線換成人。
+              所以輸入公司名之後，這裡會把它的負責人姓名，
+              以及那個姓名出現在哪些其他公司的公開紀錄上，一起呈現出來。
             </p>
           </div>
         </div>
@@ -1297,6 +1355,10 @@ export default function Home() {
         <input
           id="q"
           className="sw-input"
+          // ⚠ type="search" + enterkeyhint 讓手機鍵盤的右下角變成「搜尋」。
+          //   原本是預設的「換行」，使用者按了不會送出，只會關掉鍵盤。
+          type="search"
+          enterKeyHint="search"
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => {
@@ -1412,7 +1474,8 @@ function Choose({ outcome, asked, onPick }: {
       <ul className="cand-list">
         {cands.map((c, i) => (
           <li key={`${c.tax_id}-${i}`}>
-            <button onClick={() => onPick(c.name)}>
+            <a href={qHref(c.name)}
+               onClick={(e) => { if (plainClick(e)) { e.preventDefault(); onPick(c.name); } }}>
               <div className="cand-name">{c.name}</div>
               <dl className="fields">
                 {c.tax_id && <Field label="統一編號"><span className="num">{c.tax_id}</span></Field>}
@@ -1438,7 +1501,7 @@ function Choose({ outcome, asked, onPick }: {
                 </Field>
               </dl>
               <div className="cand-go">查這一家 →</div>
-            </button>
+            </a>
           </li>
         ))}
       </ul>
