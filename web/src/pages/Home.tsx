@@ -221,12 +221,54 @@ function Tags({ v }: { v: ViolationRef }) {
 }
 
 /** 一筆裁處。compact 用在長清單與關聯公司底下。 */
+/**
+ * 一筆裁處。
+ *
+ * ══════════════════════════════════════════════════════════════
+ * compact 模式：一行摘要，點開才看細節
+ * ══════════════════════════════════════════════════════════════
+ * 2026-09-15 量出來的（台積電那一頁，手機 400px）：
+ *
+ *     頁高 6,374 px
+ *     └─ 逐筆裁處 2,446 px（11 筆，**每筆平均 222 px**）★
+ *
+ * 一筆裡塞了六段：日期／法條／違反內容／危害型態／罰鍰＋字號＋連結／訴願。
+ * 捲五個螢幕才看完十一筆，而其中多數是同一條法條的同一句法規全文。
+ *
+ * ⚠⚠ 第一次嘗試是「依法條分組」，**結果是頁面反而變長 145 px**。
+ *   原因：清單本來就只顯示 12 筆（有分頁），收進分組的 16 筆
+ *   大多本來就在分頁之外 —— 等於沒省，而分組列自己又多了 245 px。
+ *   教訓：**先量高度再動手。**用字數推論捲動距離會推錯。
+ *
+ * ⚠ 收起來的東西**一個都沒有拿掉**。處分字號與原始公告連結是法律風險的
+ *   防線，任何情況下都不能省 —— 它們還在，只是多一次點擊。
+ */
 function Violation({ v, compact }: { v: ViolationRef; compact?: boolean }) {
   const pending = isPending(v);
+  const [open, setOpen] = useState(false);
+  if (compact && !open) {
+    return (
+      <li className="vio vio-row">
+        <button className="vio-rowbtn" onClick={() => setOpen(true)}>
+          <span className="vio-rowdate num">{v.date}</span>
+          <span className="vio-rowlaw">{lines(v.law)[0]}</span>
+          <span className="vio-rowfine num">{money(v.fine)}</span>
+        </button>
+        {/* ⚠ 標籤留在收合狀態也要看得到。25 筆裡有 1 筆涉及死亡災害的時候，
+            使用者必須在不展開的情況下就看得到那一筆。 */}
+        <div className="vio-tags vio-rowtags"><Tags v={v} /></div>
+      </li>
+    );
+  }
   return (
     <li className="vio">
       <div className="vio-date">
         <span className="num">{v.date}</span>
+        {compact && (
+          <button className="linkish vio-close" onClick={() => setOpen(false)}>
+            收合
+          </button>
+        )}
       </div>
       <div className="vio-body">
         <div className="vio-tags"><Tags v={v} /></div>
@@ -276,6 +318,195 @@ function Violation({ v, compact }: { v: ViolationRef; compact?: boolean }) {
 
 type Facet = { key: string; label: string; test: (v: ViolationRef) => boolean };
 
+/**
+ * 同一條法條重複很多次的時候，收成一列摘要。
+ *
+ * ══════════════════════════════════════════════════════════════
+ * 為什麼做這件事
+ * ══════════════════════════════════════════════════════════════
+ * 2026-09-15 指導老師的意見是「字太多，使用者不會看」。我去量了台積電
+ * 那一頁（手機寬度）：
+ *
+ *     全頁文字   3,257 字
+ *     頁面高度   6,229 px（約 7 個螢幕）
+ *     警語總字數   686 字 ← 只佔 21%
+ *
+ * **79% 的文字是裁處紀錄本身**，而台積電 27 筆裡有 25 筆是同一條
+ * 勞基法第 32 條第 2 項的加班超時，每一筆都把法規全文再印一次。
+ * 滑五個螢幕，讀到的是同一句話講五遍。
+ *
+ * ⚠⚠ 所以砍警語是砍錯地方。警語 686 字是這個作品最大的差異點，
+ *   砍掉它會毀掉「每個數字都講清楚限制」那個形象，而 2,571 字的重複
+ *   一個字都沒少。要砍的是**重複**。
+ *
+ * ⚠ 一筆都不會被藏起來：展開就在那裡，處分字號與原始公告連結全部保留。
+ *   那是法律風險的防線，任何情況下都不能省。
+ *
+ * ⚠ 少於 GROUP_MIN 筆不分組。為了分組而分組會讓畫面多一層點擊，
+ *   卻沒有省到任何東西。實測「辰豐營造」43 筆散在 24 種法條上，
+ *   那種公司本來就收不動，維持原樣才對。
+ */
+const GROUP_MIN = 3;
+
+/** 長條最多幾列。⚠ 超過就併成「其他」——不要為了完整把畫面變回清單。 */
+const BAR_MAX = 6;
+
+/**
+ * 「這家公司被罰過什麼」——一排橫條。
+ *
+ * ══════════════════════════════════════════════════════════════
+ * 為什麼是這個形狀
+ * ══════════════════════════════════════════════════════════════
+ * 一個不懂勞動法的人看到「勞動基準法第32條第2項」是看不懂的。
+ * 他要的是「加班超過法定上限」。pipeline/plainlaw.py 那張 28 條的
+ * 對照表把 98.7% 的紀錄翻成人話，這裡把它畫出來。
+ *
+ * ⚠⚠ 三條規矩，每一條都是紅線：
+ *
+ * 一、**長條的長度是「筆數」，不是「有多糟」。** 所以旁邊固定寫一句
+ *    「筆數受檢查與稽核頻率影響」。一家被查過十次的公司會比
+ *    一家從沒被查過的公司「看起來更糟」，那是稽核密度不是職場品質。
+ *
+ * 二、**不跨公司比較、不排名、不評分。** 長條只在這一頁的內部比長短，
+ *    沒有任何「業界平均」之類的參照線 —— 那會變成評價。
+ *
+ * 三、**顏色只有涉及職災／死亡那一種。** 其餘全部同一個墨色。
+ *    如果每一列都有顏色，就沒有任何一列是突出的。
+ *
+ * ⚠ 對不到人話標籤的（1.3%）標「其他」，不猜。
+ */
+function PlainBars({ vs }: { vs: ViolationRef[] }) {
+  const rows = useMemo(() => {
+    const m = new Map<string, { n: number; fatal: number }>();
+    for (const v of vs) {
+      // ⚠ 職安法走危害型態，用**句式**標籤（phrase）而不是短名（name），
+      //   不然「承攬管理」會跟「加班超過法定上限」並列，兩種命名風格
+      //   混在一起，使用者看不出為什麼有的像句子有的像名詞。
+      const h = v.hazards && v.hazards.length ? v.hazards[0] : null;
+      const k = v.plain?.label ?? (h ? (h.phrase ?? h.name) : "其他");
+      const cur = m.get(k) ?? { n: 0, fatal: 0 };
+      cur.n += 1;
+      if (v.fatal) cur.fatal += 1;
+      m.set(k, cur);
+    }
+    const all = [...m.entries()].sort((a, b) => b[1].n - a[1].n);
+    if (all.length <= BAR_MAX) return all;
+    const head = all.slice(0, BAR_MAX - 1);
+    const tail = all.slice(BAR_MAX - 1);
+    head.push(["其他 " + tail.length + " 類", {
+      n: tail.reduce((a, x) => a + x[1].n, 0),
+      fatal: tail.reduce((a, x) => a + x[1].fatal, 0),
+    }]);
+    return head;
+  }, [vs]);
+  if (rows.length < 2) return null;
+  const max = rows[0][1].n;
+  return (
+    <div className="bars">
+      <div className="kicker" style={{ marginBottom: 9 }}>被罰過的事</div>
+      <ul className="bar-list">
+        {rows.map(([label, x]) => (
+          <li key={label}>
+            <span className="bar-label">{label}</span>
+            <span className="bar-track">
+              <span className="bar-fill" style={{ width: `${(x.n / max) * 100}%` }} />
+            </span>
+            <span className="bar-n num">{x.n}</span>
+            {x.fatal > 0 && (
+              <span className="bar-fatal">⚠ {x.fatal} 筆涉及死亡災害</span>
+            )}
+          </li>
+        ))}
+      </ul>
+      <p className="fineprint">
+        長度是<b>筆數</b>，不是嚴重程度。筆數多寡受檢查與稽核頻率影響
+        ——被查過十次的公司不等於比從沒被查過的公司危險。
+      </p>
+    </div>
+  );
+}
+
+/**
+ * 年度點陣。
+ *
+ * ⚠ 刻意**不用長條圖**。長條會被讀成趨勢（「這家公司越來越糟」），
+ *   而我們自己的警語就說筆數受稽核頻率影響、不是那一年比較危險。
+ *   點陣只回答一個問題：**什麼時候發生過**。那才是求職者要的
+ *   ——「最近還在發生」跟「十年前的事」是兩回事。
+ */
+function YearDots({ vs }: { vs: ViolationRef[] }) {
+  const years = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const v of vs) {
+      const y = rocYear(v.date);
+      if (y) m.set(y, (m.get(y) ?? 0) + 1);
+    }
+    return [...m.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1));
+  }, [vs]);
+  if (years.length < 2) return null;
+  const max = Math.max(...years.map((y) => y[1]));
+  return (
+    <div className="ydots">
+      <ul className="ydots-list">
+        {years.map(([y, n]) => (
+          <li key={y} title={`民國 ${y} 年\u3000${n} 筆`}>
+            <span className="ydot"
+                  style={{ opacity: 0.25 + 0.75 * (n / max) }} />
+            <span className="ydot-y num">{y}</span>
+            <span className="ydot-n num">{n}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function LawGroup({ law, vs }: { law: string; vs: ViolationRef[] }) {
+  const [open, setOpen] = useState(false);
+  const fined = vs.filter((v) => v.fine > 0);
+  const unlisted = vs.length - fined.length;
+  const total = fined.reduce((a, v) => a + v.fine, 0);
+  const fatal = vs.filter((v) => v.fatal).length;
+  const pending = vs.filter(isPending).length;
+  const hz = new Map<string, number>();
+  for (const v of vs) for (const h of v.hazards ?? []) hz.set(h.name, (hz.get(h.name) ?? 0) + 1);
+  const topHz = [...hz.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map((x) => x[0]);
+  return (
+    <li className="lawg">
+      <div className="lawg-head">
+        <p className="lawg-law">
+          {lines(law).map((t, i) => <span key={i}>{t}</span>)}
+        </p>
+        <span className="lawg-n num">{vs.length} 筆</span>
+      </div>
+      <div className="lawg-meta">
+        {yearSpan(vs) && <span>{yearSpan(vs)}</span>}
+        {total > 0 && <span className="num">罰鍰合計 {money(total)}</span>}
+        {/* ⚠ 「未載金額」的筆數要講出來。不講的話「合計 80 萬」會被讀成
+            「總共只罰了 80 萬」，而實際上有幾筆根本沒公告金額。 */}
+        {unlisted > 0 && <span>其中 {unlisted} 筆公告未載金額</span>}
+      </div>
+      {(topHz.length > 0 || fatal > 0 || pending > 0) && (
+        <div className="lawg-tags">
+          {topHz.length > 0 && <span>{topHz.join("、")}</span>}
+          {fatal > 0 && <span className="lawg-fatal">涉及死亡災害 {fatal} 筆</span>}
+          {pending > 0 && <span className="lawg-pending">尚未確定 {pending} 筆</span>}
+        </div>
+      )}
+      <button className="linkish" onClick={() => setOpen((v) => !v)}>
+        {open ? "收合" : `展開這 ${vs.length} 筆`}
+      </button>
+      {open && (
+        <ul className="vio-list" style={{ marginTop: 10 }}>
+          {vs.map((v, i) => (
+            <Violation key={`${v.doc_no}-${v.date}-${i}`} v={v} compact />
+          ))}
+        </ul>
+      )}
+    </li>
+  );
+}
+
 function ViolationList({ vs, title, note }: {
   vs: ViolationRef[]; title: string; note?: string;
 }) {
@@ -304,18 +535,32 @@ function ViolationList({ vs, title, note }: {
     return out;
   }, [vs]);
 
-  const years = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const v of vs) {
-      const y = rocYear(v.date);
-      if (y) m.set(y, (m.get(y) ?? 0) + 1);
-    }
-    return [...m.entries()].sort((a, b) => (a[0] < b[0] ? 1 : -1));
-  }, [vs]);
-
   const active = facets.find((f) => f.key === facet) ?? facets[0];
   const filtered = useMemo(() => vs.filter(active.test), [vs, active]);
-  const visible = long ? filtered.slice(0, shown) : filtered;
+
+  // 依法條分組。⚠ 用原始的 law 字串當鍵，完全相同才算同一組 ——
+  //   來源的法條寫法本來就不一致（有的寫「第32條第2項」、有的寫
+  //   「第 32 條第 2 項」），模糊比對會把不同條文併在一起，那比不分組更糟。
+  const { groups, rest } = useMemo(() => {
+    const byLaw = new Map<string, ViolationRef[]>();
+    for (const v of filtered) {
+      const k = v.law || "";
+      const cur = byLaw.get(k);
+      if (cur) cur.push(v);
+      else byLaw.set(k, [v]);
+    }
+    const g: [string, ViolationRef[]][] = [];
+    const r: ViolationRef[] = [];
+    for (const [k, list] of byLaw) {
+      if (list.length >= GROUP_MIN) g.push([k, list]);
+      else r.push(...list);
+    }
+    g.sort((a, b) => b[1].length - a[1].length);
+    r.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+    return { groups: g, rest: r };
+  }, [filtered]);
+
+  const visible = long ? rest.slice(0, shown) : rest;
 
   return (
     <section className="block">
@@ -326,21 +571,12 @@ function ViolationList({ vs, title, note }: {
 
       {long && (
         <>
-          <div className="years">
-            <div className="kicker" style={{ marginBottom: 9 }}>依年度</div>
-            <ul className="years-list">
-              {years.map(([y, n]) => (
-                <li key={y}>
-                  <span>民國 {y} 年</span>
-                  <span className="num" style={{ color: "var(--ink-2)" }}>{n}</span>
-                </li>
-              ))}
-            </ul>
-            <p className="fineprint">
-              筆數多寡受檢查與稽核頻率影響，不是「那一年比較危險」。
-              同一次檢查可能開出好幾張處分書（營造業的工地尤其常見）。
-            </p>
-          </div>
+          {/* ⚠ 這裡原本是一份「民國 X 年 N 筆」的十列清單，佔 275 px。
+              換成長條 + 點陣之後資訊更多、高度更低，而且回答的問題不一樣：
+              清單回答「每年幾筆」（沒有人在意），長條回答「被罰的是什麼」、
+              點陣回答「最近還在發生嗎」。 */}
+          <PlainBars vs={vs} />
+          <YearDots vs={vs} />
 
           {/* 只有「全部」一個分面時不要畫 —— 一顆按不動的按鈕只是雜訊。 */}
           {facets.length > 1 && (
@@ -360,23 +596,40 @@ function ViolationList({ vs, title, note }: {
         </>
       )}
 
-      <ul className="vio-list">
-        {visible.map((v, i) => (
-          <Violation key={`${v.doc_no}-${v.date}-${i}`} v={v} compact={long} />
-        ))}
-      </ul>
+      {groups.length > 0 && (
+        <ul className="lawg-list">
+          {groups.map(([law, list]) => (
+            <LawGroup key={law} law={law} vs={list} />
+          ))}
+        </ul>
+      )}
 
-      {long && shown < filtered.length && (
+      {rest.length > 0 && (
+        <>
+          {groups.length > 0 && (
+            <p className="kicker" style={{ margin: "16px 0 6px" }}>
+              其餘 {rest.length} 筆（各法條少於 {GROUP_MIN} 筆，不分組）
+            </p>
+          )}
+          <ul className="vio-list">
+            {visible.map((v, i) => (
+              <Violation key={`${v.doc_no}-${v.date}-${i}`} v={v} compact={long} />
+            ))}
+          </ul>
+        </>
+      )}
+
+      {long && shown < rest.length && (
         <div className="more">
           <button
             className="sw-btn"
             style={{ background: "var(--sheet)", color: "var(--ink)" }}
             onClick={() => setShown(shown + PAGE * 4)}
           >
-            再顯示 {Math.min(PAGE * 4, filtered.length - shown)} 筆
+            再顯示 {Math.min(PAGE * 4, rest.length - shown)} 筆
           </button>
           <p className="kicker" style={{ margin: "9px 0 0" }}>
-            已顯示 {visible.length} / {filtered.length} 筆
+            已顯示 {visible.length} / {rest.length} 筆
             {active.key !== "all" ? `（${active.label}）` : ""}
           </p>
         </div>
@@ -477,7 +730,7 @@ const CRED_LABEL: Record<Credential["kind"], string> = {
 const CRED_ORDER: Credential["kind"][] = ["national", "star5", "toshms", "perf"];
 
 /** 每一類先顯示幾筆。⚠ 台積電有 26 張 TOSHMS，全攤開會把整頁佔滿。 */
-const CRED_PREVIEW = 3;
+const CRED_PREVIEW = 2;
 
 function credLine(c: Credential): string {
   // ⚠ 用陣列過濾再接，不要直接串 —— 績效審查的 detail 是空的，
@@ -528,7 +781,7 @@ function incDate(d: string): string {
   return `民國 ${y}/${d.slice(4, 6)}/${d.slice(6, 8)}`;
 }
 
-const INC_PREVIEW = 4;
+const INC_PREVIEW = 2;
 
 /**
  * 重大職業災害。
@@ -622,14 +875,33 @@ function Incidents({ list }: { list: Incident[] }) {
  *   當成有效則是背書。兩種都不對，所以照實寫。
  */
 function Credentials({ list }: { list: Credential[] }) {
+  // ⚠⚠ Hook 一定要在任何提前 return **之前**呼叫。
+  //   2026-09-15 我把 useState 放在 `if (!list.length) return null` 後面，
+  //   eslint 的 react-hooks/rules-of-hooks 當場擋下來。
+  //   那不是龜毛：沒有得獎紀錄的公司會少呼叫一次 useState，
+  //   React 用「呼叫順序」對應 state，順序一變就會把別的 state 讀成這個的。
+  //   症狀是隨機的錯誤狀態，不會報錯 —— 跟我們踩過的快取錯位同一種病。
+  const [open, setOpen] = useState(false);
   if (!list.length) return null;
   const groups = CRED_ORDER
     .map((k) => [k, list.filter((c) => c.kind === k)] as const)
     .filter(([, v]) => v.length > 0);
   const dead = list.filter((c) => !c.active).length;
+  // ⚠ 2026-09-15 量到的：這一塊在手機上佔 802 px，比整份裁處清單還高，
+  //   而它是「正面資訊」—— 求職者不會為了看獎項而來。
+  //   預設收成一行摘要，想看再展開。**數量照樣寫在摘要上，不是藏起來。**
+  const summary = groups
+    .map(([k, v]) => `${CRED_LABEL[k]} ${v.length}`)
+    .join("　");
   return (
     <section className="side-block">
       <h2 className="side-h">得獎與驗證</h2>
+      <p className="cred-sum">{summary}</p>
+      <button className="linkish" onClick={() => setOpen((v) => !v)}>
+        {open ? "收合" : `展開 ${list.length} 項`}
+      </button>
+      {!open ? null : (
+      <>
       <p className="side-p">
         資料來自勞動部公開的得獎與驗證名單。
         ⚠ <b>對象是下面寫的那個單位</b>——很多是廠區或分支，
@@ -643,6 +915,8 @@ function Credentials({ list }: { list: Credential[] }) {
           ——實測該欄位在已到期的項目上仍寫「通過」。
         </p>
       )}
+      </>
+      )}
     </section>
   );
 }
@@ -650,7 +924,9 @@ function Credentials({ list }: { list: Credential[] }) {
 /* ══════════════════════════════════════════════════════════════
    查詢結果
    ══════════════════════════════════════════════════════════════ */
-function Result({ hit }: { hit: LookupResult }) {
+function Result({ hit, onPick }: {
+  hit: LookupResult; onPick: (n: string) => void;
+}) {
   const linkedAll = hit.principals.flatMap((p) => p.linked_companies);
   const pendingCount = [
     ...hit.company.own_violations,
@@ -744,7 +1020,7 @@ function Result({ hit }: { hit: LookupResult }) {
               {p.linked_companies.length} 家公司 ·{" "}
               {p.linked_companies.reduce((n, c) => n + c.violations.length, 0)} 筆裁處
             </p>
-            <LinkedGroups list={p.linked_companies} />
+            <LinkedGroups list={p.linked_companies} onPick={onPick} />
           </section>
         ))}
 
@@ -777,13 +1053,22 @@ function Result({ hit }: { hit: LookupResult }) {
   );
 }
 
-function Linked({ c }: { c: LinkedCompany }) {
+function Linked({ c, onPick }: { c: LinkedCompany; onPick?: (n: string) => void }) {
   const [all, setAll] = useState(false);
   const vs = all ? c.violations : c.violations.slice(0, LINKED_PREVIEW);
   return (
     <div className="linked">
       <div className="linked-main">
-        <h3 className="linked-h">{c.name}</h3>
+        {/* ⚠ 關聯公司要可以點進去。這是整站的核心賣點 ——
+            使用者看到關聯公司的第一個反應就是想看那一家，
+            2026-09-15 之前他必須自己複製名字回去重查。 */}
+        <h3 className="linked-h">
+          {onPick
+            ? <button className="linked-go" onClick={() => onPick(c.name)}>
+                {c.name}<span className="linked-arrow"> →</span>
+              </button>
+            : c.name}
+        </h3>
         <div className="linked-meta">
           {c.tax_id && <span className="num">統編 {c.tax_id}</span>}
           <span>{c.status || "登記狀態不明"}</span>
@@ -844,14 +1129,16 @@ function Linked({ c }: { c: LinkedCompany }) {
  *   標題就寫清楚它是什麼。**不是藏起來** —— 藏起來等於替使用者
  *   決定那些不值得看，而且筆數照樣講出來。
  */
-function LinkedGroups({ list }: { list: LinkedCompany[] }) {
+function LinkedGroups({ list, onPick }: {
+  list: LinkedCompany[]; onPick: (n: string) => void;
+}) {
   const [open, setOpen] = useState(false);
   const sorted = [...list].sort((a, b) => b.independent - a.independent);
   const strong = sorted.filter((c) => c.independent > 0);
   const weak = sorted.filter((c) => c.independent === 0);
   return (
     <>
-      {strong.map((c, i) => <Linked key={`s-${c.tax_id}-${i}`} c={c} />)}
+      {strong.map((c, i) => <Linked key={`s-${c.tax_id}-${i}`} c={c} onPick={onPick} />)}
       {weak.length > 0 && (
         <div className="weak-group">
           {/* ⚠ 沒有前一組的時候不能寫「另外」。實測「大裕機電股份有限公司」
@@ -868,7 +1155,8 @@ function LinkedGroups({ list }: { list: LinkedCompany[] }) {
           <button className="linkish" onClick={() => setOpen((v) => !v)}>
             {open ? "收合這 " + weak.length + " 家" : `還是要看這 ${weak.length} 家`}
           </button>
-          {open && weak.map((c, i) => <Linked key={`w-${c.tax_id}-${i}`} c={c} />)}
+          {open && weak.map((c, i) => (
+            <Linked key={`w-${c.tax_id}-${i}`} c={c} onPick={onPick} />))}
         </div>
       )}
       {strong.length === 0 && weak.length === 0 && null}
@@ -890,14 +1178,40 @@ export default function Home() {
   useEffect(() => { void getMeta().then(setMeta); }, []);
 
   /**
+   * 查詢結果要有自己的網址。
+   *
+   * ⚠ 2026-09-15 外部檢視排第一的缺口：整站的網址永遠是 `/`，查完一家公司
+   *   網址不變，所以**不能傳給朋友、不能加書籤、上一頁也回不去搜尋**。
+   *   而求職者最自然的動作就是把某家公司丟進群組問「這家怎麼樣」。
+   *
+   * ⚠ 用 ?q= 而不是路徑（/c/統編），因為純靜態站沒有 rewrite，
+   *   /c/xxx 會直接 404。query string 對 Cloudflare Pages 一定安全。
+   *
+   * ⚠⚠ 網址會帶著公司名。我們的 _headers 設了 `Referrer-Policy: no-referrer`，
+   *   所以使用者點「查閱原始公告」跳到勞動部時，**不會把他查了誰洩漏出去**。
+   *   那一行不能拿掉 —— 拿掉之後這個功能就變成把查詢紀錄送給第三方。
+   */
+  const readUrl = useCallback(() => {
+    const p = new URLSearchParams(window.location.search).get("q") ?? "";
+    return p.trim();
+  }, []);
+
+  /**
    * ⚠ 查詢是**按下 Enter 才送**，不是邊打邊查。
    *   分片是完整名稱的精確比對，打到一半的字串永遠查不到，
    *   邊打邊查只會讓畫面在「查無」和結果之間閃爍，
    *   而且每按一個鍵就抓一次分片。
    */
-  const run = useCallback(async (name: string) => {
+  const run = useCallback(async (name: string, push = true) => {
     const t = name.trim();
     if (!t) { setOutcome(null); setAsked(""); return; }
+    if (push) {
+      // ⚠ pushState 不是 replaceState —— 要讓「上一頁」回得到前一次查詢。
+      const u = `${window.location.pathname}?q=${encodeURIComponent(t)}`;
+      if (u !== window.location.pathname + window.location.search) {
+        window.history.pushState({ q: t }, "", u);
+      }
+    }
     setBusy(true);
     setAsked(t);
     try {
@@ -913,8 +1227,32 @@ export default function Home() {
     }
   }, [meta]);
 
+  // 開啟時若網址帶 q 就直接查；上一頁／下一頁也要跟著回到對應的結果。
+  useEffect(() => {
+    if (meta === undefined) return;          // 還在確認有沒有完整資料
+    const t = readUrl();
+    if (t) { setQ(t); void run(t, false); }
+    const onPop = () => {
+      const s2 = readUrl();
+      setQ(s2);
+      if (s2) void run(s2, false);
+      else { setOutcome(null); setAsked(""); }
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [meta]);
+
   const hit = outcome?.kind === "hit" ? outcome.result : null;
   const fresh = !outcome && !busy;
+
+  /** 分頁標題跟著查詢走。⚠ 不然開了五個分頁分不出哪個是哪家公司。 */
+  useEffect(() => {
+    const base = "職得調查 · 求職安全雷達";
+    document.title = hit ? `${hit.company.name}｜${base}`
+      : asked ? `${asked}｜${base}` : base;
+    return () => { document.title = base; };
+  }, [hit, asked]);
 
   return (
     <div className="page">
@@ -998,7 +1336,7 @@ export default function Home() {
         </div>
       )}
 
-      {!busy && hit && <Result hit={hit} />}
+      {!busy && hit && <Result hit={hit} onPick={(n) => { setQ(n); void run(n); }} />}
 
       {/* 核心名對到多家：⚠ 絕對不能自己挑一家。
           挑錯就是把 A 公司的裁處紀錄顯示成 B 公司的，那是名譽損害。
@@ -1236,7 +1574,17 @@ function Miss({ asked, meta, registry }: {
   );
 }
 
-/** 資料涵蓋範圍。使用者有權知道「查無」代表什麼。 */
+/**
+ * 資料涵蓋範圍。
+ *
+ * ⚠⚠ 2026-09-15 外部檢視：「首頁在搜尋框下方還有四個數字加四段說明，
+ *   那些是關於資料頁的內容，搬過去就好。」他說得對 —— 而那四段裡有一段
+ *   是我前一天親手加的（63 萬筆的組成），加的時候只想著誠實，
+ *   沒想過位置。**誠實的內容放錯地方，一樣會擋住使用者。**
+ *
+ * 現在首頁只留四個數字，四段說明全部搬到 /about。
+ * 想知道細節的人點一下就到，不想知道的人不用滑過去。
+ */
 function Coverage({ meta }: { meta: Meta | null | undefined }) {
   return (
     <section className="coverage">
@@ -1250,21 +1598,11 @@ function Coverage({ meta }: { meta: Meta | null | undefined }) {
           <dt className="num">{(meta?.violations ?? 629192).toLocaleString("zh-TW")}</dt>
           <dd>筆公開裁處紀錄</dd>
           <dt className="num">9</dt>
-          <dd>部法規 · 民國 100–115 年（近九成落在 110 年之後）</dd>
+          <dd>部法規 · 民國 100–115 年</dd>
         </dl>
       )}
-      <p className="fineprint" style={{ marginTop: 16 }}>
-        各縣市的公告保存期間差異很大，有些縣市不到兩年。查得到什麼，
-        取決於主管機關公告了什麼。<b>基隆市與新竹市的職業安全衛生法公告
-        在本站一筆都沒有。</b>
-      </p>
-      <p className="fineprint" style={{ marginTop: 10 }}>
-        本站是純靜態網站，沒有後端。一次查詢只下載該公司的資料分片
-        （約 14 KB），你查了誰不會送到任何伺服器。
-      </p>
-      <p className="fineprint" style={{ marginTop: 10 }}>
-        資料來源：勞動部違反勞動法令事業單位（雇主）查詢系統、
-        經濟部商工登記公示資料。
+      <p className="cov-more">
+        <a href="/about">資料來源、涵蓋範圍與已知缺口 →</a>
       </p>
     </section>
   );
