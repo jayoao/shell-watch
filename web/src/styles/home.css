@@ -265,6 +265,27 @@
 .map-why p { margin: 0 0 6px; }
 .map-why p:last-child { margin-bottom: 0; }
 
+/* ── 安衛人員備查（側欄）───────────────────── */
+/* ⚠ 這一塊只會在「有紀錄」時出現。沒有紀錄的公司整塊不渲染 ——
+   不要為了版面整齊加一個「查無」的空狀態，那會把「依法不需要設置」
+   讀成「沒設」。理由寫在 Home.tsx 的 SafetyUnitsBlock 註解裡。 */
+.su-self {
+  font-size: 13px; line-height: 1.7; margin: 6px 0 4px;
+  display: flex; flex-wrap: wrap; gap: 0 10px; align-items: baseline;
+}
+.su-sum { font-size: 12.5px; line-height: 1.8; color: var(--ink-2); margin: 8px 0 4px; }
+.su-date { font-family: var(--mono); font-size: 11.5px; color: var(--ink-3); }
+.su-staff { font-size: 12.5px; color: var(--ink-2); overflow-wrap: anywhere; }
+.su-list { list-style: none; margin: 10px 0 0; padding: 0; }
+.su-list li {
+  border-top: 1px solid var(--rule); padding: 8px 0;
+  display: flex; flex-wrap: wrap; gap: 0 10px; align-items: baseline;
+}
+/* ⚠ 分支與廠區的原始全名很長（「…股份有限公司台中大墩分公司」），
+   一定要能折行，不然手機上會撐出橫向捲軸。 */
+.su-unit { font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; flex: 1 1 100%; }
+.su-list li.fineprint { display: block; }
+
 /* ── 鍵盤焦點 ─────────────────────────────── */
 /* ⚠⚠ 2026-09-15 外部檢視抓到輸入框有 `outline: none`。
    那不是風格選擇，是無障礙 bug —— 只用鍵盤的人看不到游標在哪一格。

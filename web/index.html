@@ -13,7 +13,7 @@
          互相矛盾 —— 那等於幫每一家公司產生一張社群卡片。
          所以 og 一律用站名與通用說明，連結看起來正常，但不擴散個別公司。 -->
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="職得調查 · 求職安全雷達" />
+    <meta property="og:title" content="職得調查 · 查的是公司，看見的是人" />
     <meta property="og:description" content="查的是公司，看見的是人。以負責人姓名為軸線，呈現勞動部公開的裁處紀錄與其關聯。本系統不對任何事業單位或個人作出評價或認定。" />
     <meta property="og:site_name" content="職得調查" />
     <!-- ⚠⚠ og:image 一定要是**完整網址**。
@@ -24,7 +24,12 @@
     <meta property="og:url" content="https://shell-watch.pages.dev/" />
     <meta property="og:image" content="https://shell-watch.pages.dev/og.png" />
     <meta name="twitter:card" content="summary" />
-    <title>職得調查 · 求職安全雷達</title>
+    <!-- ⚠ 標題後面接的是**標語**，不是副標題。
+         舊名「求職安全雷達」與「換殼追蹤」已於 2026-09-14 汰換，
+         但這三個地方（index.html 的 title、og:title、Home.tsx 的 base）
+         漏改，一直掛到 9/17 才被發現 —— 因為分頁標題沒有人會去看。
+         ⚠ 改站名的時候，用 grep 掃全站，不要只改看得到的地方。 -->
+    <title>職得調查 · 查的是公司，看見的是人</title>
   </head>
   <body>
     <div id="root"></div>

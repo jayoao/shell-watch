@@ -33,7 +33,8 @@
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type {
-  Candidate, Credential, Incident, LinkedCompany, LookupResult, ViolationRef,
+  Candidate, Credential, Incident, LinkedCompany, LookupResult, SafetyStaff,
+  SafetyUnits, ViolationRef,
 } from "../types/contracts";
 import sample from "../data/lookup.sample.json";
 import { getMeta, getPlainLaw, hashMismatch, lookup } from "../lib/lookup";
@@ -946,6 +947,101 @@ function Credentials({ list }: { list: Credential[] }) {
   );
 }
 
+/** 六類安衛人員。⚠ 順序＝畫面順序：專責人員在前，業務主管在後。 */
+const STAFF: [keyof SafetyStaff, string][] = [
+  ["mgr", "勞工安全衛生管理員"],
+  ["safe", "勞工安全管理師"],
+  ["health", "勞工衛生管理師"],
+  ["a", "甲種業務主管"],
+  ["b", "乙種業務主管"],
+  ["c", "丙種業務主管"],
+];
+
+/** 只列出人數大於 0 的類別。⚠ 0 不要印出來 —— 「丙種 0 人」讀起來像缺點，
+ *  但來源的 0 只代表這個場所不需要這個類別。 */
+function staffText(s: SafetyStaff): string {
+  return STAFF.filter(([k]) => s[k] > 0)
+    .map(([k, label]) => `${label} ${s[k]}`)
+    .join("\u3000");
+}
+
+/** 民國 YYYMMDD（1150901）→「115/09/01」。0 回空字串。 */
+function rocDate(n: number): string {
+  const t = String(n);
+  return t.length === 7 ? `${t.slice(0, 3)}/${t.slice(3, 5)}/${t.slice(5, 7)}` : "";
+}
+
+/**
+ * 安衛人員備查 —— 職安履歷裡**唯一的事前訊號**。
+ *
+ * 違規、職災、得獎、驗證講的都是已經發生的事。這一塊講的是
+ * 「這家公司有沒有把職安法要求的安全衛生管理人員設上」。
+ *
+ * ⚠⚠ **絕對不可以有「無」這個狀態。**
+ *   職安法只要求達到一定規模的事業單位設置安衛人員，小公司本來就不用設。
+ *   一家公司沒有這一塊，可能是不需要設、可能是該設沒設、也可能是名冊
+ *   沒收到或我們沒對上 —— 我們分不出是哪一種。所以 su 是 undefined 的時候
+ *   整個區塊不渲染，不寫「未設置」、不寫「查無」、也不留一個空殼說明。
+ *   把「不適用」呈現成「不合規」，是對具名公司的不實陳述，
+ *   性質跟把 A 公司的違規掛到 B 公司身上一樣，只是方向相反。
+ *
+ * ⚠ `unit` 是來源原始全名，含分支與廠區（「…台中大墩分公司」）。
+ *   原樣顯示。收斂成公司名，就是把一個分公司的一位業務主管
+ *   講成整家公司的配置 —— 跟 Credentials 的廠區規矩同源。
+ */
+function SafetyUnitsBlock({ su }: { su?: SafetyUnits }) {
+  // ⚠ Hook 一定要在提前 return 之前，見 Credentials 的說明。
+  const [open, setOpen] = useState(false);
+  if (!su) return null;
+  const shown = su.sites.length;
+  const rest = su.total - (su.self ? 1 : 0);
+  return (
+    <section className="side-block">
+      <h2 className="side-h">安衛人員備查</h2>
+      {su.self && (
+        <p className="su-self">
+          <b>公司本身</b>
+          <span className="su-date num">{rocDate(su.self.filed)}</span>
+          <span className="su-staff">{staffText(su.self)}</span>
+        </p>
+      )}
+      {rest > 0 && (
+        <>
+          <p className="su-sum">
+            另有 <b>{rest}</b> 個分支或廠區有備查紀錄
+            {!su.self && "（名冊上沒有公司本身那一筆）"}
+          </p>
+          <button className="linkish" onClick={() => setOpen((v) => !v)}>
+            {open ? "收合" : `展開${shown < rest ? ` ${shown} / ${rest}` : ""}`}
+          </button>
+        </>
+      )}
+      {open && (
+        <ul className="su-list">
+          {su.sites.map((x) => (
+            <li key={x.unit + x.filed}>
+              <span className="su-unit">{x.unit}</span>
+              <span className="su-date num">{rocDate(x.filed)}</span>
+              <span className="su-staff">{staffText(x)}</span>
+            </li>
+          ))}
+          {shown < rest && (
+            <li className="fineprint">
+              只顯示最近報備的 {shown} 個，這家公司共有 {su.total} 個場所的紀錄。
+            </li>
+          )}
+        </ul>
+      )}
+      <p className="side-p" style={{ marginTop: 10 }}>
+        資料來自勞動部職業安全衛生署「安衛單位(人員)備查名冊」，
+        記錄的是事業單位依職業安全衛生法<b>向勞動檢查機構報備</b>的安衛人員。
+        ⚠ 這份名冊<b>只記錄有報備的單位</b>——職安法僅要求達到一定規模的
+        事業單位設置，所以沒有紀錄的公司多數是依法不需要設置。
+      </p>
+    </section>
+  );
+}
+
 /* ══════════════════════════════════════════════════════════════
    查詢結果
    ══════════════════════════════════════════════════════════════ */
@@ -1077,11 +1173,18 @@ function Result({ hit, onPick }: {
       <div className="res-haz">
         <Incidents list={hit.company.incidents ?? []} />
         <Credentials list={hit.company.credentials ?? []} />
+        <SafetyUnitsBlock su={hit.company.safety} />
       </div>
 
       <footer className="res-foot">
+        {/* ⚠ 這一行要跟畫面上實際呈現的東西一致。
+            2026-09-17 加進安衛人員備查之後才發現它只寫了裁處與商工登記兩份，
+            但同一頁上早就有得獎、驗證、重大職災 —— 少報資料來源，
+            在一個以「資料使用度」為賣點的系統上特別難看。
+            新增任何一個資料來源，這一行要一起改（或者乾脆只指向關於資料頁）。 */}
         <p className="fineprint">
-          資料來源：勞動部違反勞動法令事業單位（雇主）查詢系統、經濟部商工登記公示資料。
+          資料來源：勞動部及其所屬機關開放資料 8 筆、經濟部商工登記公示資料。
+          逐項名稱、串接率與已知缺口見 <a href="/about">關於資料</a>。
           本頁僅呈現主管機關已公告之裁處紀錄與其關聯，
           不對任何事業單位或個人作出評價或認定。
         </p>
@@ -1297,7 +1400,9 @@ export default function Home() {
 
   /** 分頁標題跟著查詢走。⚠ 不然開了五個分頁分不出哪個是哪家公司。 */
   useEffect(() => {
-    const base = "職得調查 · 求職安全雷達";
+    // ⚠ 舊名「求職安全雷達」漏在這裡三天（9/14 汰換，9/17 才發現）。
+    //   分頁標題沒有人會主動去看，改名要 grep 全站。
+    const base = "職得調查 · 查的是公司，看見的是人";
     document.title = hit ? `${hit.company.name}｜${base}`
       : asked ? `${asked}｜${base}` : base;
     return () => { document.title = base; };

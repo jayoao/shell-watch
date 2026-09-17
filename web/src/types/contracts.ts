@@ -232,6 +232,49 @@ export interface Credential {
 }
 
 /**
+ * 一個場所的安衛人員配置（安衛單位(人員)備查名冊）。
+ *
+ * ⚠⚠ **這份資料只能表達「有」。**
+ *   職安法只要求達到一定規模的事業單位設置安全衛生管理人員，
+ *   小公司本來就不用設。所以一家公司沒有這一塊，可能是不需要設、
+ *   可能是該設沒設、也可能是名冊沒收到或我們沒對上 —— 分不出是哪一種。
+ *   **畫面上不可以出現「無」「未設置」「查無安衛人員」任何一種狀態。**
+ *   把「不適用」呈現成「不合規」，是對具名公司的不實陳述。
+ */
+export interface SafetyStaff {
+  /** 登錄（報備）日期。民國 YYYMMDD，例如 1150901 */
+  filed: number;
+  /** 勞工安全衛生管理員 */
+  mgr: number;
+  /** 勞工安全管理師 */
+  safe: number;
+  /** 勞工衛生管理師 */
+  health: number;
+  /** 甲種勞工安全衛生業務主管 */
+  a: number;
+  /** 乙種 */
+  b: number;
+  /** 丙種 */
+  c: number;
+}
+
+/**
+ * 一家公司的安衛人員備查情形。
+ *
+ * ⚠ `self` 是「公司本身」那一筆（統編與商工登記相同，或名稱完全相同）。
+ *   沒有 self 只代表名冊上只有分支或廠區的紀錄，**不代表公司本身沒設**。
+ *
+ * ⚠ `sites` 最多 30 筆，`total` 才是真實場所數（和德昌有 444 個）。
+ *   畫面必須把「顯示 N / total」寫出來，不可以讓人以為列出的就是全部。
+ */
+export interface SafetyUnits {
+  total: number;
+  self?: SafetyStaff;
+  /** 分支與廠區，依登錄日期由新到舊。unit 是來源原始全名，原樣顯示。 */
+  sites: (SafetyStaff & { unit: string })[];
+}
+
+/**
  * 一起重大職業災害。
  *
  * ⚠ casualties 是**罹災人數**（來源欄位「罹災人數（數量）」），**不是死亡人數**。
@@ -275,6 +318,8 @@ export interface LookupResult {
     /** ⚠ 選填。重大職業災害。只涵蓋 2024-07 之後約兩年、500 筆，
      *  沒有不代表這家公司沒發生過職災。 */
     incidents?: Incident[];
+    /** ⚠ 選填。安衛人員備查。**沒有不代表沒設置** —— 見 SafetyUnits。 */
+    safety?: SafetyUnits;
   };
   principals: Principal[];
   summary: {

@@ -17,7 +17,8 @@
  */
 import type {
   Candidate, Credential, EvidenceKind, Hazard, Incident, LinkedCompany,
-  LookupResult, Principal, Severity, Succession, ViolationRef,
+  LookupResult, Principal, SafetyStaff, SafetyUnits, Severity, Succession,
+  ViolationRef,
 } from "../types/contracts";
 
 /** ⚠ 跟 pipeline/publish.py 的 fnv1a() 對拍，見 tests/test_publish.py */
@@ -76,6 +77,15 @@ interface RawEntry {
   ic?: [string, string, string, number, string, string, string, string, string][];
   /** 時序型樣態。對造完整名稱 → [角色, 舊公司最後裁處年, 新公司設立年, 是否同年] */
   sc?: Record<string, [string, number, number, number]>;
+  /** 安衛人員備查。n = 真實場所數；me = 公司本身那一筆；o = 其他場所（最多 30）。
+   *  ⚠ 每一筆的數字順序是 [登錄日期, 管理員, 安全管理師, 衛生管理師, 甲, 乙, 丙]。
+   *  順序改了一定要同步改 pipeline/publish.py 的 compact_safety() ——
+   *  分片與程式的欄位順序不一致不會報錯，只會安靜地把甲種寫成乙種。 */
+  su?: {
+    n: number;
+    me?: [number, number, number, number, number, number, number];
+    o: [string, number, number, number, number, number, number, number][];
+  };
 }
 
 /**
@@ -90,6 +100,21 @@ interface RawEntry {
  */
 export function independentCount(ev: { kind: EvidenceKind }[]): number {
   return ev.filter((e) => e.kind !== "same_name" && e.kind !== "rare_name").length;
+}
+
+/** [登錄日期, 管理員, 安全管理師, 衛生管理師, 甲, 乙, 丙] → SafetyStaff。
+ *  ⚠ 這個順序是跟 pipeline/publish.py 的 compact_safety() 約定的，改一邊等於說謊。 */
+function toStaff(v: readonly number[]): SafetyStaff {
+  return { filed: v[0], mgr: v[1], safe: v[2], health: v[3],
+           a: v[4], b: v[5], c: v[6] };
+}
+
+function toSafety(su: NonNullable<RawEntry["su"]>): SafetyUnits {
+  return {
+    total: su.n,
+    self: su.me ? toStaff(su.me) : undefined,
+    sites: su.o.map(([unit, ...rest]) => ({ unit, ...toStaff(rest) })),
+  };
 }
 
 /** 分片。e = 完整名稱 → 資料；a = 核心名 → 完整名稱清單 */
@@ -636,6 +661,7 @@ export async function lookup(query: string): Promise<LookupOutcome> {
       address: self.a,
       own_violations: own,
       incidents: self.ic ? toIncidents(self.ic) : undefined,
+      safety: self.su ? toSafety(self.su) : undefined,
       credentials: (self.cr ?? []).map(
         ([kind, unit, detail, validFrom, validTo, act]) => ({
           kind: kind as Credential["kind"], unit, detail,
