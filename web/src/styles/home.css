@@ -305,6 +305,11 @@
 .ltag.f { background: var(--fatal-soft); color: var(--fatal-ink); }
 .ltag.p { background: var(--pending-soft); color: var(--pending-ink); }
 .ltag.g { background: var(--good-soft); color: var(--on-good-soft); }
+/* ⚠ 涵蓋率缺口是中性的，不是嚴重度。用灰底，不可以用紅或黃 ——
+   「查不到金額」是我們的資料有洞，不是這家公司比較壞。 */
+.ltag.q { background: var(--sheet-2); color: var(--ink-2); }
+/* Ledger 說明一行一項。用 block span 不用 <br />：少一項就少一行。 */
+.lline { display: block; }
 /* ⚠⚠ 這一行是整個一眼區最重要的一句，版面再擠都不可以拿掉。
    實測台電 56 項得獎驗證，屬於公司本身的是 0 項 —— 沒有這句話，
    那個 56 讀起來就是「這家公司有 56 張證書」。 */
@@ -454,7 +459,25 @@
   font-weight: 600; font-size: 13px; line-height: 1.5;
   text-align: left; overflow-wrap: anywhere; padding-right: 14px;
 }
+/* 長條的長尾收合鈕。⚠ 看起來要像「還有東西」，不要像一個分類 ——
+   所以不給它 bar-track，而且縮排對齊長條的標籤欄。 */
+.bar-tail {
+  display: block; width: 100%; text-align: left;
+  background: none; border: 0; cursor: pointer;
+  font: inherit; font-size: 12px; color: var(--ink-3);
+  padding: 7px 0 2px; margin-top: 2px;
+  border-top: 1px dashed var(--rule);
+}
+.bar-tail:hover { color: var(--ink); }
+
 .lawr-law span { display: block; }
+/* 該法條最常見的危害，用人話。⚠ 使用者明確要求保留：
+   「第27條第1項」對非法律背景的人是不透明的，這是整列唯一說明
+   「這條在管什麼」的地方。不要為了壓列高再拿掉一次。 */
+.lawr-hz {
+  font-family: var(--mono); font-size: 11px; font-weight: 400;
+  color: var(--ink-3); margin-top: 2px;
+}
 
 .lawr-n { font-size: 14px; font-weight: 700; white-space: nowrap; width: 1%; }
 .lawr-y { color: var(--ink-2); white-space: nowrap; width: 1%; }
@@ -618,8 +641,15 @@
   .res-head     { grid-column: 1; grid-row: 1; }
   .res-main     { grid-column: 1; grid-row: 2; }
   .res-foot     { grid-column: 1 / -1; grid-row: 3; }
-  .res-side-top { grid-column: 2; grid-row: 1; }
-  .res-haz      { grid-column: 2; grid-row: 2; }
+  /* ⚠⚠ 右欄是**一個**格子，跨第 1、2 列，align-self:start。
+     2026-09-18 之前 res-side-top 與 res-haz 是兩個獨立格子，
+     跟左欄共用列：第 1 列被右欄的 558px 撐開，而左欄的 res-head
+     只有 166px —— 左欄從標題到清單之間因此出現 **392px 的純黑空白**，
+     位置就在整頁最值錢的第一屏。
+     ⚠ 不要為了「對齊」把它拆回兩格。CSS grid 的同一列必然同高，
+       兩欄長度不一樣時就一定會有一邊被撐出空白；要兩欄各自流，
+       右欄就必須是一格。 */
+  .res-side     { grid-column: 2; grid-row: 1 / 3; align-self: start; }
 
   .res-title { font-size: 38px; line-height: 1.18; letter-spacing: -.025em; max-width: 24ch; }
   .fields { font-size: 14px; column-gap: 16px; row-gap: 6px; max-width: 60ch; }

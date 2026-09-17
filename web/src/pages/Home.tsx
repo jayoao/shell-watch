@@ -479,10 +479,49 @@ function familyOf(topic: string): string {
  * ⚠ 長條的長度是**筆數不是嚴重度**。一家被查過十次的公司會比一家
  *   從沒被查過的公司「看起來更糟」，那是稽核密度不是職場品質。
  */
+/**
+ * 長條的長尾收合。
+ *
+ * ⚠ 這不是為了省版面才做的（實測只省 261px，全頁 4,193 → 3,932，−6%，
+ *   你多半看不出來）。做它的理由是**可讀性**：台電「人身安全」家族有
+ *   11 列，其中 7 列是 1–2 筆。眼睛要一路掃過那 7 列雜訊才看得到形狀。
+ *
+ * ⚠⚠ **有死亡災害的類別永遠不收**，不管筆數多小。
+ *   台電的「職業災害沒有依規定通報」只有 3 筆但涉及死亡 —— 用筆數當
+ *   唯一門檻就會把它藏起來。這是紅線：不可以因為數字小就把人命收摺。
+ *
+ * ⚠ 長尾少於 2 列時整個不收 —— 收合那一行本身就跟一列一樣高，
+ *   收一列是純粹的多此一舉，還多一次點擊。
+ *
+ * ⚠⚠ **家族標題底下不可以是空的。** 第一版只用「筆數 >= 3 或有死亡」
+ *   當門檻，沒想到整個家族的每一列都可能少於 3 筆。實測 4 家公司壞了 2 家：
+ *     和德昌   「人身安全」0 列 —— 最重要的家族整個被收進一次點擊後面
+ *     中華郵政 「薪資與給付」0 列、「工時與休假」0 列
+ *   一個有標題、底下空無一物、只掛著一顆收合鈕的區塊，讀起來就是壞掉。
+ *   所以 head 空的時候，把長尾最大的那一列提上來（rows 已依筆數排序）。
+ *   ⚠ 這也是為什麼驗證不能只看台積電或台電那種大公司 ——
+ *     大公司每個家族都有大數字，剛好繞過這個分支。
+ */
+const TAIL_MIN = 3;
+
+function splitTail<T extends { n: number; fatal: number }>(
+  rows: readonly (readonly [string, T])[],
+): { head: (readonly [string, T])[]; tail: (readonly [string, T])[] } {
+  const head = rows.filter(([, x]) => x.n >= TAIL_MIN || x.fatal > 0);
+  const tail = rows.filter(([, x]) => x.n < TAIL_MIN && x.fatal === 0);
+  // 家族底下至少要看得到一列。rows 已依筆數由多到少排序，所以 tail[0] 最大。
+  if (head.length === 0 && tail.length > 0) head.push(tail.shift()!);
+  if (tail.length < 2) return { head: [...rows], tail: [] };
+  return { head, tail };
+}
+
 function PlainBars({ vs }: { vs: ViolationRef[] }) {
   const [duty, setDuty] = useState<PlainDict>({});
   const [open, setOpen] = useState<string | null>(null);
   const [why, setWhy] = useState(false);
+  // 每個家族的長尾各自收放。⚠ 用家族名當鍵，不要用索引 ——
+  // 家族數量會隨公司不同而變，索引在換一家公司之後會指到別的家族。
+  const [tailOpen, setTailOpen] = useState<Record<string, boolean>>({});
   useEffect(() => { void getPlainLaw().then(setDuty); }, []);
 
   const groups = useMemo(() => {
@@ -547,11 +586,15 @@ function PlainBars({ vs }: { vs: ViolationRef[] }) {
           </p>
         </div>
       )}
-      {groups.map(([fam, rows]) => (
+      {groups.map(([fam, rows]) => {
+        const { head, tail } = splitTail(rows);
+        const shown = tailOpen[fam] ? [...head, ...tail] : head;
+        const tailN = tail.reduce((a, [, x]) => a + x.n, 0);
+        return (
         <div key={fam} className="bar-fam">
           <p className="bar-famh">{fam}</p>
           <ul className="bar-list">
-            {rows.map(([label, x]) => {
+            {shown.map(([label, x]) => {
               const d = x.duty || duty[label]?.duty || "";
               const isOpen = open === label;
               return (
@@ -583,8 +626,18 @@ function PlainBars({ vs }: { vs: ViolationRef[] }) {
               );
             })}
           </ul>
+          {tail.length > 0 && (
+            <button className="bar-tail"
+                    aria-expanded={!!tailOpen[fam]}
+                    onClick={() => setTailOpen((t) => ({ ...t, [fam]: !t[fam] }))}>
+              {tailOpen[fam]
+                ? "收合"
+                : `其他 ${tail.length} 類（共 ${tailN} 筆，各少於 ${TAIL_MIN} 筆）`}
+            </button>
+          )}
         </div>
-      ))}
+        );
+      })}
       {/* ⚠ 警語也要分兩層（NN/g progressive disclosure）。
           實測整頁 8 段警語共 668 字、佔全頁 21.4% 而且全部常駐 ——
           **警語太長等於沒有警語**，使用者第三次看到就跳過了。
@@ -716,9 +769,9 @@ function YearDots({ vs }: { vs: ViolationRef[] }) {
  *   **欄位內容一個字都沒變**，只是同樣的四項資訊從四行變成一行。
  *   要改回卡片前，先量一次頁高。
  *
- * ⚠ 唯一被移除的資訊是 topHz（該組最常見的三種危害）。理由：正上方的
- *   危害分類長條講的就是這件事，而且法條名本身已經指向危害類型
- *   （第 27 條＝承攬）。展開後每一筆仍然帶著自己的危害標籤。
+ * ⚠ 改表格時我一度拿掉 topHz（該組最常見的三種危害），理由是「危害長條
+ *   講過了」。使用者否決：法條編號對非法律背景的人是不透明的，那一行是
+ *   整列唯一用人話說「這條在管什麼」的地方。**沒有任何欄位被移除。**
  *
  * ⚠⚠ 「其中 N 筆公告未載金額」**沒有被拿掉**，只是縮成 †N 加表尾註解。
  *   這一項不能省：省掉的話「合計 760,000」會被讀成「總共只罰了 76 萬」，
@@ -732,6 +785,9 @@ function LawGroup({ law, vs }: { law: string; vs: ViolationRef[] }) {
   const total = fined.reduce((a, v) => a + v.fine, 0);
   const fatal = vs.filter((v) => v.fatal).length;
   const pending = vs.filter(isPending).length;
+  const hz = new Map<string, number>();
+  for (const v of vs) for (const h of v.hazards ?? []) hz.set(h.name, (hz.get(h.name) ?? 0) + 1);
+  const topHz = [...hz.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map((x) => x[0]);
   // 表頭已經寫了「年度（民國）」，列內就不必每一列再重複「民國…年」。
   const ys = yearSpan(vs).replace(/^民國\s*/, "").replace(/\s*年$/, "");
   return (
@@ -739,6 +795,10 @@ function LawGroup({ law, vs }: { law: string; vs: ViolationRef[] }) {
       <tr className={open ? "lawr is-open" : "lawr"}>
         <th scope="row" className="lawr-law">
           {lines(law).map((t, i) => <span key={i}>{t}</span>)}
+          {/* ⚠ 2026-09-18 第一版把這行拿掉了，使用者要求加回來：
+              「法條第幾條第幾項」對非法律背景的人是不透明的，這一行是
+              整列唯一用人話說「這條在管什麼」的地方。代價是每列 +17px。 */}
+          {topHz.length > 0 && <span className="lawr-hz">{topHz.join("、")}</span>}
         </th>
         <td className="lawr-n num">{vs.length}</td>
         <td className="lawr-y num">{ys || "—"}</td>
@@ -1324,6 +1384,17 @@ function Ledger({ hit, pending, allWeak }: {
   //   解法不是藏起來，是把兩個都寫出來並標明出處 —— 所以這一行不能省。
   const incidents = hit.company.incidents?.length ?? 0;
   const span = yearSpan(hit.company.own_violations);
+  // ⚠⚠ 涵蓋率缺口要講在大字旁邊，不能只寫在下面的法條表裡。
+  //   實測台電 255 筆有 69% 沒有公告罰鍰金額。讀者看到「255 筆」會預期
+  //   查得到金額；查不到這件事該在這裡就知道，不是捲到一半才發現。
+  //   ⚠ 措辭不可以寫成「只罰了 N 元」——沒有金額不等於沒有罰，是公告沒刊。
+  const noFine = hit.company.own_violations.filter((v) => v.fine <= 0).length;
+
+  // 一行一項，用 block span 不用 <br />：少一項就少一行，不會留下空行。
+  const penNotes: ReactNode[] = [];
+  if (fatal > 0) penNotes.push(<><span className="ltag f">⚠ {fatal} 筆</span>公告文字涉及死亡災害</>);
+  if (pending > 0) penNotes.push(<><span className="ltag p">{pending} 筆</span>行政救濟中，尚未確定</>);
+  if (noFine > 0) penNotes.push(<><span className="ltag q">{noFine} 筆</span>公告未載罰鍰金額</>);
 
   return (
     <section className="ledger">
@@ -1332,13 +1403,8 @@ function Ledger({ hit, pending, allWeak }: {
           <p className="lbox-h">主管機關裁處</p>
           <p className="lbox-n num">{own}<small>筆</small></p>
           <p className="lbox-s">
-            {span && <>{span}累計<br /></>}
-            {fatal > 0 && (
-              <><span className="ltag f">⚠ {fatal} 筆</span>公告文字涉及死亡災害<br /></>
-            )}
-            {pending > 0 && (
-              <><span className="ltag p">{pending} 筆</span>行政救濟中，尚未確定</>
-            )}
+            {span && <span className="lline">{span}累計</span>}
+            {penNotes.map((n, i) => <span className="lline" key={i}>{n}</span>)}
           </p>
         </div>
 
@@ -1454,16 +1520,29 @@ function Result({ hit, onPick }: {
         </dl>
       </header>
 
-      <div className="res-side-top">
-        {/* 這句話是紅線，不能拿掉也不能縮成註腳。 */}
-        <div className="band">
-          <p>姓名相同不等於同一人。</p>
-          <p>
-            公開資料沒有身分證字號。本系統不判定身分，
-            只呈現這個連結有多少獨立佐證；判斷請自行進一步查證。
-          </p>
+      {/* ⚠⚠ res-side-top 與 res-haz 必須包在同一個 grid 格子裡。
+          2026-09-18 之前它們是兩個獨立格子，跟左欄共用列 —— 第 1 列的高度
+          被右欄的 558px 撐開，而左欄的 res-head 只有 166px，
+          於是左欄從標題到清單之間出現 **392px 的純黑空白**，
+          就在整頁最值錢的位置。包起來之後右欄自己流，不再撐列高。
+          ⚠ 包起來也順便修好手機的順序：紅線警語與 Ledger 在清單之前。 */}
+      <div className="res-side">
+        <div className="res-side-top">
+          {/* 這句話是紅線，不能拿掉也不能縮成註腳。 */}
+          <div className="band">
+            <p>姓名相同不等於同一人。</p>
+            <p>
+              公開資料沒有身分證字號。本系統不判定身分，
+              只呈現這個連結有多少獨立佐證；判斷請自行進一步查證。
+            </p>
+          </div>
+          <Ledger hit={hit} pending={pendingCount} allWeak={allWeak} />
         </div>
-        <Ledger hit={hit} pending={pendingCount} allWeak={allWeak} />
+        <div className="res-haz">
+          <Incidents list={hit.company.incidents ?? []} />
+          <Credentials list={hit.company.credentials ?? []} />
+          <SafetyUnitsBlock su={hit.company.safety} />
+        </div>
       </div>
 
       <div className="res-main">
@@ -1512,11 +1591,6 @@ function Result({ hit, onPick }: {
         )}
       </div>
 
-      <div className="res-haz">
-        <Incidents list={hit.company.incidents ?? []} />
-        <Credentials list={hit.company.credentials ?? []} />
-        <SafetyUnitsBlock su={hit.company.safety} />
-      </div>
 
       <footer className="res-foot">
         {/* ⚠ 這一行要跟畫面上實際呈現的東西一致。
