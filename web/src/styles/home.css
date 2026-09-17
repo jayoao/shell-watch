@@ -265,6 +265,15 @@
 .map-why p { margin: 0 0 6px; }
 .map-why p:last-child { margin-bottom: 0; }
 
+/* 兩層警語展開後的那一段。⚠ 視覺上要明顯屬於上面那一句，
+   不要看起來像另一段新的警語 —— 所以縮排 + 左側細線，不重複背景色。 */
+.caveat-more {
+  margin-top: 6px; padding-left: 11px;
+  border-left: 2px solid var(--rule-2);
+}
+.warnbox.caveat-more { background: none; border-left: 2px solid var(--pending); }
+.ydots-note.caveat-more { border-left: 2px solid var(--rule-2); }
+
 /* ── 一眼區：裁處 / 核發 ───────────────────── */
 /* ⚠ 左右分欄不是評價，是照實反映來源本身的區分（勞動部開的 vs 勞動部發的）。
    ⚠ 嚴重度仍然不分色 —— 紅色只給「涉及死亡災害」，不要擴散到這裡。

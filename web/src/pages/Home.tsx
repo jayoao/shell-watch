@@ -31,6 +31,7 @@
  * ⚠ 不要為了好看加第四個顏色，也**不要把 fatal 跟 pending 併成同一個色相**
  *   ——「死了人」跟「還不確定」是兩件事。
  */
+import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type {
   Candidate, Credential, Incident, LinkedCompany, LookupResult, SafetyStaff,
@@ -65,6 +66,47 @@ function money(n: number): string {
 /** 這一筆是不是還在爭議中（訴願／行政救濟尚未確定）。 */
 function isPending(v: ViolationRef): boolean {
   return !!v.appeal && v.appeal.includes("尚未確定");
+}
+
+/**
+ * 兩層警語：第一句常駐，其餘收摺。
+ *
+ * ══════════════════════════════════════════════════════════════
+ * ⚠⚠ 降階，不是刪除
+ * ══════════════════════════════════════════════════════════════
+ * 實測台電頁：警語 8 段、632 字，佔全頁 21.4%，而且全部常駐。
+ * **警語太長等於沒有警語** —— 使用者看到第三塊灰色小字就開始跳過，
+ * 結果最該被讀到的那一句跟最不重要的那一句一起被跳過。
+ *
+ * ⚠ 留在外面的那一句必須是**不看就會誤讀**的那一句。
+ *   收起來的只能是「為什麼」「出處」「細節」。
+ *   判準：把收起來的部分整段刪掉，剩下的話會不會變成假的？
+ *   會 → 那部分不能收。
+ *
+ * ⚠ 摺疊的標題要寫**具體問的問題**（「為什麼不能跨年比較？」），
+ *   不要寫「更多資訊」—— 後者沒有人會點。
+ *
+ * ⚠ 這裡刻意用 button + aria-expanded 而不是 <details>，
+ *   跟這個專案其他收摺一致（Credentials、LawGroup、PlainBars 都是）。
+ *   混用兩種模式會讓鍵盤操作的行為不一樣。
+ */
+function Caveat({ lead, label, className, children }: {
+  lead: ReactNode; label: string; className: string;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <p className={className}>
+        {lead}{" "}
+        <button className="linkish" aria-expanded={open}
+                onClick={() => setOpen((v) => !v)}>
+          {open ? "收合" : label}
+        </button>
+      </p>
+      {open && <p className={`${className} caveat-more`}>{children}</p>}
+    </>
+  );
 }
 
 /** 「113/05/21」→「113」。格式不符就回空字串，不要硬猜。 */
@@ -566,11 +608,12 @@ function PlainBars({ vs }: { vs: ViolationRef[] }) {
         </p>
       )}
       {fatalTotal > 0 && (
-        <p className="warnbox">
-          共 {fatalTotal} 筆公告<b>涉及</b>死亡災害。「涉及」指公告文字提到
-          死亡災害，包含未依規定通報的情形，<b>不等於該公司造成死亡</b>。
-          詳情請以處分字號查閱原始公告。
-        </p>
+        <Caveat className="warnbox" label="「涉及」包含哪些情形？"
+                lead={<>共 {fatalTotal} 筆公告<b>涉及</b>死亡災害。「涉及」指
+                  公告文字提到，<b>不等於該公司造成死亡</b>。</>}>
+          包含「未依規定通報死亡災害」的情形 —— 那種罰的是通報義務，
+          不是災害本身。詳情請以處分字號查閱原始公告。
+        </Caveat>
       )}
     </div>
   );
@@ -647,12 +690,18 @@ function YearDots({ vs }: { vs: ViolationRef[] }) {
           );
         })}
       </ul>
-      <p className="ydots-note">
-        {lastIsPartial && <>* 民國 {partial} 年只到 {cov}，<b>不是完整年度</b>。 </>}
-        ⚠ 跨年比較請謹慎：全國公告筆數在這段期間成長約 <b>23 倍</b>
-        （勞工退休金條例 110 年、勞工職業災害保險及保護法 111 年才納入公告），
-        早年筆數少多半是<b>當年還沒公告這些案件</b>，不是當年比較安全。
-      </p>
+      {/* ⚠ 常駐的是「115 年不是完整年度」—— 那一句不看就會把資料截斷
+          讀成改善。收起來的是「為什麼」。 */}
+      <Caveat className="ydots-note" label="為什麼不能跨年比較？"
+              lead={<>
+                {lastIsPartial && <>* 民國 {partial} 年只到 {cov}，<b>不是完整年度</b>。</>}
+                {" "}⚠ 跨年比較請謹慎。
+              </>}>
+        全國公告筆數在這段期間成長約 <b>23 倍</b>（民國 104 年 4,206 筆
+        → 114 年 98,590 筆），因為勞工退休金條例在 110 年、勞工職業災害保險及
+        保護法在 111 年才納入公告。早年筆數少多半是<b>當年還沒公告這些案件</b>，
+        不是當年比較安全。
+      </Caveat>
     </div>
   );
 }
@@ -703,8 +752,8 @@ function LawGroup({ law, vs }: { law: string; vs: ViolationRef[] }) {
   );
 }
 
-function ViolationList({ vs, title, note }: {
-  vs: ViolationRef[]; title: string; note?: string;
+function ViolationList({ vs, title }: {
+  vs: ViolationRef[]; title: string;
 }) {
   // ⚠ 註腳只在真的有「公告未載金額」的時候才出現。
   //   每一串都掛一句「0 元不是免罰」，看到第三次就沒有人在看了。
@@ -831,7 +880,14 @@ function ViolationList({ vs, title, note }: {
         </div>
       )}
 
-      {note && hasZeroFine && <p className="fineprint rule-top">{note}</p>}
+      {/* ⚠ 常駐的是「未載金額不等於免罰」；為什麼會沒有金額收起來。 */}
+      {hasZeroFine && (
+        <Caveat className="fineprint rule-top" label="為什麼會沒有金額？"
+                lead={<>「公告未載金額」<b>不等於免罰</b>。</>}>
+          部分縣市的公告不刊載罰鍰金額，臺北市的職業安全衛生法公告有
+          16,536 筆屬於這種情形；金額請以原始裁處書為準。
+        </Caveat>
+      )}
     </section>
   );
 }
@@ -1128,12 +1184,20 @@ function SafetyUnitsBlock({ su }: { su?: SafetyUnits }) {
           )}
         </ul>
       )}
-      <p className="side-p" style={{ marginTop: 10 }}>
-        資料來自勞動部職業安全衛生署「安衛單位(人員)備查名冊」，
-        記錄的是事業單位依職業安全衛生法<b>向勞動檢查機構報備</b>的安衛人員。
-        ⚠ 這份名冊<b>只記錄有報備的單位</b>——職安法僅要求達到一定規模的
-        事業單位設置，所以沒有紀錄的公司多數是依法不需要設置。
-      </p>
+      {/* ⚠ 常駐的是「沒有紀錄不代表沒設置」—— 不看那一句，
+          這一整塊就會被讀成「有的公司有、沒有的公司沒設」。
+          收起來的是出處與法規門檻。 */}
+      <div style={{ marginTop: 10 }}>
+        <Caveat className="side-p" label="這份名冊是什麼？"
+                lead={<>⚠ 這份名冊<b>只記錄有報備的單位</b>，
+                  沒有紀錄的公司多數是依法不需要設置。</>}>
+          資料來自勞動部職業安全衛生署「安衛單位(人員)備查名冊」，記錄的是
+          事業單位依職業安全衛生法<b>向勞動檢查機構報備</b>的安衛人員。
+          職安法僅要求達到一定規模的事業單位設置安全衛生管理人員，
+          所以「沒有出現在名冊上」有三種可能（依法不需要設、該設沒設、
+          名冊未收錄），本系統分不出是哪一種。
+        </Caveat>
+      </div>
     </section>
   );
 }
@@ -1339,14 +1403,16 @@ function Result({ hit, onPick }: {
       </div>
 
       <div className="res-main">
+        {/* ⚠ 「未載金額不等於免罰」那句話現在寫在 ViolationList 裡面
+            （只在真的有未載金額的時候出現），不再由呼叫端傳字串進來 ——
+            同一句警語散在兩個地方，改一邊忘另一邊只是時間問題。
+            ⚠ 這個註解必須放在三元運算式**外面**：JSX 註解本身是一個
+            表達式，塞在 `cond ? ( ... )` 的括號裡就是兩個表達式，
+            2026-09-18 就是這樣噴 "Parsing error: ')' expected"。 */}
         {hit.company.own_violations.length > 0 ? (
           <ViolationList
             vs={hit.company.own_violations}
             title="這家公司自己的紀錄"
-            note={
-              "「公告未載金額」不等於免罰。部分縣市的公告不刊載罰鍰金額，" +
-              "台北市的職安法公告有 16,536 筆屬於這種情形；金額請以原始裁處書為準。"
-            }
           />
         ) : (
           <section className="block">
