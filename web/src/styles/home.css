@@ -265,6 +265,57 @@
 .map-why p { margin: 0 0 6px; }
 .map-why p:last-child { margin-bottom: 0; }
 
+/* ── 一眼區：裁處 / 核發 ───────────────────── */
+/* ⚠ 左右分欄不是評價，是照實反映來源本身的區分（勞動部開的 vs 勞動部發的）。
+   ⚠ 嚴重度仍然不分色 —— 紅色只給「涉及死亡災害」，不要擴散到這裡。
+   ⚠ 沒有得獎驗證也沒有安衛備查的公司（95.3%），右邊整格不渲染，
+     掉回單欄。不要印「0」——那會把「沒申請」讀成「沒通過」。 */
+.ledger { margin: 0; }
+.ledger-pair {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+}
+.ledger-pair.one { grid-template-columns: 1fr; }
+@media (max-width: 560px) { .ledger-pair { grid-template-columns: 1fr; } }
+.lbox { border: 1px solid var(--rule); background: var(--paper); padding: 13px 14px 14px; }
+.lbox.pen { border-top: 3px solid var(--ink); }
+.lbox.grant { border-top: 3px solid var(--good); }
+.lbox-h {
+  font-family: var(--mono); font-size: 11px; letter-spacing: .08em;
+  color: var(--ink-3); margin: 0 0 7px;
+}
+.lbox-n {
+  font-family: var(--serif); font-size: 38px; line-height: 1;
+  letter-spacing: -.02em; margin: 0;
+}
+.lbox-n small { font-family: inherit; font-size: 15px; margin-left: 5px; letter-spacing: 0; }
+.lbox-s { margin: 9px 0 0; font-size: 13px; line-height: 1.65; color: var(--ink-2); }
+.ltag {
+  display: inline-block; font-size: 12px; padding: 1px 7px;
+  border-radius: 2px; margin-right: 5px;
+}
+.ltag.f { background: var(--fatal-soft); color: var(--fatal-ink); }
+.ltag.p { background: var(--pending-soft); color: var(--pending-ink); }
+.ltag.g { background: var(--good-soft); color: var(--on-good-soft); }
+/* ⚠⚠ 這一行是整個一眼區最重要的一句，版面再擠都不可以拿掉。
+   實測台電 56 項得獎驗證，屬於公司本身的是 0 項 —— 沒有這句話，
+   那個 56 讀起來就是「這家公司有 56 張證書」。 */
+.ledger-note {
+  font-size: 12.5px; line-height: 1.7; color: var(--pending-ink);
+  background: var(--pending-soft); border-left: 3px solid var(--pending);
+  padding: 9px 11px; margin: 12px 0 0;
+}
+.ledger-nil {
+  font-size: 12.5px; line-height: 1.7; color: var(--ink-3);
+  border-top: 1px solid var(--rule); padding-top: 9px; margin: 12px 0 0;
+}
+
+/* 長條圖上面的一句結論 */
+.bars-lead { margin: 0 0 16px; border-bottom: 1px solid var(--rule); padding-bottom: 13px; }
+.bars-lead-t { font-family: var(--serif); font-size: 19px; line-height: 1.45; margin: 0; }
+.bars-lead-bar { height: 9px; background: var(--ink); margin-top: 9px; }
+.bars-lead-bar span { display: block; height: 100%; background: var(--rule-2); }
+.bars-lead-n { font-size: 12px; color: var(--ink-3); margin: 5px 0 0; }
+
 /* ── 安衛人員備查（側欄）───────────────────── */
 /* ⚠ 這一塊只會在「有紀錄」時出現。沒有紀錄的公司整塊不渲染 ——
    不要為了版面整齊加一個「查無」的空狀態，那會把「依法不需要設置」
@@ -349,6 +400,16 @@
 }
 .ydot-y { font-size: 12px; color: var(--ink-3); }
 .ydot-n { font-size: 12px; color: var(--ink-2); }
+/* ⚠ 部分年度：空心。實測 115 年只到 8/31，17 筆並排在 114 年的 38 筆旁邊
+   讀起來是「今年變好了」，實際是資料截斷。**不能只靠比較淡**——
+   淡=筆數少正好是另一個編碼，兩者會被混淆。用空心是換一個通道。 */
+.ydot.partial {
+  background: none; border: 2px dashed var(--ink-3); box-sizing: border-box;
+}
+.ydots-note {
+  font-size: 12px; line-height: 1.7; color: var(--ink-3);
+  margin: 8px 0 0; max-width: 62ch;
+}
 
 /* ── 法條分組 ─────────────────────────────── */
 /* ⚠ 摘要列要看起來像「一個結論」而不是「一筆紀錄」，

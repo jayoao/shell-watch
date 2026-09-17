@@ -440,6 +440,7 @@ function familyOf(topic: string): string {
 function PlainBars({ vs }: { vs: ViolationRef[] }) {
   const [duty, setDuty] = useState<PlainDict>({});
   const [open, setOpen] = useState<string | null>(null);
+  const [why, setWhy] = useState(false);
   useEffect(() => { void getPlainLaw().then(setDuty); }, []);
 
   const groups = useMemo(() => {
@@ -472,9 +473,38 @@ function PlainBars({ vs }: { vs: ViolationRef[] }) {
   const max = Math.max(...groups.flatMap(([, r]) => r.map((x) => x[1].n)));
   const fatalTotal = vs.filter((v) => v.fatal).length;
 
+  // ⚠ 最大的那一類先用一句話講完。134 / 255 這種事使用者不會自己算，
+  //   而它往往就是整頁最有資訊量的一行（台電有 52.5% 是承攬管理 ——
+  //   那家公司自己不派人爬電桿，工程是外包的，這件事光看法條看不出來）。
+  //   只有佔比 ≥30% 才印；不然「每 10 筆有 1 筆」是廢話。
+  // ⚠⚠ 收容類別不可以當結論。實測和德昌印出
+  //   「每 3 筆裁處，就有 1 筆是『其他』」—— 那句話零資訊，而且看起來像壞掉。
+  //   「其他」是家族層的收容桶，「公告內容未對應到本站的危害分類」是
+  //   危害層的收容桶，兩個都要排除。
+  const CATCHALL = new Set(["其他", "公告內容未對應到本站的危害分類"]);
+  const flat = groups.flatMap(([, r]) => r).filter(([label]) => !CATCHALL.has(label));
+  const top = flat.length
+    ? flat.reduce((a, b) => (b[1].n > a[1].n ? b : a))
+    : null;
+  const share = top && vs.length ? top[1].n / vs.length : 0;
+
   return (
     <div className="bars">
       <div className="kicker" style={{ marginBottom: 9 }}>被罰過的事</div>
+      {top && share >= 0.3 && (
+        <div className="bars-lead">
+          <p className="bars-lead-t">
+            每 <b>{Math.round(1 / share)}</b> 筆裁處，就有 <b>1</b> 筆是<br />
+            「{top[0]}」
+          </p>
+          <div className="bars-lead-bar">
+            <span style={{ width: `${share * 100}%` }} />
+          </div>
+          <p className="bars-lead-n num">
+            {top[1].n} / {vs.length} 筆 ・ {(share * 100).toFixed(1)}%
+          </p>
+        </div>
+      )}
       {groups.map(([fam, rows]) => (
         <div key={fam} className="bar-fam">
           <p className="bar-famh">{fam}</p>
@@ -513,12 +543,28 @@ function PlainBars({ vs }: { vs: ViolationRef[] }) {
           </ul>
         </div>
       ))}
+      {/* ⚠ 警語也要分兩層（NN/g progressive disclosure）。
+          實測整頁 8 段警語共 668 字、佔全頁 21.4% 而且全部常駐 ——
+          **警語太長等於沒有警語**，使用者第三次看到就跳過了。
+          第一句留在畫面上，其餘收摺。⚠ 收的是說明，不是警告本身。 */}
       <p className="fineprint">
-        長度是<b>筆數</b>，不是嚴重程度——被查過十次的公司不等於比從沒被查過的
-        公司危險。一筆公告可能同時屬於多類，各類相加會大於公告筆數。
-        職安法公告沒有標籤，是本站的分類規則沒有對到，
-        不是「公告沒寫」，也不是「沒有危害」。
+        長度是<b>筆數</b>，不是嚴重程度。
+        <button className="linkish" style={{ marginLeft: 6 }}
+                aria-expanded={why}
+                onClick={() => setWhy((v) => !v)}>
+          {why ? "收合" : "怎麼算的？"}
+        </button>
       </p>
+      {why && (
+        <p className="fineprint" style={{ marginTop: 6 }}>
+          被查過十次的公司不等於比從沒被查過的公司危險——筆數同時反映稽核頻率。
+          每筆公告只歸入一類（取規則順序的第一項），所以上面各類相加
+          等於公告總筆數；下方的篩選晶片是每類分別計數，同一筆會出現在
+          多類裡，兩邊的數字因此不同。
+          職安法公告沒有標籤，是本站的分類規則沒有對到，
+          不是「公告沒寫」，也不是「沒有危害」。
+        </p>
+      )}
       {fatalTotal > 0 && (
         <p className="warnbox">
           共 {fatalTotal} 筆公告<b>涉及</b>死亡災害。「涉及」指公告文字提到
@@ -531,12 +577,34 @@ function PlainBars({ vs }: { vs: ViolationRef[] }) {
 }
 
 /**
- * 年度點陣。
+ * 年度分布。
  *
- * ⚠ 刻意**不用長條圖**。長條會被讀成趨勢（「這家公司越來越糟」），
- *   而我們自己的警語就說筆數受稽核頻率影響、不是那一年比較危險。
- *   點陣只回答一個問題：**什麼時候發生過**。那才是求職者要的
- *   ——「最近還在發生」跟「十年前的事」是兩回事。
+ * ⚠ 刻意**不用長條圖、不用折線**。兩者都會被讀成趨勢
+ *   （「這家公司越來越糟」），點只回答「什麼時候發生過」。
+ *
+ * ══════════════════════════════════════════════════════════════
+ * ⚠⚠ 2026-09-17 實測：那個「趨勢」主要是**公告制度在擴張**
+ * ══════════════════════════════════════════════════════════════
+ * 全國裁處公告逐年筆數：
+ *     民國 104 年   4,206 筆
+ *     民國 110 年  86,464 筆
+ *     民國 114 年  98,590 筆   ← 十一年成長 23 倍
+ *
+ * 原因不是全國公司變壞 23 倍，是**新的法規陸續納入公告**：
+ *     勞工退休金條例        108 年以前 0 筆 → 110 年 74,227 筆
+ *     勞工職業災害保險及保護法  110 年以前 0 筆 → 114 年  7,707 筆
+ *
+ * 所以任何一家公司的「早年少、近年多」，主要畫的是母體本身在長。
+ * 台電 104 年 2 筆、114 年 38 筆看起來惡化 19 倍，
+ * 但它佔全國的比例其實從 4.8‱ 降到 3.9‱。
+ *
+ * **在一個會成長的母體上畫趨勢，畫出來的是制度，不是行為。**
+ * 改成折線或長條只會讓那個假故事更好讀。這個違反圖表慣例的決定
+ * 是量過的，不是品味問題 —— 不要「修好」它。
+ *
+ * ⚠ 最後一格可能是**部分年度**（resource 抓到 115/08/31 就只有八個月）。
+ *   17 筆並排在 114 年的 38 筆旁邊，讀起來是改善，實際是資料截斷。
+ *   一定要標，而且標記靠 meta.coverage_to，不要寫死。
  */
 function YearDots({ vs }: { vs: ViolationRef[] }) {
   const years = useMemo(() => {
@@ -547,20 +615,44 @@ function YearDots({ vs }: { vs: ViolationRef[] }) {
     }
     return [...m.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1));
   }, [vs]);
+  // ⚠⚠ 所有 Hook 都要在提前 return 之前呼叫，跟 Credentials 同一條規矩。
+  //   getMeta() 內部是 memoize 過的（metaPromise ??=），重複呼叫不會多打一次網路。
+  const [meta, setMeta] = useState<Meta | null>(null);
+  useEffect(() => { void getMeta().then(setMeta); }, []);
   if (years.length < 2) return null;
   const max = Math.max(...years.map((y) => y[1]));
+
+  // 「YYY/MM/DD」→ 不是 12/31 就代表那一年還沒走完。
+  const cov = meta?.coverage_to ?? "";
+  const covYear = cov.slice(0, 3);
+  const partial = cov.length === 9 && cov.slice(4) !== "12/31" ? covYear : "";
+  const lastIsPartial = partial && years[years.length - 1][0] === partial;
+
   return (
     <div className="ydots">
       <ul className="ydots-list">
-        {years.map(([y, n]) => (
-          <li key={y} title={`民國 ${y} 年\u3000${n} 筆`}>
-            <span className="ydot"
-                  style={{ opacity: 0.25 + 0.75 * (n / max) }} />
-            <span className="ydot-y num">{y}</span>
-            <span className="ydot-n num">{n}</span>
-          </li>
-        ))}
+        {years.map(([y, n]) => {
+          const isPartial = y === partial;
+          return (
+            <li key={y}
+                title={isPartial
+                  ? `民國 ${y} 年（僅到 ${cov}）\u3000${n} 筆`
+                  : `民國 ${y} 年\u3000${n} 筆`}>
+              <span className={isPartial ? "ydot partial" : "ydot"}
+                    style={isPartial ? undefined
+                      : { opacity: 0.25 + 0.75 * (n / max) }} />
+              <span className="ydot-y num">{y}</span>
+              <span className="ydot-n num">{n}{isPartial && "*"}</span>
+            </li>
+          );
+        })}
       </ul>
+      <p className="ydots-note">
+        {lastIsPartial && <>* 民國 {partial} 年只到 {cov}，<b>不是完整年度</b>。 </>}
+        ⚠ 跨年比較請謹慎：全國公告筆數在這段期間成長約 <b>23 倍</b>
+        （勞工退休金條例 110 年、勞工職業災害保險及保護法 111 年才納入公告），
+        早年筆數少多半是<b>當年還沒公告這些案件</b>，不是當年比較安全。
+      </p>
     </div>
   );
 }
@@ -1046,6 +1138,148 @@ function SafetyUnitsBlock({ su }: { su?: SafetyUnits }) {
   );
 }
 
+/**
+ * 一眼區：左邊「主管機關裁處」、右邊「主管機關核發」。
+ *
+ * ══════════════════════════════════════════════════════════════
+ * ⚠⚠ 左右分欄**不是我們在評價**
+ * ══════════════════════════════════════════════════════════════
+ * 五星獎是勞動部頒的、TOSHMS 是勞動部核發的、裁處是勞動部開的 ——
+ * 好壞是**來源本身就分好的**，我們只是照實反映。
+ *
+ * 舊版把兩邊做成一樣的灰色、一樣的字級，而且把得獎驗證收合成右下角
+ * 一行小字。那不是中立，是把一半的資訊藏起來。中立是兩邊一樣顯眼。
+ *
+ * ⚠ 但**嚴重度**仍然不分色。哪一筆裁處比較嚴重是我們的判斷，那條紅線不動。
+ *   紅色只用在「涉及死亡災害」，沒有擴散。
+ *
+ * ══════════════════════════════════════════════════════════════
+ * ⚠⚠ 兩個數字不能相減，理由是「對象不同」
+ * ══════════════════════════════════════════════════════════════
+ * 實測台電：56 項得獎與驗證，屬於「台灣電力股份有限公司」本身的是 **0 項** ——
+ * 全部掛在協和發電廠、台中供電區營運處這些場所上，分屬 52 個單位。
+ * 裁處卻是開給公司的。
+ *
+ * 所以把一個大大的 56 放在公司名旁邊而不說明，讀起來就是
+ * 「這家公司有 56 張證書」，那是**往有利方向誤導**，
+ * 跟把甲公司的違規掛到乙公司身上同級，只是方向相反。
+ * `selfCount === 0` 時一定要把那句話印出來。
+ *
+ * ══════════════════════════════════════════════════════════════
+ * ⚠ 沒有紀錄就整格不渲染，不要印「0」
+ * ══════════════════════════════════════════════════════════════
+ * 全站 176,268 家裡，有得獎或驗證的只有 396 家、有安衛備查的 8,183 家 ——
+ * **95.3% 的公司右邊這一格是不存在的。**
+ * 多數公司從來沒申請過 TOSHMS，印「0 張驗證」會讀成「沒通過驗證」，
+ * 那是把「沒申請」說成「沒通過」。跟安衛備查同一條規矩。
+ */
+function Ledger({ hit, pending, allWeak }: {
+  hit: LookupResult; pending: number; allWeak: boolean;
+}) {
+  const cr = hit.company.credentials ?? [];
+  const su = hit.company.safety;
+  const verify = cr.filter((c) => c.kind === "toshms" || c.kind === "perf");
+  const award = cr.filter((c) => c.kind === "star5" || c.kind === "national");
+  const live = verify.filter((c) => c.active).length;
+  const units = new Set(cr.map((c) => c.unit));
+  // ⚠ 用完整名稱嚴格比對。寧可少說「公司本身也有」，不要多說。
+  const selfCount = cr.filter((c) => c.unit === hit.company.name).length;
+  const hasGrant = cr.length > 0 || !!su;
+
+  const own = hit.summary.own_violation_count;
+  const fatal = hit.summary.fatal_count ?? 0;
+  const linked = hit.summary.linked_violation_count;
+  // ⚠⚠ 2026-09-15 外部檢視抓到一個**自相矛盾**：國城營造上面寫
+  //   「公告涉及死亡災害 0」，往下捲卻有一筆重大職災罹災 1 人。
+  //   我們知道原因（一個是裁處公告的文字判讀、一個是重大職災公開網），
+  //   但**使用者不知道，他看到的就是這個網站在打自己臉**。
+  //   解法不是藏起來，是把兩個都寫出來並標明出處 —— 所以這一行不能省。
+  const incidents = hit.company.incidents?.length ?? 0;
+  const span = yearSpan(hit.company.own_violations);
+
+  return (
+    <section className="ledger">
+      <div className={hasGrant ? "ledger-pair" : "ledger-pair one"}>
+        <div className="lbox pen">
+          <p className="lbox-h">主管機關裁處</p>
+          <p className="lbox-n num">{own}<small>筆</small></p>
+          <p className="lbox-s">
+            {span && <>{span}累計<br /></>}
+            {fatal > 0 && (
+              <><span className="ltag f">⚠ {fatal} 筆</span>公告文字涉及死亡災害<br /></>
+            )}
+            {pending > 0 && (
+              <><span className="ltag p">{pending} 筆</span>行政救濟中，尚未確定</>
+            )}
+          </p>
+        </div>
+
+        {hasGrant && (
+          <div className="lbox grant">
+            {/* ⚠ 標題不能只寫「核發」——安衛人員備查是**事業單位報備、
+                檢查機構備查**，不是主管機關核發的東西。混在一起寫，
+                等於把「我報了」講成「政府發給我」。 */}
+            <p className="lbox-h">
+              {cr.length > 0 ? "得獎、驗證與備查" : "依法報備"}
+            </p>
+            {cr.length > 0 ? (
+              <>
+                <p className="lbox-n num">{cr.length}<small>項</small></p>
+                <p className="lbox-s">
+                  分屬 <b>{units.size}</b> 個場所
+                  {selfCount === 0 && "（公司本身沒有紀錄）"}<br />
+                  {verify.length > 0 && (
+                    <><span className="ltag g">{live} 張</span>
+                      驗證仍在有效期內
+                      {verify.length - live > 0 && `，${verify.length - live} 張已到期`}<br /></>
+                  )}
+                  {award.length > 0 && (
+                    <><span className="ltag g">{award.length} 次</span>得獎紀錄，無有效期<br /></>
+                  )}
+                  {su && <>另有 <b>{su.total}</b> 個場所有安衛人員備查</>}
+                </p>
+              </>
+            ) : (
+              /* ⚠ 只有安衛備查的時候，數字**只能印一次**。
+                 2026-09-17 第一版大字印 444、底下又寫「另有 444 個場所」，
+                 同一個數字講兩次，而且沒有前文卻寫「另有」。 */
+              <>
+                <p className="lbox-n num">{su?.total ?? 0}<small>個場所</small></p>
+                <p className="lbox-s">
+                  有安衛人員備查<br />
+                  {su?.self
+                    ? "公司本身也有一筆"
+                    : "名冊上沒有公司本身那一筆"}
+                </p>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ⚠ 這一句是這一區最重要的一行，不可以因為版面擠就拿掉。 */}
+      {cr.length > 0 && selfCount === 0 && (
+        <p className="ledger-note">
+          <b>⚠ 兩邊的對象不一樣。</b>
+          裁處是開給「{hit.company.name}」的；得獎與驗證發給的是名單上寫的
+          各個廠區或分支單位，公司本身一項都沒有。兩個數字不能相減。
+        </p>
+      )}
+
+      <p className="ledger-nil">
+        {incidents > 0
+          ? <>重大職業災害公開網有 <b>{incidents}</b> 筆紀錄</>
+          : "重大職業災害公開網沒有這家公司的紀錄"}
+        {"・"}
+        {linked > 0
+          ? <>{allWeak ? "同名者" : "負責人"}的其他公司被罰過 <b>{linked}</b> 筆
+            {allWeak && "（僅姓名相同，無其他佐證）"}</>
+          : "負責人姓名未出現在其他公司的公開紀錄上"}
+      </p>
+    </section>
+  );
+}
+
 /* ══════════════════════════════════════════════════════════════
    查詢結果
    ══════════════════════════════════════════════════════════════ */
@@ -1064,24 +1298,10 @@ function Result({ hit, onPick }: {
   //   數字照給（我們不替使用者刪資料），但標籤要把話講完。
   const allWeak = linkedAll.length > 0 && hit.summary.max_independent === 0;
 
-  // ⚠⚠ 2026-09-15 外部檢視抓到一個**自相矛盾**：國城營造上面寫
-  //   「公告涉及死亡災害 0」，往下捲卻有一筆重大職災罹災 1 人。
-  //   我們知道原因（一個是裁處公告的文字判讀、一個是重大職災公開網），
-  //   但**使用者不知道，他看到的就是這個網站在打自己臉**。
-  //   解法不是藏起來，是把兩個都寫出來並標明出處。
-  const incidentCount = hit.company.incidents?.length ?? 0;
-
   // ⚠ 標籤一律用口語。「行政救濟尚未終結」對求職者是完全陌生的詞，
   //   而它的意思其實很簡單：這筆處分還沒定案。
-  const stats: [number, string, string, boolean][] = [
-    [hit.summary.own_violation_count, "這家公司被罰過", "", false],
-    [hit.summary.linked_violation_count,
-     allWeak ? "同名者其他公司被罰過" : "負責人的其他公司被罰過",
-     allWeak ? "僅姓名相同，無其他佐證" : "", false],
-    [hit.summary.fatal_count ?? 0, "公告提到死亡災害", "依裁處公告的文字", true],
-    [incidentCount, "重大職業災害", "依重大職災公開網", incidentCount > 0],
-    [pendingCount, "這筆處分還沒定案", "還在行政救濟程序中", false],
-  ];
+  //   2026-09-17：原本的五格（其中兩格常常是 0，卻佔跟 255 一樣大的位置）
+  //   換成 <Ledger>，理由寫在該元件的說明裡。
 
   return (
     <div className="res">
@@ -1115,19 +1335,7 @@ function Result({ hit, onPick }: {
             只呈現這個連結有多少獨立佐證；判斷請自行進一步查證。
           </p>
         </div>
-        <dl className="stats">
-          {stats.map(([n, label, note, isFatal]) => (
-            <div key={label} className="stat">
-              <dt className="num" style={isFatal && n > 0 ? { color: "var(--fatal)" } : undefined}>
-                {n}
-              </dt>
-              <dd>
-                {label}
-                {note && <span className="stat-note">{note}</span>}
-              </dd>
-            </div>
-          ))}
-        </dl>
+        <Ledger hit={hit} pending={pendingCount} allWeak={allWeak} />
       </div>
 
       <div className="res-main">

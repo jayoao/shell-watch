@@ -133,6 +133,10 @@ export interface Meta {
   shards: number;
   /** 首字索引的分片數。舊的資料沒有這個欄位，缺的時候就當作沒有索引。 */
   x_shards?: number;
+  /** 資料涵蓋到的最後一個裁處日期（民國 YYY/MM/DD，例如 "115/08/31"）。
+   *  ⚠ 年度分布的最後一格要靠它判斷是不是「部分年度」。
+   *  舊的分片沒有這個欄位，缺的時候前端就不標 —— 寧可不講，不要猜。 */
+  coverage_to?: string;
   /** 商工登記存在性索引的分片數。只有 registry.py 跑過才會有。 */
   g_shards?: number;
   companies: number;

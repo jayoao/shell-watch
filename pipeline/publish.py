@@ -302,12 +302,20 @@ def main(argv=None) -> int:
     #   但連結其實是靠「徐建珩」跟另一家對上的 —— 使用者看到的名字
     #   跟證據講的名字不是同一個，而且看不出為什麼。
     spellings: dict[str, Counter] = defaultdict(Counter)
+    latest_disp = ""            # 最後一筆裁處日期（民國 YYY/MM/DD）
     with RECORDS.open(encoding="utf-8-sig", newline="") as f:
         for r in csv.DictReader(f):
             c = (r.get("company") or "").strip()
             if not c:
                 continue
             by_company[c].append(compact_violation(r))
+            # ⚠ 資料涵蓋到哪一天，前端一定要知道。
+            #   115 年只到 8/31，而畫面上 115 年的筆數跟 114 年整年並排 ——
+            #   讀起來是「今年變好了」，實際是資料截斷。
+            #   沒有這個欄位，前端無從分辨最後一格是不是完整年度。
+            d = (r.get("disposition_date") or "").strip()
+            if len(d) == 9 and d[3] == "/" and d[6] == "/" and d > latest_disp:
+                latest_disp = d
             if r.get("principal"):
                 spellings[c][r["principal"]] += 1
     # 顯示用取最常見的寫法
@@ -683,6 +691,10 @@ def main(argv=None) -> int:
         # ⚠ 只有 web/public/data/g/ 真的存在時才寫。沒有索引卻宣稱有，
         #   前端會對每一次查不到都發一個 404 請求。
         **({"g_shards": REGISTRY_SHARDS} if (out / "g").is_dir() else {}),
+        # ⚠ 資料涵蓋到的最後一個裁處日期（民國 YYY/MM/DD）。
+        #   前端用它判斷年度分布的最後一格是不是「部分年度」。
+        #   **不要寫死在前端** —— 每次重抓都會往後長，寫死就等著過時。
+        "coverage_to": latest_disp,
         "companies": total,
         # ⚠⚠ 一定要從 shards 數，不能從 by_company 數。
         #   merge_entry 的 `prev["v"].extend(new["v"])` 改的是
