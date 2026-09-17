@@ -68,6 +68,7 @@ RANKED = Path("data/ranked.csv")
 CREDENTIAL = Path("data/credential.csv")
 INCIDENT = Path("data/incident.csv")
 SUCCESSION = Path("data/succession.csv")
+SAFETY = Path("data/safety.csv")
 DB = Path("data/gcis.duckdb")
 OUT = Path("web/public/data")
 
@@ -77,6 +78,13 @@ OUT = Path("web/public/data")
 # ⚠ 改這個數字要重新產生全部分片，前端會從 meta.json 讀，不用改程式。
 SHARDS = 2048
 SHARED_ADDR_LIMIT = 10
+
+# 每家公司最多存幾個安衛備查場所。
+# ⚠ 和德昌有 444 個場所、王品 205 —— 全部存進分片，光這一家就多 27 KB，
+#   而畫面上沒有人會往下捲四百列。存 30 個（依登錄日期由新到舊），
+#   真實總數另外存在 "n" 裡，**畫面要把「顯示 30 / 444」寫出來**，
+#   不可以只顯示 30 個卻讓人以為那就是全部。
+SAFETY_SITES = 30
 
 # ── 首字索引的分片數 ────────────────────────────────────────
 # 用途跟 SHARDS 不同：SHARDS 是「知道完整名稱，直接算出在哪一片」；
@@ -202,6 +210,49 @@ def evidence_for(company: str, other: str, group: dict,
     return round(min(1.0, conf), 2), ev
 
 
+def compact_safety(rows: list[dict], tax_id: str, key: str) -> dict:
+    """一家公司的安衛人員備查場所 → 分片格式。
+
+    ⚠⚠ 這一份資料**只能表達「有」**。職安法只要求達到一定規模的事業單位
+      設置安衛人員，小公司本來就不用設。所以一家公司沒有出現在名冊上，
+      可能是不需要設、可能是該設沒設、也可能是名冊沒收到或我們沒對上
+      —— 我們分不出是哪一種。前端因此不可以有「無」「未設置」「查無」
+      任何一種狀態：沒有這一塊就是沒有這一塊。
+
+    ⚠ 「公司本身」的判定順序：
+        一、名冊那一列的統編 == 這家公司在商工登記的統編（最可靠）
+        二、查不到統編時，退回「原始全名正規化後等於法人名」
+      兩個都判不出來就當成分支 —— 寧可說少，也不要把某個分公司的
+      一位業務主管講成整家公司的配置。跟 credential.py 的廠區規矩同源。
+    """
+    def n(r: dict, k: str) -> int:
+        try:
+            return int((r.get(k) or "0").strip() or 0)
+        except ValueError:
+            return 0
+
+    def staff(r: dict) -> list[int]:
+        return [n(r, "filed"), n(r, "mgr"), n(r, "safe"), n(r, "health"),
+                n(r, "a"), n(r, "b"), n(r, "c")]
+
+    me: list[int] | None = None
+    others: list[list] = []
+    for r in rows:
+        raw = (r.get("unit_raw") or "").strip()
+        rid = (r.get("tax_id") or "").strip()
+        mine = (bool(rid) and bool(tax_id) and rid == tax_id) or norm_name(raw) == key
+        if mine and me is None:
+            me = staff(r)
+        else:
+            others.append([raw, *staff(r)])
+    # 登錄日期由新到舊；同一天用原始全名排序（沒有意義但穩定）。
+    others.sort(key=lambda x: (-x[1], x[0]))
+    out: dict = {"n": len(rows), "o": others[:SAFETY_SITES]}
+    if me:
+        out["me"] = me
+    return out
+
+
 def merge_entry(prev: dict, new: dict) -> None:
     """兩個公司名正規化成同一個 key 時，把資料**合併**而不是覆蓋。
 
@@ -261,7 +312,10 @@ def main(argv=None) -> int:
                 spellings[c][r["principal"]] += 1
     # 顯示用取最常見的寫法
     principal_of = {c: n.most_common(1)[0][0] for c, n in spellings.items()}
-    print(f"裁處紀錄依公司分組　{len(by_company):,} 家　"
+    # ⚠ len(by_company) 是**公司名寫法**的數量，不是家數 —— 正規化後會少幾十個。
+    #   兩個數字在同一次執行裡都會印出來（下面「寫進分片」那行才是家數），
+    #   標題不寫清楚的話，看 log 的人會以為程式自相矛盾。
+    print(f"裁處紀錄依公司分組　{len(by_company):,} 個公司名寫法　"
           f"{sum(len(v) for v in by_company.values()):,} 筆　"
           f"（{time.time() - t0:.0f} 秒）")
 
@@ -303,12 +357,43 @@ def main(argv=None) -> int:
                     r.get("valid_from", ""), r.get("valid_to", ""),
                     int(r.get("active") or 0),
                 ])
-        hit = sum(1 for c in by_company if norm_name(c) in creds)
+    # ⚠⚠ 數「家」一定要先正規化再去重。
+    #   by_company 的鍵是**原始公司名**，同一家公司的兩種寫法（臺／台、
+    #   全形空白）在裡面是兩個鍵 —— 實測 176,359 個寫法對應 176,268 家。
+    #   直接 `sum(1 for c in by_company if ...)` 會把同一家算兩次：
+    #   2026-09-17 實測安衛備查印 8,207，真實家數是 8,183，多報 24 家。
+    #
+    #   這跟前一天那個「violations 多報 297 筆」是**同一種錯**：
+    #   拿沒去重的鍵去數已經合併過的東西。對外報的每一個「N 家」
+    #   都要想一次這件事。
+        hit = len({norm_name(c) for c in by_company} & creds.keys())
         print(f"得獎／驗證　{sum(len(v) for v in creds.values()):,} 筆，"
               f"對到 {hit:,} 家")
     else:
         print(f"⚠ 沒有 {CREDENTIAL}，這次不含得獎／驗證"
               f"（跑 python -m pipeline.credential 產生）")
+
+    # ── 3.55 安衛人員備查 ────────────────────────────────────
+    #
+    # 這是職安履歷裡**唯一的事前訊號**：違規、職災、得獎、驗證講的都是
+    # 已經發生的事，安衛人員備查講的是「這家公司有沒有把法律要求的人設上」。
+    # 組別的主題是職安**防災**，防災的重點本來就在事前。
+    #
+    # ⚠ 只能顯示「有」，不能顯示「無」—— 理由見 compact_safety() 的說明。
+    safety: dict[str, list] = defaultdict(list)
+    if SAFETY.exists():
+        with SAFETY.open(encoding="utf-8-sig", newline="") as f:
+            for r in csv.DictReader(f):
+                k = (r.get("name_norm") or "").strip()
+                if k:
+                    safety[k].append(r)
+        # ⚠ 先正規化再去重，理由見上面「得獎／驗證」那一段。
+        hit = len({norm_name(c) for c in by_company} & safety.keys())
+        print(f"安衛人員備查　{sum(len(v) for v in safety.values()):,} 個場所，"
+              f"對到 {hit:,} 家")
+    else:
+        print(f"⚠ 沒有 {SAFETY}，這次不含安衛人員備查"
+              f"（跑 python -m pipeline.safetyunit 產生）")
 
     # ── 3.6 重大職業災害 ─────────────────────────────────────
     #
@@ -407,6 +492,10 @@ def main(argv=None) -> int:
         cr = creds.get(norm_name(company))
         if cr:
             entry["cr"] = cr
+        su = safety.get(norm_name(company))
+        if su:
+            entry["su"] = compact_safety(su, fact.get("id", "") or "",
+                                         norm_name(company))
         # 重大職災。同一筆可能同時對到（極少見：公司自己當業主也當承攬商），
         # 用「角色＋日期＋場所」去重，不要在畫面上出現兩次一模一樣的事故。
         tax_id = fact.get("id", "")
@@ -595,7 +684,16 @@ def main(argv=None) -> int:
         #   前端會對每一次查不到都發一個 404 請求。
         **({"g_shards": REGISTRY_SHARDS} if (out / "g").is_dir() else {}),
         "companies": total,
-        "violations": sum(len(v) for v in by_company.values()),
+        # ⚠⚠ 一定要從 shards 數，不能從 by_company 數。
+        #   merge_entry 的 `prev["v"].extend(new["v"])` 改的是
+        #   **by_company 裡那個 list 本身**（entry["v"] 是同一個物件，
+        #   不是複本）。所以合併之後，被併進去的紀錄在 by_company 裡
+        #   會被算兩次 —— 一次在 prev 那條、一次在它自己那條。
+        #   實測：真實筆數 630,271，從 by_company 數出來是 630,568，
+        #   多報 297 筆。分片本身是對的，錯的只有這個總數，
+        #   而這個總數就是首頁那個大字。**對外少報違規很嚴重，
+        #   多報一樣嚴重** —— 它是我們自己寫在文件裡的數字。
+        "violations": sum(len(e["v"]) for sh in shards for e in sh["e"].values()),
         "source": "勞動部違反勞動法令事業單位（雇主）查詢系統、經濟部商工登記公示資料",
         "source_url": SOURCE_URL,
     }, ensure_ascii=False, indent=1), encoding="utf-8")
