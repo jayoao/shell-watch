@@ -420,31 +420,82 @@
   margin: 8px 0 0; max-width: 62ch;
 }
 
-/* ── 法條分組 ─────────────────────────────── */
-/* ⚠ 摘要列要看起來像「一個結論」而不是「一筆紀錄」，
-   所以用較粗的上框線與較大的筆數，跟底下展開的逐筆明顯分開。 */
-.lawg-list { list-style: none; margin: 4px 0 0; padding: 0; }
-.lawg { border-top: 2px solid var(--ink); padding: 12px 0 14px; }
-.lawg-head {
-  display: flex; gap: 12px; align-items: baseline; justify-content: space-between;
+/* ── 法條分組（表格） ─────────────────────── */
+/* ⚠⚠ 這裡是表格，不是卡片，而且是量出來的決定：
+   舊的卡片版每列 130px、19 列 2,472px，佔整頁 41%，
+   把真正的摘要擠到只剩 9%。改回卡片前先量頁高。 */
+.lawg-wrap { margin: 6px 0 0; overflow-x: auto; }
+.lawg-tab {
+  width: 100%; min-width: 520px;
+  border-collapse: collapse;
+  font-size: 13px;
 }
-.lawg-law {
-  margin: 0; font-size: 15px; line-height: 1.55; font-weight: 600;
-  overflow-wrap: anywhere;
+.lawg-tab thead th {
+  text-align: left; font-weight: 600; font-size: 11px;
+  color: var(--ink-3); letter-spacing: .04em;
+  padding: 0 10px 6px 0; white-space: nowrap;
+  border-bottom: 1px solid var(--rule);
 }
-.lawg-law span { display: block; }
-.lawg-n { font-size: 15px; white-space: nowrap; }
-.lawg-meta {
-  display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px;
-  font-size: 12px; color: var(--ink-2);
+.lawg-tab thead th.num,
+.lawg-tab td.num { text-align: right; }
+.lawg-tab thead th:last-child,
+.lawg-tab td.lawr-x { text-align: right; padding-right: 0; }
+
+.lawr > th, .lawr > td {
+  padding: 7px 10px 7px 0;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: baseline;
 }
-.lawg-tags {
-  display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 5px;
-  font-family: var(--mono); font-size: 12px; color: var(--ink-3);
+.lawr.is-open > th, .lawr.is-open > td { border-bottom-color: transparent; }
+
+/* 法條全名可能很長，也可能被 lines() 拆成好幾項。
+   ⚠ 不要截斷成單行加省略號 —— 條號被切掉就查不回原始公告了。 */
+.lawr-law {
+  font-weight: 600; font-size: 13px; line-height: 1.5;
+  text-align: left; overflow-wrap: anywhere; padding-right: 14px;
 }
+.lawr-law span { display: block; }
+
+.lawr-n { font-size: 14px; font-weight: 700; white-space: nowrap; width: 1%; }
+.lawr-y { color: var(--ink-2); white-space: nowrap; width: 1%; }
+.lawr-f { white-space: nowrap; width: 1%; }
+.lawr-none { color: var(--ink-3); }
+/* 合計底下的涵蓋率。⚠ 這是警語不是註腳，所以給它自己一行，
+   不要縮成上標 —— 台電有 14/19 列的合計是不完整的。 */
+.lawr-cov {
+  display: block; font-family: var(--mono); font-size: 10px;
+  color: var(--ink-3); margin-top: 1px; white-space: nowrap;
+}
+.lawr-t {
+  white-space: nowrap; width: 1%;
+  font-family: var(--mono); font-size: 12px;
+}
+.lawr-t span + span { margin-left: 8px; }
+.lawr-x { width: 1%; white-space: nowrap; }
+.lawr-x button.linkish { font-size: 12px; }
+
+/* 展開的逐筆明細橫跨整列 */
+.lawr-detail > td {
+  padding: 2px 0 14px;
+  border-bottom: 1px solid var(--rule);
+}
+.lawg-foot { margin: 8px 0 0; }
+
 .lawg-fatal { color: var(--fatal); font-weight: 700; }
 .lawg-pending { color: var(--pending-ink); }
-.lawg button.linkish { margin-top: 8px; }
+
+/* 只給螢幕閱讀器看的文字 */
+.sr-only {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+@media (max-width: 560px) {
+  /* 窄螢幕先砍年度欄 —— 它是四欄裡資訊密度最低的一欄。 */
+  .lawg-tab { min-width: 400px; }
+  .lawg-tab thead th:nth-child(3), .lawr > td.lawr-y { display: none; }
+}
 
 /* 統計磚下面的出處小字。⚠ 兩個數字來源不同時一定要標，
    不標就會變成「這個網站自相矛盾」。 */

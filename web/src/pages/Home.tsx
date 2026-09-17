@@ -706,6 +706,25 @@ function YearDots({ vs }: { vs: ViolationRef[] }) {
   );
 }
 
+/**
+ * 法條分組的一列。
+ *
+ * ⚠⚠ 從「卡片」改成「表格列」是量出來的決定，不是排版品味。
+ *   2026-09-18 實測台電頁：舊版每列 130px，19 列共 2,472px，
+ *   佔整頁 5,989px 的 **41%**；真正的摘要（Ledger）只佔 9%。
+ *   頁面有八成在放清單，兩成不到在放結論。
+ *   **欄位內容一個字都沒變**，只是同樣的四項資訊從四行變成一行。
+ *   要改回卡片前，先量一次頁高。
+ *
+ * ⚠ 唯一被移除的資訊是 topHz（該組最常見的三種危害）。理由：正上方的
+ *   危害分類長條講的就是這件事，而且法條名本身已經指向危害類型
+ *   （第 27 條＝承攬）。展開後每一筆仍然帶著自己的危害標籤。
+ *
+ * ⚠⚠ 「其中 N 筆公告未載金額」**沒有被拿掉**，只是縮成 †N 加表尾註解。
+ *   這一項不能省：省掉的話「合計 760,000」會被讀成「總共只罰了 76 萬」，
+ *   而實際上有幾筆根本沒公告金額。整組都沒有金額時顯示「全數未載」，
+ *   不顯示 0 —— 0 會被讀成「罰了 0 元」。
+ */
 function LawGroup({ law, vs }: { law: string; vs: ViolationRef[] }) {
   const [open, setOpen] = useState(false);
   const fined = vs.filter((v) => v.fine > 0);
@@ -713,42 +732,60 @@ function LawGroup({ law, vs }: { law: string; vs: ViolationRef[] }) {
   const total = fined.reduce((a, v) => a + v.fine, 0);
   const fatal = vs.filter((v) => v.fatal).length;
   const pending = vs.filter(isPending).length;
-  const hz = new Map<string, number>();
-  for (const v of vs) for (const h of v.hazards ?? []) hz.set(h.name, (hz.get(h.name) ?? 0) + 1);
-  const topHz = [...hz.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map((x) => x[0]);
+  // 表頭已經寫了「年度（民國）」，列內就不必每一列再重複「民國…年」。
+  const ys = yearSpan(vs).replace(/^民國\s*/, "").replace(/\s*年$/, "");
   return (
-    <li className="lawg">
-      <div className="lawg-head">
-        <p className="lawg-law">
+    <>
+      <tr className={open ? "lawr is-open" : "lawr"}>
+        <th scope="row" className="lawr-law">
           {lines(law).map((t, i) => <span key={i}>{t}</span>)}
-        </p>
-        <span className="lawg-n num">{vs.length} 筆</span>
-      </div>
-      <div className="lawg-meta">
-        {yearSpan(vs) && <span>{yearSpan(vs)}</span>}
-        {total > 0 && <span className="num">罰鍰合計 {money(total)}</span>}
-        {/* ⚠ 「未載金額」的筆數要講出來。不講的話「合計 80 萬」會被讀成
-            「總共只罰了 80 萬」，而實際上有幾筆根本沒公告金額。 */}
-        {unlisted > 0 && <span>其中 {unlisted} 筆公告未載金額</span>}
-      </div>
-      {(topHz.length > 0 || fatal > 0 || pending > 0) && (
-        <div className="lawg-tags">
-          {topHz.length > 0 && <span>{topHz.join("、")}</span>}
-          {fatal > 0 && <span className="lawg-fatal">涉及死亡災害 {fatal} 筆</span>}
-          {pending > 0 && <span className="lawg-pending">尚未確定 {pending} 筆</span>}
-        </div>
-      )}
-      <button className="linkish" onClick={() => setOpen((v) => !v)}>
-        {open ? "收合" : `展開這 ${vs.length} 筆`}
-      </button>
+        </th>
+        <td className="lawr-n num">{vs.length}</td>
+        <td className="lawr-y num">{ys || "—"}</td>
+        <td className="lawr-f num">
+          {total > 0 ? (
+            <>
+              {total.toLocaleString("zh-TW")}
+              {/* ⚠⚠ 第一版這裡是上標的「†28」。實測台電：35 筆裡有 28 筆
+                  沒有公告金額，760,000 其實只加得到 7 筆 —— 一個 10px 的
+                  上標擋不住「這家公司這條法被罰了 76 萬」的誤讀。
+                  改成直接把分母寫出來：7/35 筆。
+                  ⚠ 不要為了讓每一列等高而把它拿掉。列高不齊正是對的訊號：
+                    合計不完整的列本來就該看起來不一樣。 */}
+              {unlisted > 0 && (
+                <span className="lawr-cov">{fined.length}/{vs.length} 筆有金額</span>
+              )}
+            </>
+          ) : (
+            <span className="lawr-none">全數未載</span>
+          )}
+        </td>
+        <td className="lawr-t">
+          {fatal > 0 && <span className="lawg-fatal" title={`涉及死亡災害 ${fatal} 筆`}>⚠ {fatal}</span>}
+          {pending > 0 && <span className="lawg-pending" title={`尚未確定 ${pending} 筆`}>救濟 {pending}</span>}
+        </td>
+        <td className="lawr-x">
+          <button
+            className="linkish"
+            aria-expanded={open}
+            onClick={() => setOpen((v) => !v)}
+          >
+            {open ? "收合" : `展開 ${vs.length}`}
+          </button>
+        </td>
+      </tr>
       {open && (
-        <ul className="vio-list" style={{ marginTop: 10 }}>
-          {vs.map((v, i) => (
-            <Violation key={`${v.doc_no}-${v.date}-${i}`} v={v} compact />
-          ))}
-        </ul>
+        <tr className="lawr-detail">
+          <td colSpan={6}>
+            <ul className="vio-list">
+              {vs.map((v, i) => (
+                <Violation key={`${v.doc_no}-${v.date}-${i}`} v={v} compact />
+              ))}
+            </ul>
+          </td>
+        </tr>
       )}
-    </li>
+    </>
   );
 }
 
@@ -806,6 +843,8 @@ function ViolationList({ vs, title }: {
   }, [filtered]);
 
   const visible = long ? rest.slice(0, shown) : rest;
+  // 表尾的 † 註解只在真的有「未載金額」時才出現。
+  const anyUnlisted = groups.some(([, l]) => l.some((v) => v.fine <= 0));
 
   return (
     <section className="block">
@@ -842,11 +881,36 @@ function ViolationList({ vs, title }: {
       )}
 
       {groups.length > 0 && (
-        <ul className="lawg-list">
-          {groups.map(([law, list]) => (
-            <LawGroup key={law} law={law} vs={list} />
-          ))}
-        </ul>
+        <>
+          {/* ⚠ 真的用 <table>，不要用 div 排格子：這是表格資料，
+              螢幕閱讀器要能逐欄報讀，法條那一欄是列標題（th scope="row"）。 */}
+          <div className="lawg-wrap">
+            <table className="lawg-tab">
+              <caption className="sr-only">依法條分組的裁處摘要，依筆數由多到少排列</caption>
+              <thead>
+                <tr>
+                  <th scope="col">法條</th>
+                  <th scope="col" className="num">筆數</th>
+                  <th scope="col" className="num">年度（民國）</th>
+                  <th scope="col" className="num">罰鍰合計（元）</th>
+                  <th scope="col">標記</th>
+                  <th scope="col"><span className="sr-only">展開逐筆</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {groups.map(([law, list]) => (
+                  <LawGroup key={law} law={law} vs={list} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {anyUnlisted && (
+            <p className="fineprint lawg-foot">
+              「N/M 筆有金額」是該法條有公告罰鍰金額的筆數／總筆數。
+              合計只加得到有金額的那幾筆。<b>「公告未載金額」不等於免罰。</b>
+            </p>
+          )}
+        </>
       )}
 
       {rest.length > 0 && (
