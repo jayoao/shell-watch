@@ -1999,7 +1999,20 @@ export default function Home() {
   }, [meta]);
 
   const hit = outcome?.kind === "hit" ? outcome.result : null;
-  const fresh = !outcome && !busy;
+  /**
+   * 門面只在「網址沒有帶 q」的時候出現。
+   *
+   * ⚠⚠ `!readUrl()` 這一段是 2026-09-18 門面改版時補的，它修的是一個
+   *   **本來就存在、只是以前看不出來**的洞：getMeta() 是一個帶
+   *   `cache: "no-cache"` 的網路請求，在它回來之前 outcome 還是 null、
+   *   busy 還是 false —— 也就是說 `/?q=公司名` 這種分享連結，
+   *   會先顯示一次門面，等 meta 回來才跳進結果。
+   *   以前門面只有一段文字，閃一下沒人發現；改成整條深色帶之後，
+   *   那一閃就是實實在在的「卡門面」。
+   *   ⚠ 這條規則是硬的：分享連結是這個站最重要的路徑之一，
+   *     不可以卡門面。改這一行之前先想清楚。
+   */
+  const fresh = !outcome && !busy && !readUrl();
 
   /** 分頁標題跟著查詢走。⚠ 不然開了五個分頁分不出哪個是哪家公司。 */
   useEffect(() => {
@@ -2030,10 +2043,23 @@ export default function Home() {
         </div>
       )}
 
+      {/* ⚠⚠ .face 在**兩個模式都存在**，它包住門面與查詢表單。
+          理由是查詢表單只能有一份：搬進 {fresh && …} 裡面的話，
+          結果模式就得再寫一份，兩份遲早會長不一樣；而換一個位置
+          render 會讓 <input> 重新掛載，手機上鍵盤會跳掉。
+          只有 .landing 底下 CSS 才把它變成一條滿版的帶。 */}
+      <div className="face">
+
       {fresh && (
         <div className="hero">
-          <div className="band" style={{ marginTop: 0 }}>
-            <p className="hero-t">查的是公司，看見的是人</p>
+          {/* ⚠ 2026-09-18：標題從 <p className="hero-t"> 改成 <h1>，
+              外面那層 .band 也拿掉了 —— 那條 3px 上緣線是結果頁的語彙，
+              壓在門面帶上會多出一條跟誰都沒關係的線。
+              ⚠ 附帶效果：tokens.css 的 `.band > p:first-child`（15px）
+                從此咬不到標題，那個特異度陷阱消失了。但 home.css 的
+                選擇器仍然寫成三段 `.landing .hero .hero-t` ——
+                只要有人把 .band 加回來就會再輸一次，留著成本是零。 */}
+          <h1 className="hero-t">查的是公司，看見的是人</h1>
             {/* ⚠ 2026-09-15 標語從「面試前，把老闆的名字查一遍」改成這一句。
                 原本那句會讓人預期一個**輸入姓名的框** —— 我們沒有，
                 而且刻意不做（開放人名查詢會讓這個工具從「查公司」
@@ -2042,10 +2068,9 @@ export default function Home() {
                 文案承諾產品沒有的東西，跟「功能改了文案沒跟上」是同一種謊，
                 只是方向相反。新的標語描述的是真實的機制：
                 輸入的是公司，呈現的軸線是人。 */}
-            <p className="hero-p">
-              勞動部的違法紀錄<b>跟著公司走</b>。公司收掉重開，紀錄就留在舊公司。
-            </p>
-          </div>
+          <p className="hero-p">
+            勞動部的違法紀錄<b>跟著公司走</b>。公司收掉重開，紀錄就留在舊公司。
+          </p>
 
           {/* ⚠⚠ 這張圖講的是整個系統唯一難用文字說清楚的事：換殼。
               用**虛構**的甲乙公司，不用真實案例 —— 首頁是門面，
@@ -2056,7 +2081,7 @@ export default function Home() {
               ⚠ 用 HTML+CSS 不用 SVG：中文在 SVG 裡縮放會失控，
                 而且 HTML 的文字螢幕閱讀器讀得到、可以被 Ctrl+F 找到。 */}
           <div className="dia" role="img"
-               aria-label="示意圖：甲公司已解散、有 12 筆裁處紀錄；乙公司新設立、0 筆紀錄；兩家公司的負責人姓名相同。姓名相同不等於同一人。">
+               aria-label="示意圖：甲公司從民國 100 年到 114 年累積 12 筆裁處紀錄，之後解散；同一個負責人姓名在 115 年新設立乙公司，0 筆紀錄。姓名相同不等於同一人。">
             <div className="dia-row" aria-hidden="true">
               <div className="dia-box">
                 <p className="dia-h">甲公司</p>
@@ -2064,6 +2089,9 @@ export default function Home() {
                 <p className="dia-n num">12</p>
                 <p className="dia-s">筆裁處紀錄</p>
               </div>
+              {/* 連線在兩張卡**中間**，不在下面 ——
+                  「同一個負責人」是這張圖的主詞，不是註腳。 */}
+              <div className="dia-mid"><i /></div>
               <div className="dia-box is-new">
                 <p className="dia-h">乙公司</p>
                 <p className="dia-s">今年新設立</p>
@@ -2071,10 +2099,22 @@ export default function Home() {
                 <p className="dia-s">筆裁處紀錄</p>
               </div>
             </div>
-            <div className="dia-join" aria-hidden="true">
-              <span className="dia-line" />
-              <span className="dia-jt">同一個負責人姓名</span>
-              <span className="dia-line" />
+            <p className="dia-cap" aria-hidden="true">同一個負責人姓名</p>
+            {/* ⚠ 時間軸不是裝飾。沒有它，兩張卡只說得出「一家有一家沒有」，
+                說不出先後 ——「紀錄留在舊公司」這句話就少了它的依據。
+                ⚠ 年份跟甲乙公司一樣是**虛構**的示意年：
+                  門面上不點名任何一家沒被查詢過的真公司。 */}
+            <div className="dia-tl" aria-hidden="true">
+              <div className="dia-tl-track">
+                <span className="dia-tl-seg" />
+                <span className="dia-tl-gap"><span>解散</span></span>
+                <span className="dia-tl-seg is-new" />
+              </div>
+              <div className="dia-tl-marks">
+                <div><span className="num">民國 100</span><span className="num">114</span></div>
+                <div />
+                <div><span className="num">115</span><span>今</span></div>
+              </div>
             </div>
             <p className="dia-note" aria-hidden="true">
               ⚠ 姓名相同<b>不等於</b>同一人。本站不判定身分，
@@ -2127,6 +2167,8 @@ export default function Home() {
           </p>
         )}
       </form>
+
+      </div>{/* /.face */}
 
       {/* 載入中：說清楚在下載什麼、多大、送不送出去。設計稿 A2。 */}
       {busy && (

@@ -10,72 +10,160 @@
    ============================================================ */
 
 .page { padding-top: 18px; }
+/* ⚠ 門面模式沒有這個上緣留白 —— 門面帶要從報頭底下直接開始，
+   中間留 18px 的 --paper 會讓帶看起來是「貼上去的一塊」而不是版面。 */
+.page.landing { padding-top: 0; }
 
-/* ── 首頁的標題區 ───────────────────────────── */
-.hero .band > p:first-child { margin: 0; }
-
-/* ── 查詢框 ───────────────────────────────── */
 /* ══ 門面模式（首頁，尚未查詢）══════════════════════════
    ⚠⚠ 只有 .page.landing 底下才生效。結果模式的版面一個字都不要動 ——
    查完之後使用者要的是密度，不是門面。
-   ⚠ 實測依據：2026-09-18 首頁只有 558px 高、svg 0、img 0，
-     視窗 898px 裡空著 340px。使用者的原話是「第一眼要能很清楚知道在幹嘛」。
-   ⚠ 參考：Violation Tracker（最接近的國外同類）的搜尋框在 y=1025，
-     首屏整屏是門面。我們把搜尋框留在首屏內，比他們更近一步。 */
 
-.landing .hero { margin-top: 4vh; }
-/* ⚠⚠ 選擇器一定要寫成 `.landing .hero .hero-t`，不可以只寫 `.landing .hero-t`。
-   tokens.css 有 `.band > p:first-child { font-size: 15px }`，特異度 (0,2,1)；
-   `.landing .hero-t` 只有 (0,2,0)，**少一個元素選擇器就輸掉**，
-   標題會停在 15px。2026-09-18 部署後量 computed style 才發現 ——
-   CSS 有進檔案、規則也被解析，只是沒贏。
-   ⚠ 這也是為什麼驗證要量 getComputedStyle，不能只確認「CSS 有沒有部署上去」。 */
+   ⚠ .face 這個容器在**兩個模式都存在**（它包住 hero 與查詢表單）。
+     理由是查詢表單只能有一份：把表單搬進 {fresh && …} 裡面，
+     結果模式就得再寫一份，兩份遲早會長不一樣；而換一個位置 render
+     會讓 <input> 重新掛載，手機上鍵盤會跳掉。
+     所以容器恆在，只有 .landing 底下才把它變成一條帶。
+
+   ⚠ 實測依據（2026-09-18，1280×900）：改版前輸入框底色 #201E1D
+     壓在 body #191817 上，對比 **1.07:1**。框有 60px 高、1040px 寬，
+     但眼睛看不到它 ——「搜尋框不夠強調」不是尺寸問題，是對比問題。
+   ⚠ 參考：Violation Tracker 的搜尋框在 y=1025，首屏整屏是門面。
+     我們把搜尋框留在首屏內（1280×900 量到鈕底緣 y=674）。 */
+
+.landing .face {
+  background: var(--desk);
+  border-bottom: 1px solid var(--rule);
+  padding: 30px 20px 32px;
+  /* 滿版：脫出 .sw-shell 的 1180px 版心。--desk 是「桌面」，
+     桌面本來就該延伸到畫面邊緣，停在版心會變成一張浮著的卡片。
+     ⚠⚠ 100vw 比文件寬（多出捲軸的寬度），這一行單獨存在會製造
+       橫向捲軸。tokens.css 的 body 因此有 `overflow-x: clip`。
+       **兩者是一組的，不要只留一邊。** */
+  margin-inline: calc(50% - 50vw);
+}
+/* 帶是滿版的，帶裡面的東西不是 —— 一律置中收窄。 */
+.landing .hero   { max-width: 720px; margin: 0 auto; text-align: center; }
+.landing .search { max-width: 620px; margin: 28px auto 0; }
+
+/* ⚠ 2026-09-18 起標題不再包在 .band 裡（那條 3px 上緣線是結果頁的
+   語彙，壓在門面帶上會多出一條跟誰都沒關係的線），也從
+   <p class="hero-t"> 改成 <h1> —— 一頁一個 h1。
+   ⚠ 選擇器仍然刻意寫成三段 `.landing .hero .hero-t`。tokens.css 的
+     `.band > p:first-child`（15px，特異度 0,2,1）現在咬不到它了，
+     但只要有人把 .band 加回來就會再輸一次，留著三段的成本是零。 */
 .landing .hero .hero-t {
-  margin: 0; font-size: 34px; line-height: 1.18; font-weight: 700;
-  letter-spacing: -.025em;
+  margin: 0; font-size: 31px; line-height: 1.16; font-weight: 700;
+  letter-spacing: -.025em; text-wrap: balance;
 }
-.landing .hero .hero-p { margin: 10px 0 0; font-size: 15px; line-height: 1.7; }
+.landing .hero .hero-p {
+  margin: 10px auto 0; max-width: 34em;
+  font-size: 15px; line-height: 1.7; color: var(--ink-2);
+}
+.landing .hero .hero-p b { color: var(--ink); }
 
-/* ── 換殼示意圖 ─────────────────────────────── */
-.dia { margin: 26px 0 0; }
-.dia-row {
-  display: grid; grid-template-columns: 1fr 1fr;
-  gap: 14px; max-width: 460px;
-}
+/* ── 換殼示意圖 ───────────────────────────────
+   ⚠ 用 HTML+CSS 不用 SVG：中文在 SVG 裡縮放會失控，而且 HTML 的
+     文字螢幕閱讀器讀得到、Ctrl+F 找得到。
+   ⚠ 兩欄在 375px **仍然並排**。換殼的對比靠並排才成立，
+     一堆疊就只剩兩張各自獨立的卡片。 */
+.dia { margin: 24px auto 0; max-width: 620px; }
+.dia-row { display: grid; grid-template-columns: 1fr 40px 1fr; align-items: stretch; }
 .dia-box {
-  border: 1px solid var(--rule); border-radius: 3px;
-  padding: 12px 14px 13px; background: var(--sheet);
+  border: 1px solid var(--rule-2); border-radius: 3px;
+  padding: 12px 8px 14px; background: var(--sheet);
   text-align: center;
 }
 /* ⚠ 新公司用虛線框：它「看起來乾淨」正是換殼的重點，
    實線會讓人以為那是一家有歷史的公司。 */
 .dia-box.is-new { border-style: dashed; background: none; }
-.dia-h { margin: 0; font-size: 14px; font-weight: 700; }
-.dia-s { margin: 2px 0 0; font-size: 11px; color: var(--ink-3); }
-.dia-n {
-  margin: 6px 0 0; font-family: var(--serif); font-size: 30px; line-height: 1;
-}
+.dia-h { margin: 0; font-size: 15px; font-weight: 700; }
+.dia-s { margin: 3px 0 0; font-size: 11.5px; color: var(--ink-3); }
+.dia-n { margin: 8px 0 0; font-size: 30px; line-height: 1; font-weight: 600; }
 .dia-box.is-new .dia-n { color: var(--ink-3); }
 
-.dia-join {
-  display: flex; align-items: center; gap: 10px;
-  max-width: 460px; margin: 12px 0 0;
+/* 連線移到兩張卡**中間**（原本在下面）——「同一個負責人」是這張圖的
+   主詞，不是註腳。兩端的圓點是端點，不是裝飾：它標出線連的是哪兩家。 */
+.dia-mid { display: flex; align-items: center; }
+.dia-mid i { flex: 1; height: 1px; background: var(--rule-2); }
+.dia-mid::before, .dia-mid::after {
+  content: ""; flex: none; width: 6px; height: 6px;
+  border-radius: 50%; background: var(--rule-2);
 }
-.dia-line { flex: 1; height: 1px; background: var(--rule-2); }
-.dia-jt {
-  font-family: var(--mono); font-size: 11.5px; color: var(--ink-2);
-  white-space: nowrap;
-}
-.dia-note {
-  max-width: 460px; margin: 10px 0 0;
-  font-size: 12px; line-height: 1.7; color: var(--ink-3);
+.dia-cap {
+  margin: 10px 0 0; font-family: var(--mono); font-size: 11.5px;
+  letter-spacing: .04em; color: var(--ink-2); text-align: center;
 }
 
-/* ── 門面模式的搜尋框：放大，它本身就是「開始搜尋」 ── */
-.landing .search { margin-top: 30px; }
+/* 時間軸。⚠ 沒有時間軸的話，兩張卡只說得出「一家有一家沒有」，
+   說不出先後 ——「紀錄留在舊公司」這句話就少了它的依據。
+   實線＝甲公司在營運的期間，虛線＝乙公司設立之後，跟卡片的框同一套語彙。 */
+.dia-tl { margin: 14px 0 0; }
+.dia-tl-track { display: grid; grid-template-columns: 1fr 40px 1fr; align-items: center; }
+.dia-tl-seg { height: 3px; background: var(--rule-2); }
+.dia-tl-seg.is-new { height: 0; background: none; border-top: 3px dashed var(--rule-2); }
+.dia-tl-gap { display: flex; align-items: center; justify-content: center; }
+.dia-tl-gap span {
+  font-family: var(--mono); font-size: 11px; color: var(--ink-3);
+  background: var(--desk); padding: 0 4px;
+}
+.dia-tl-marks { display: grid; grid-template-columns: 1fr 40px 1fr; margin-top: 6px; }
+.dia-tl-marks > div {
+  display: flex; justify-content: space-between;
+  font-family: var(--mono); font-size: 11px; color: var(--ink-3);
+}
+
+/* ⚠ 警語寫在圖**裡面**，不是寫在圖旁邊。這張圖會被截圖進簡報和影片，
+   警語要跟著圖走，才不會在轉載時掉隊。 */
+.dia-note {
+  margin: 10px auto 0; max-width: 40em;
+  font-size: 12px; line-height: 1.7; color: var(--ink-3); text-align: center;
+}
+.dia-note b { color: var(--ink-2); }
+
+/* ── 門面模式的搜尋框：這一頁唯一可以點的東西 ──────────
+   ⚠ 強調色沒有新增任何一個。--accent-fill / --on-accent 在 tokens.css
+     的定義就是「可以點的東西」，而查詢鈕正是首頁唯一可以點的東西。
+     --fatal（嚴重）與 --pending（不確定）一格都沒動，門面上不出現 ——
+     「不評分、不排名、嚴重度不上色」那條線沒有被碰到。
+   ⚠⚠ 邊框用 --ink-3 **不用 --rule-2**。tokens.css 把 --rule-2 註記為
+     「輸入框、可點的邊界」，但那個值是對著 --paper / --sheet 調的。
+     壓在 --desk 上時淺色主題只有 **2.18:1**，過不了非文字的 3.0。
+     --ink-3 在深色 6.65:1、淺色 4.92:1，兩個主題都過。量過才知道。 */
 .landing .search label { font-size: 12px; }
-.landing .sw-input { font-size: 17px; padding: 15px 16px; }
-.landing .sw-btn { font-size: 16px; padding: 15px 30px; }
+.landing .sw-input {
+  font-size: 17px; padding: 15px 16px;
+  background: var(--sheet-2); border: 2px solid var(--ink-3);
+}
+.landing .sw-btn {
+  font-size: 16px; padding: 15px 30px;
+  background: var(--accent-fill); color: var(--on-accent);
+  border: 2px solid var(--accent-fill);
+}
+/* ⚠ 首頁載入時輸入框是空的，按鈕因此是 disabled。沿用全站的 disabled
+   樣式（灰底灰字）的話，使用者第一眼看到的就是一顆死掉的按鈕，
+   這次改版等於白改。門面的 disabled 保留藍色的身分，只降一階；
+   打字之後才變實心 —— 那個變化本身就是回饋。 */
+.landing .sw-btn[disabled] {
+  background: var(--accent-soft); color: var(--on-accent-soft);
+  border-color: var(--accent-fill); cursor: default;
+}
+.landing .search-note { text-align: center; color: var(--ink-3); }
+
+/* ── 資料涵蓋範圍：門面帶正下方的佐證 ──────────────────
+   ⚠ 這三個數字是「這個站不是空殼」的唯一證據，貼在搜尋框正下方才有
+     作用（OpenSanctions 與 ProPublica Nonprofit Explorer 都是這樣擺）。
+     原本它是一個靠左的兩欄 dl，堆在下面看起來像附註。 */
+.landing .coverage { margin-top: 0; border-top: 0; padding-top: 18px; text-align: center; }
+.landing .coverage > .kicker { display: none; }
+.landing .cov-list {
+  display: grid; grid-template-columns: auto auto; justify-content: center;
+  column-gap: 10px; row-gap: 6px;
+}
+.landing .cov-list dt { font-size: 22px; font-weight: 600; }
+.landing .cov-list dd { font-size: 12.5px; color: var(--ink-3); }
+/* ⚠ .pledge 不跟著置中 —— 兩欄清單置中會讓每一行的起點都不一樣，
+   眼睛要重新找行首。置中的是標題，不是內文。 */
+.landing .pledge { text-align: left; }
 
 /* ── 會做什麼 / 不會做什麼 ───────────────────── */
 .pledge {
@@ -96,9 +184,22 @@
 .pledge-col.is-not li { color: var(--ink-3); }
 
 @media (min-width: 720px) {
-  .landing .hero { margin-top: 7vh; }
-  .landing .hero .hero-t { font-size: 44px; }
-  .landing .hero .hero-p { font-size: 16px; }
+  .landing .face { padding: 44px 20px 46px; }
+  .landing .hero .hero-t { font-size: 44px; letter-spacing: -.03em; }
+  .landing .hero .hero-p { font-size: 16px; margin-top: 13px; }
+  .landing .search { margin-top: 34px; }
+
+  .dia { margin-top: 32px; }
+  .dia-row, .dia-tl-track, .dia-tl-marks { grid-template-columns: 1fr 120px 1fr; }
+  .dia-box { padding: 16px 14px 18px; }
+  .dia-h { font-size: 17px; }
+  .dia-s { font-size: 12px; }
+  .dia-n { font-size: 40px; }
+
+  .landing .cov-list { grid-template-columns: repeat(6, auto); }
+  .landing .cov-list dt { font-size: 24px; }
+  .landing .cov-list dd:not(:last-of-type) { padding-right: 20px; }
+
   .pledge { grid-template-columns: 1fr 1fr; gap: 34px; }
 }
 
@@ -766,7 +867,11 @@
 @media (min-width: 980px) {
   .page { padding-top: 34px; }
 
-  .hero .band > p:first-child { font-size: 34px; }
+  /* ⚠ 舊的 `.hero .band > p:first-child { font-size: 34px }` 已刪除 ——
+     首頁標題不再包在 .band 裡，那條規則從 2026-09-18 起沒有對象。 */
+  .landing .face { padding-block: 54px 50px; }
+  .landing .hero .hero-t { font-size: 52px; }
+  .landing .hero .hero-p { font-size: 18px; }
   .search { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: end; }
   .search label { grid-column: 1 / -1; margin-bottom: 0; }
   .search .sw-btn { margin-top: 0; width: auto; padding: 13px 28px; }

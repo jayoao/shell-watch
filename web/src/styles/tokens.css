@@ -58,6 +58,10 @@
   /* ── 線 ──（非文字，對比門檻 3.0）─────────────────────── */
   --rule:   #D7D3D3;  /* 一般分隔線 */
   --rule-2: #9B9797;  /* 輸入框、可點的邊界 */
+  /* ⚠⚠ --rule-2 的值是對著 --paper / --sheet 調的。壓在 --desk 上時
+     淺色主題只有 **2.18:1**，過不了非文字的 3.0 —— 首頁門面帶上的
+     輸入框因此用 --ink-3（深色 6.65:1、淺色 4.92:1）。
+     在 --desk 上放可點的邊界之前，先量一次再決定用哪一個。 */
 
   /* ── 三個有意義的顏色 ──────────────────────────────────── */
   --fatal:        #A3271E;
@@ -161,6 +165,14 @@ body {
   line-height: 1.7;
   text-wrap: pretty;
   -webkit-font-smoothing: antialiased;
+  /* ⚠⚠ 首頁的門面帶（home.css 的 `.landing .face`）用
+     `margin-inline: calc(50% - 50vw)` 脫出 1180px 的版心。
+     100vw 比文件寬（多出捲軸的寬度），沒有這一行的話桌機會出現
+     一條幾 px 的橫向捲軸 —— 就是「改版面沒量 px」那一類的 bug。
+     ⚠ 用 clip 不用 hidden：hidden 會建立捲動容器（position: sticky
+       會失效、錨點捲動會被吃掉），clip 不會。
+     ⚠ 這一行與 .landing .face 是一組的，不要只留一邊。 */
+  overflow-x: clip;
 }
 
 input, button, select, textarea { font: inherit; color: inherit; }
