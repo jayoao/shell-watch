@@ -1044,7 +1044,29 @@ function credLine(c: Credential): string {
     .filter(Boolean).join("\u3000");
 }
 
-function CredGroup({ kind, list }: { kind: Credential["kind"]; list: Credential[] }) {
+/**
+ * 把單位名拆成「共同前綴」與「真正區別的部分」。
+ *
+ * ⚠ 台電 52 張驗證，每一筆都以「台灣電力股份有限公司」開頭 —— 10 個字
+ *   重複 52 次，而真正有差別的「第二核能發電廠 / 台中供電區營運處」
+ *   被推到最後面。整塊讀起來像一坨，原因就是六成的像素是同一串字。
+ *
+ * ⚠⚠ **只變暗，不刪除。** 單位全名是法定紀錄，複製貼上、螢幕閱讀器、
+ *   Ctrl+F 都必須拿得到完整字串。前綴照樣在 DOM 裡，只是顏色降一階。
+ *
+ * ⚠ 只在「完全以公司全名開頭」時才拆。名稱不一樣的單位（例如子公司）
+ *   整串照原樣顯示 —— 猜測式的拆字會把不同法人看成同一家的分支。
+ */
+function unitParts(unit: string, owner: string): [string, string] {
+  if (owner && unit.startsWith(owner) && unit.length > owner.length) {
+    return [owner, unit.slice(owner.length)];
+  }
+  return ["", unit];
+}
+
+function CredGroup({ kind, list, owner }: {
+  kind: Credential["kind"]; list: Credential[]; owner: string;
+}) {
   const [all, setAll] = useState(false);
   // 有效的排前面，同組內保持來源順序
   const sorted = [...list].sort((a, b) => Number(b.active) - Number(a.active));
@@ -1052,26 +1074,40 @@ function CredGroup({ kind, list }: { kind: Credential["kind"]; list: Credential[
   const rest = sorted.length - shown.length;
   return (
     <div className="cred-group">
+      {/* ⚠⚠ 階層曾經是**反的**：分類標題 12px/400/灰/等寬，底下的單位名
+          13.5px/600/亮/襯線 —— 子項目比自己的標題還大聲，所以整塊讀起來
+          沒有層次。分類標題現在是第 2 階（13px/700/亮），單位名降到
+          第 3 階（13px/500）並且內縮 + 左側導引線。
+          ⚠ 改任何一階的字級前，先確認四階的「級距」還在：
+            16/700 → 13/700 → 13/500 → 11.5/400。 */}
       <div className="cred-kind">
         {CRED_LABEL[kind]}
-        {sorted.length > 1 && `\u3000${sorted.length} 項`}
+        {sorted.length > 1 && <> <span className="cred-kind-n">{sorted.length} 項</span></>}
       </div>
       <ul className="cred-list">
-        {shown.map((c, i) => (
-          <li key={i} className={c.active ? undefined : "cred-dead"}>
-            <span className="cred-unit">{c.unit}</span>
-            {credLine(c) && <span className="cred-detail">{credLine(c)}</span>}
-          </li>
-        ))}
+        {shown.map((c, i) => {
+          const [pre, tail] = unitParts(c.unit, owner);
+          return (
+            <li key={i} className={c.active ? undefined : "cred-dead"}>
+              <span className="cred-unit">
+                {pre && <span className="cred-pre">{pre}</span>}
+                {tail}
+              </span>
+              {credLine(c) && <span className="cred-detail">{credLine(c)}</span>}
+            </li>
+          );
+        })}
       </ul>
-      {rest > 0 && (
-        <button className="linkish" onClick={() => setAll(true)}>
-          展開其餘 {rest} 個單位
-        </button>
-      )}
-      {all && sorted.length > CRED_PREVIEW && (
-        <button className="linkish" onClick={() => setAll(false)}>收合</button>
-      )}
+      <div className="cred-more">
+        {rest > 0 && (
+          <button className="linkish" onClick={() => setAll(true)}>
+            展開其餘 {rest} 個單位
+          </button>
+        )}
+        {all && sorted.length > CRED_PREVIEW && (
+          <button className="linkish" onClick={() => setAll(false)}>收合</button>
+        )}
+      </div>
     </div>
   );
 }
@@ -1176,7 +1212,7 @@ function Incidents({ list }: { list: Incident[] }) {
  * ⚠ 到期的不藏起來，標示「已到期」。藏起來會讓人以為從來沒驗證過；
  *   當成有效則是背書。兩種都不對，所以照實寫。
  */
-function Credentials({ list }: { list: Credential[] }) {
+function Credentials({ list, owner }: { list: Credential[]; owner: string }) {
   // ⚠⚠ Hook 一定要在任何提前 return **之前**呼叫。
   //   2026-09-15 我把 useState 放在 `if (!list.length) return null` 後面，
   //   eslint 的 react-hooks/rules-of-hooks 當場擋下來。
@@ -1209,7 +1245,7 @@ function Credentials({ list }: { list: Credential[] }) {
         ⚠ <b>對象是下面寫的那個單位</b>——很多是廠區或分支，
         不代表整家公司的每個場所都通過。
       </p>
-      {groups.map(([k, v]) => <CredGroup key={k} kind={k} list={v} />)}
+      {groups.map(([k, v]) => <CredGroup key={k} kind={k} list={v} owner={owner} />)}
       {dead > 0 && (
         <p className="fineprint" style={{ marginTop: 12 }}>
           其中 {dead} 項已到期，照實列出。
@@ -1540,7 +1576,7 @@ function Result({ hit, onPick }: {
         </div>
         <div className="res-haz">
           <Incidents list={hit.company.incidents ?? []} />
-          <Credentials list={hit.company.credentials ?? []} />
+          <Credentials list={hit.company.credentials ?? []} owner={hit.company.name} />
           <SafetyUnitsBlock su={hit.company.safety} />
         </div>
       </div>

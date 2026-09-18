@@ -183,7 +183,7 @@
 /* ── 危害型態（側欄）─────────────────────── */
 .side-block { margin-top: 26px; border-top: 1px solid var(--ink); padding-top: 16px; }
 .side-h { font-size: 16px; margin: 0 0 6px; font-weight: 700; }
-.side-p { font-size: 12.5px; line-height: 1.75; color: var(--ink-2); margin: 0; }
+.side-p { font-size: 12.5px; line-height: 1.75; color: var(--ink-2); margin: 0 0 4px; }
 .duty { border-left: 3px solid var(--ink); padding: 2px 0 2px 12px; margin-top: 14px; }
 .duty-text { font-size: 13.5px; line-height: 1.8; color: var(--ink-2); margin: 0; }
 .warnbox {
@@ -198,22 +198,45 @@
   font-size: 12.5px; line-height: 1.8; color: var(--ink-2);
   margin: 6px 0 4px; overflow-wrap: anywhere;
 }
-.cred-group { margin-top: 14px; }
+/* ⚠⚠ 四階的級距是這一塊唯一的結構，改字級前先確認它還在：
+     第 1 階 .side-h      16px / 700 / --ink     區塊
+     第 2 階 .cred-kind   13px / 700 / --ink     分類
+     第 3 階 .cred-unit   13px / 500 / --ink     單位（內縮 + 左導引線）
+     第 4 階 .cred-detail 11.5px/ 400 / --ink-3  明細
+   2026-09-18 之前第 2 階是 12px/400/--ink-3/等寬，第 3 階是 13.5px/600 ——
+   **子項目比自己的標題還大聲**，所以整塊讀起來沒有層次，像一坨。
+   「看起來一階一階」靠的是三件事同時成立：字級、字重、左側縮排。
+   只調其中一件不會有感覺。 */
+.cred-group { margin-top: 18px; }
 .cred-kind {
-  display: block; font-family: var(--mono); font-size: 12px;
-  letter-spacing: .06em; color: var(--ink-3);
-  border-bottom: 1px solid var(--rule-2); padding-bottom: 4px;
+  display: block; font-size: 13px; font-weight: 700; color: var(--ink);
+  line-height: 1.45; padding-bottom: 5px;
+  border-bottom: 1px solid var(--rule-2);
 }
-.cred-list { list-style: none; margin: 0 0 6px; padding: 0; }
-.cred-list li { border-bottom: 1px solid var(--rule); padding: 8px 0; }
+/* 數量是附註不是標題的一部分，降一階免得跟分類名搶。 */
+.cred-kind-n {
+  font-family: var(--mono); font-size: 11.5px; font-weight: 400;
+  color: var(--ink-3); margin-left: 8px;
+}
+/* 左側導引線 —— 縮排看得見，才有「這些東西屬於上面那個標題」的感覺。 */
+.cred-list {
+  list-style: none; margin: 0; padding: 0 0 0 11px;
+  border-left: 1px solid var(--rule);
+}
+.cred-list li { border-bottom: 1px solid var(--rule); padding: 7px 0; }
+.cred-list li:last-child { border-bottom: 0; }
 .cred-unit {
-  display: block; font-size: 13.5px; line-height: 1.5; font-weight: 600;
+  display: block; font-size: 13px; line-height: 1.5; font-weight: 500;
   overflow-wrap: anywhere;
 }
+/* 共同前綴（公司全名）降一階。⚠ 是變暗不是刪除：
+   全名仍在 DOM 裡，複製貼上與 Ctrl+F 照樣找得到。 */
+.cred-pre { color: var(--ink-3); font-weight: 400; }
 .cred-detail {
-  display: block; font-family: var(--mono); font-size: 12px;
-  color: var(--ink-2); margin-top: 2px;
+  display: block; font-family: var(--mono); font-size: 11.5px;
+  color: var(--ink-3); margin-top: 3px;
 }
+.cred-more { padding-left: 11px; margin-top: 6px; }
 /* ⚠ 到期的不藏起來也不用警示色 —— 它不是「危險」，是「已經過期」。
    用灰階降權就好，用 --pending 會讓人以為有爭議。 */
 .cred-dead .cred-unit, .cred-dead .cred-detail { color: var(--ink-3); font-weight: 400; }
