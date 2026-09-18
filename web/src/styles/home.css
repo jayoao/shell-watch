@@ -15,6 +15,93 @@
 .hero .band > p:first-child { margin: 0; }
 
 /* ── 查詢框 ───────────────────────────────── */
+/* ══ 門面模式（首頁，尚未查詢）══════════════════════════
+   ⚠⚠ 只有 .page.landing 底下才生效。結果模式的版面一個字都不要動 ——
+   查完之後使用者要的是密度，不是門面。
+   ⚠ 實測依據：2026-09-18 首頁只有 558px 高、svg 0、img 0，
+     視窗 898px 裡空著 340px。使用者的原話是「第一眼要能很清楚知道在幹嘛」。
+   ⚠ 參考：Violation Tracker（最接近的國外同類）的搜尋框在 y=1025，
+     首屏整屏是門面。我們把搜尋框留在首屏內，比他們更近一步。 */
+
+.landing .hero { margin-top: 4vh; }
+/* ⚠⚠ 選擇器一定要寫成 `.landing .hero .hero-t`，不可以只寫 `.landing .hero-t`。
+   tokens.css 有 `.band > p:first-child { font-size: 15px }`，特異度 (0,2,1)；
+   `.landing .hero-t` 只有 (0,2,0)，**少一個元素選擇器就輸掉**，
+   標題會停在 15px。2026-09-18 部署後量 computed style 才發現 ——
+   CSS 有進檔案、規則也被解析，只是沒贏。
+   ⚠ 這也是為什麼驗證要量 getComputedStyle，不能只確認「CSS 有沒有部署上去」。 */
+.landing .hero .hero-t {
+  margin: 0; font-size: 34px; line-height: 1.18; font-weight: 700;
+  letter-spacing: -.025em;
+}
+.landing .hero .hero-p { margin: 10px 0 0; font-size: 15px; line-height: 1.7; }
+
+/* ── 換殼示意圖 ─────────────────────────────── */
+.dia { margin: 26px 0 0; }
+.dia-row {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 14px; max-width: 460px;
+}
+.dia-box {
+  border: 1px solid var(--rule); border-radius: 3px;
+  padding: 12px 14px 13px; background: var(--sheet);
+  text-align: center;
+}
+/* ⚠ 新公司用虛線框：它「看起來乾淨」正是換殼的重點，
+   實線會讓人以為那是一家有歷史的公司。 */
+.dia-box.is-new { border-style: dashed; background: none; }
+.dia-h { margin: 0; font-size: 14px; font-weight: 700; }
+.dia-s { margin: 2px 0 0; font-size: 11px; color: var(--ink-3); }
+.dia-n {
+  margin: 6px 0 0; font-family: var(--serif); font-size: 30px; line-height: 1;
+}
+.dia-box.is-new .dia-n { color: var(--ink-3); }
+
+.dia-join {
+  display: flex; align-items: center; gap: 10px;
+  max-width: 460px; margin: 12px 0 0;
+}
+.dia-line { flex: 1; height: 1px; background: var(--rule-2); }
+.dia-jt {
+  font-family: var(--mono); font-size: 11.5px; color: var(--ink-2);
+  white-space: nowrap;
+}
+.dia-note {
+  max-width: 460px; margin: 10px 0 0;
+  font-size: 12px; line-height: 1.7; color: var(--ink-3);
+}
+
+/* ── 門面模式的搜尋框：放大，它本身就是「開始搜尋」 ── */
+.landing .search { margin-top: 30px; }
+.landing .search label { font-size: 12px; }
+.landing .sw-input { font-size: 17px; padding: 15px 16px; }
+.landing .sw-btn { font-size: 16px; padding: 15px 30px; }
+
+/* ── 會做什麼 / 不會做什麼 ───────────────────── */
+.pledge {
+  display: grid; gap: 18px; margin: 22px 0 0;
+  border-top: 1px solid var(--rule); padding-top: 16px;
+}
+.pledge-h {
+  margin: 0 0 7px; font-size: 13px; font-weight: 700;
+}
+/* ⚠ 「不做什麼」那欄不要用紅色或警示色 —— 那是我們的自我約束，
+   不是警告使用者。用灰階降一階就好。 */
+.pledge-col.is-not .pledge-h { color: var(--ink-3); }
+.pledge ul { margin: 0; padding-left: 18px; }
+.pledge li {
+  font-size: 12.5px; line-height: 1.75; color: var(--ink-2);
+  margin-bottom: 3px;
+}
+.pledge-col.is-not li { color: var(--ink-3); }
+
+@media (min-width: 720px) {
+  .landing .hero { margin-top: 7vh; }
+  .landing .hero .hero-t { font-size: 44px; }
+  .landing .hero .hero-p { font-size: 16px; }
+  .pledge { grid-template-columns: 1fr 1fr; gap: 34px; }
+}
+
 .search { margin: 18px 0 0; }
 .search label { display: block; margin-bottom: 7px; }
 .search .sw-btn { margin-top: 10px; }
@@ -272,6 +359,9 @@
 }
 
 /* 首頁只留四個數字，細節一律往 /about 送。 */
+.cov-asof {
+  font-size: 12px; color: var(--ink-3); margin: 10px 0 0;
+}
 .cov-more { margin: 14px 0 0; font-size: 13px; }
 .cov-more a { color: var(--link); }
 
@@ -452,6 +542,31 @@
 /* ⚠⚠ 這裡是表格，不是卡片，而且是量出來的決定：
    舊的卡片版每列 130px、19 列 2,472px，佔整頁 41%，
    把真正的摘要擠到只剩 9%。改回卡片前先量頁高。 */
+/* 可排序表頭。⚠ 整個 th 是按鈕，不是只有文字 ——
+   點擊目標太小是這種表格最常見的可用性問題。 */
+.th-sort {
+  display: inline-flex; align-items: baseline; gap: 5px;
+  background: none; border: 0; padding: 0; cursor: pointer;
+  font: inherit; color: inherit; letter-spacing: inherit;
+  text-align: inherit;
+}
+.th-sort:hover { color: var(--ink); }
+.th-arr { font-family: var(--mono); font-size: 9px; opacity: .55; }
+.lawg-tab thead th[aria-sort="ascending"] .th-arr,
+.lawg-tab thead th[aria-sort="descending"] .th-arr { opacity: 1; }
+.lawg-tab thead th[aria-sort="ascending"] .th-sort,
+.lawg-tab thead th[aria-sort="descending"] .th-sort { color: var(--ink); font-weight: 700; }
+.lawg-tab thead th.num .th-sort { flex-direction: row-reverse; }
+/* ⚠ 依金額排序時才出現的那句，要比一般註腳顯眼一階，
+   因為它警告的是「你現在看到的順序不是你以為的順序」。 */
+.lawg-warn {
+  color: var(--pending-ink); background: var(--pending-soft);
+  padding: 7px 10px; border-radius: 2px;
+}
+/* 下載鈕。⚠ 放在筆數旁邊，不要放在清單最下面 ——
+   使用者決定要不要帶走資料是在看到筆數的當下。 */
+.block-dl { margin: 6px 0 0; }
+
 .lawg-wrap { margin: 6px 0 0; overflow-x: auto; }
 .lawg-tab {
   width: 100%; min-width: 520px;

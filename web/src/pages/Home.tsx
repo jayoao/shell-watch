@@ -849,9 +849,112 @@ function LawGroup({ law, vs }: { law: string; vs: ViolationRef[] }) {
   );
 }
 
-function ViolationList({ vs, title }: {
-  vs: ViolationRef[]; title: string;
+/**
+ * CSV 匯出。
+ *
+ * ⚠⚠ **Excel 的兩個地雷，兩個都要處理，不然台灣使用者一開就是亂碼或中毒：**
+ *
+ * 一、**BOM。** 沒有 UTF-8 BOM 的話 Excel 會用系統預設編碼開啟，
+ *   中文全部變亂碼。這不是 Excel 的 bug 是它的預設行為，要自己加 \uFEFF。
+ *
+ * 二、**公式注入（CSV injection）。** 違法事實是來源機關的自由文字，
+ *   我們不控制它的內容。一個以 = + - @ 開頭的儲存格，Excel 會當成公式執行。
+ *   所以任何以這些字元開頭的欄位前面補一個單引號。
+ *   ⚠ 這不是理論風險：我們把政府的原始文字原樣交給使用者的試算表。
+ *
+ * ⚠ 匯出的是**這家公司自己的紀錄**，不含「同名負責人其他公司」——
+ *   把那些混進同一個檔案，等於在使用者的硬碟上做我們在畫面上拒絕做的合併。
+ */
+const CSV_HEAD = [
+  "公告日期(民國)", "處分字號", "法規條項", "違法事實",
+  "罰鍰(元)", "公告是否載明金額", "是否涉及死亡災害", "行政救濟",
+  "危害分類", "白話標籤", "資料來源",
+];
+
+function csvCell(v: string | number): string {
+  let t = String(v ?? "");
+  // ⚠ 公式注入防線，不要因為「政府資料不會有」就拿掉。
+  if (/^[=+\-@\t\r]/.test(t)) t = "'" + t;
+  return '"' + t.replace(/"/g, '""') + '"';
+}
+
+function toCsv(vs: ViolationRef[]): string {
+  const rows = vs.map((v) => [
+    v.date,
+    v.doc_no,
+    v.law,
+    v.content,
+    v.fine > 0 ? v.fine : "",
+    v.fine > 0 ? "是" : "否，公告未載金額",
+    v.fatal ? "是（公告文字涉及，不等於該公司造成死亡）" : "否",
+    v.appeal ?? "",
+    (v.hazards ?? []).map((h) => h.name).join("、"),
+    v.plain?.label ?? "",
+    v.source_url,
+  ].map(csvCell).join(","));
+  // ⚠ 用 CRLF，Excel 對 LF-only 的處理在舊版會整欄擠成一列。
+  return "\uFEFF" + [CSV_HEAD.map(csvCell).join(","), ...rows].join("\r\n") + "\r\n";
+}
+
+function downloadCsv(vs: ViolationRef[], company: string, covTo: string) {
+  const blob = new Blob([toCsv(vs)], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  // ⚠ 檔名帶上資料涵蓋日：下載下來的檔案離開了網站，就沒有別的地方
+  //   可以告訴使用者這份是什麼時候的資料了。
+  // ⚠⚠ 一定要過濾檔名。covTo 是「115/08/31」，**斜線在 Windows 和 macOS
+  //   都是非法檔名字元**；公司名也可能含其他保留字元，而來源資料我們不控制。
+  //   瀏覽器各自有不同的替換行為，不要賭它會幫你處理。
+  //   2026-09-18 實測 Chrome 產出的檔名就是「…涵蓋至115/08/31.csv」。
+  // ⚠ 控制字元用 charCode 篩掉，不用 regex：
+  //   /[\u0000-\u001f]/ 會被 eslint 的 no-control-regex 擋下來，
+  //   而那條規則是對的 —— 控制字元寫在 regex 裡看不見、很難審。
+  const safe = (t: string) =>
+    [...t].filter((c) => c.charCodeAt(0) > 31).join("")
+      .replace(/[\\/:*?"<>|]/g, "_")
+      .trim();
+  a.download = `職得調查_${safe(company)}_裁處紀錄_涵蓋至${safe(covTo) || "未標示"}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+type SortKey = "law" | "n" | "year" | "fine";
+
+/**
+ * 可排序的表頭。
+ *
+ * ⚠ aria-sort 一定要給，而且三種值都要對（ascending / descending / none）——
+ *   螢幕閱讀器是靠它報「已依筆數遞減排序」的，只把箭頭畫出來等於沒做。
+ */
+function SortTh({ k, label, num, sort, onSort }: {
+  k: SortKey; label: string; num?: boolean;
+  sort: { k: SortKey; desc: boolean }; onSort: (k: SortKey) => void;
 }) {
+  const active = sort.k === k;
+  return (
+    <th scope="col" className={num ? "num" : undefined}
+        aria-sort={active ? (sort.desc ? "descending" : "ascending") : "none"}>
+      <button className="th-sort" onClick={() => onSort(k)}>
+        {label}
+        <span className="th-arr" aria-hidden="true">{active ? (sort.desc ? "▼" : "▲") : "↕"}</span>
+      </button>
+    </th>
+  );
+}
+
+function ViolationList({ vs, title, company }: {
+  vs: ViolationRef[]; title: string; company: string;
+}) {
+  // 資料涵蓋到哪一天。⚠ getMeta() 內部 memoize 過，重複呼叫不會多打網路。
+  const [meta, setMeta] = useState<Meta | null>(null);
+  useEffect(() => { void getMeta().then(setMeta); }, []);
+  const covTo = meta?.coverage_to ?? "";
+  const [sort, setSort] = useState<{ k: SortKey; desc: boolean }>({ k: "n", desc: true });
+  const onSort = (k: SortKey) =>
+    setSort((s) => (s.k === k ? { k, desc: !s.desc } : { k, desc: true }));
   // ⚠ 註腳只在真的有「公告未載金額」的時候才出現。
   //   每一串都掛一句「0 元不是免罰」，看到第三次就沒有人在看了。
   const hasZeroFine = vs.some((v) => v.fine <= 0);
@@ -906,11 +1009,45 @@ function ViolationList({ vs, title }: {
   // 表尾的 † 註解只在真的有「未載金額」時才出現。
   const anyUnlisted = groups.some(([, l]) => l.some((v) => v.fine <= 0));
 
+  const sortedGroups = useMemo(() => {
+    const key = (e: [string, ViolationRef[]]): string | number => {
+      switch (sort.k) {
+        case "law": return e[0];
+        // 取最早的年份，不是最晚 —— 「從哪一年開始被罰」比「最後一次」有意義。
+        case "year": return e[1].reduce((a, v) => {
+          const y = rocYear(v.date);
+          return y && (!a || y < a) ? y : a;
+        }, "");
+        case "fine": return e[1].reduce((a, v) => a + (v.fine > 0 ? v.fine : 0), 0);
+        default: return e[1].length;
+      }
+    };
+    const arr = [...groups];
+    arr.sort((a, b) => {
+      const x = key(a), y = key(b);
+      const c = typeof x === "string"
+        ? String(x).localeCompare(String(y), "zh-TW")
+        : Number(x) - Number(y);
+      return sort.desc ? -c : c;
+    });
+    return arr;
+  }, [groups, sort]);
+
   return (
     <section className="block">
       <h2 className="block-h">{title}</h2>
       <p className="block-sub">
         {vs.length} 筆{yearSpan(vs) ? ` · ${yearSpan(vs)}` : ""}
+        {/* ⚠⚠ 資料涵蓋到哪一天必須跟筆數放在一起。
+            「255 筆」沒有日期就是一個沒有時效的斷言 —— 讀者無法分辨
+            這是三週前還是三年前的資料。值本來就在 meta 裡，之前只用在
+            年度圖的星號上，等於算了卻沒講。 */}
+        {covTo && <> · 資料涵蓋至 <span className="num">{covTo}</span></>}
+      </p>
+      <p className="block-dl">
+        <button className="linkish" onClick={() => downloadCsv(vs, company, covTo)}>
+          下載這 {vs.length} 筆（CSV）
+        </button>
       </p>
 
       {long && (
@@ -949,21 +1086,34 @@ function ViolationList({ vs, title }: {
               <caption className="sr-only">依法條分組的裁處摘要，依筆數由多到少排列</caption>
               <thead>
                 <tr>
-                  <th scope="col">法條</th>
-                  <th scope="col" className="num">筆數</th>
-                  <th scope="col" className="num">年度（民國）</th>
-                  <th scope="col" className="num">罰鍰合計（元）</th>
+                  <SortTh k="law" label="法條" sort={sort} onSort={onSort} />
+                  <SortTh k="n" label="筆數" num sort={sort} onSort={onSort} />
+                  <SortTh k="year" label="年度（民國）" num sort={sort} onSort={onSort} />
+                  <SortTh k="fine" label="罰鍰合計（元）" num sort={sort} onSort={onSort} />
                   <th scope="col">標記</th>
                   <th scope="col"><span className="sr-only">展開逐筆</span></th>
                 </tr>
               </thead>
               <tbody>
-                {groups.map(([law, list]) => (
+                {sortedGroups.map(([law, list]) => (
                   <LawGroup key={law} law={law} vs={list} />
                 ))}
               </tbody>
             </table>
           </div>
+          {/* ⚠⚠ 依「罰鍰合計」排序會排出一個**看起來權威、實際上不完整**的
+              順序：台電 19 組裡有 14 組的合計是不完整的。排序本身沒有錯，
+              但它讓讀者以為第一列就是罰最多的那一組。
+              所以只有在這個排序生效時才多印一句，把不完整的組數講出來。
+              ⚠ 不要改成「乾脆不給排序」——使用者要排是合理的，
+                我們的責任是讓他知道自己在排什麼。 */}
+          {sort.k === "fine" && anyUnlisted && (
+            <p className="fineprint lawg-foot lawg-warn">
+              ⚠ 目前依「罰鍰合計」排序，但 {groups.filter(([, l]) => l.some((v) => v.fine <= 0)).length}
+              /{groups.length} 組的合計並不完整（見各列的「N/M 筆有金額」）。
+              這個順序是<b>已公告金額</b>的順序，不是實際罰鍰的順序。
+            </p>
+          )}
           {anyUnlisted && (
             <p className="fineprint lawg-foot">
               「N/M 筆有金額」是該法條有公告罰鍰金額的筆數／總筆數。
@@ -1592,6 +1742,7 @@ function Result({ hit, onPick }: {
           <ViolationList
             vs={hit.company.own_violations}
             title="這家公司自己的紀錄"
+            company={hit.company.name}
           />
         ) : (
           <section className="block">
@@ -1861,7 +2012,12 @@ export default function Home() {
   }, [hit, asked]);
 
   return (
-    <div className="page">
+    /* ⚠⚠ 首頁與結果頁是**同一個元件的兩個模式**，靠 `fresh` 切換，
+       不是兩條路由。理由：`/?q=公司名` 這種分享連結必須直接進結果模式，
+       中間不可以卡一個門面。2026-09-18 之前首頁只有 558px 的純文字，
+       使用者的原話是「第一眼要能很清楚知道在幹嘛」。
+       ⚠ 改這裡之前先確認 `/?q=…` 仍然跳過門面。 */
+    <div className={fresh ? "page landing" : "page"}>
       {/* 索引不一致是硬錯誤，不能安靜地回「查無」。設計稿 A8。 */}
       {hashMismatch && (
         <div className="alert">
@@ -1877,9 +2033,7 @@ export default function Home() {
       {fresh && (
         <div className="hero">
           <div className="band" style={{ marginTop: 0 }}>
-            <p style={{ fontSize: 26, lineHeight: 1.2, fontWeight: 700, letterSpacing: "-.02em" }}>
-              查的是公司，看見的是人
-            </p>
+            <p className="hero-t">查的是公司，看見的是人</p>
             {/* ⚠ 2026-09-15 標語從「面試前，把老闆的名字查一遍」改成這一句。
                 原本那句會讓人預期一個**輸入姓名的框** —— 我們沒有，
                 而且刻意不做（開放人名查詢會讓這個工具從「查公司」
@@ -1888,10 +2042,43 @@ export default function Home() {
                 文案承諾產品沒有的東西，跟「功能改了文案沒跟上」是同一種謊，
                 只是方向相反。新的標語描述的是真實的機制：
                 輸入的是公司，呈現的軸線是人。 */}
-            <p>
-              勞動部的違法紀錄跟著公司走。公司收掉重開，紀錄就留在舊公司。
-              所以輸入公司名之後，這裡會把它的負責人姓名，
-              以及那個姓名出現在哪些其他公司的公開紀錄上，一起呈現出來。
+            <p className="hero-p">
+              勞動部的違法紀錄<b>跟著公司走</b>。公司收掉重開，紀錄就留在舊公司。
+            </p>
+          </div>
+
+          {/* ⚠⚠ 這張圖講的是整個系統唯一難用文字說清楚的事：換殼。
+              用**虛構**的甲乙公司，不用真實案例 —— 首頁是門面，
+              在沒有人查詢過的情況下就在門面上點名一家真公司，
+              跟我們整站在守的那條線不一致。
+              ⚠ 圖裡自帶「姓名相同不等於同一人」。這張圖會被截圖進簡報和影片，
+                警語跟著圖走，才不會在轉載時掉隊。
+              ⚠ 用 HTML+CSS 不用 SVG：中文在 SVG 裡縮放會失控，
+                而且 HTML 的文字螢幕閱讀器讀得到、可以被 Ctrl+F 找到。 */}
+          <div className="dia" role="img"
+               aria-label="示意圖：甲公司已解散、有 12 筆裁處紀錄；乙公司新設立、0 筆紀錄；兩家公司的負責人姓名相同。姓名相同不等於同一人。">
+            <div className="dia-row" aria-hidden="true">
+              <div className="dia-box">
+                <p className="dia-h">甲公司</p>
+                <p className="dia-s">已解散</p>
+                <p className="dia-n num">12</p>
+                <p className="dia-s">筆裁處紀錄</p>
+              </div>
+              <div className="dia-box is-new">
+                <p className="dia-h">乙公司</p>
+                <p className="dia-s">今年新設立</p>
+                <p className="dia-n num">0</p>
+                <p className="dia-s">筆裁處紀錄</p>
+              </div>
+            </div>
+            <div className="dia-join" aria-hidden="true">
+              <span className="dia-line" />
+              <span className="dia-jt">同一個負責人姓名</span>
+              <span className="dia-line" />
+            </div>
+            <p className="dia-note" aria-hidden="true">
+              ⚠ 姓名相同<b>不等於</b>同一人。本站不判定身分，
+              只呈現這個連結有多少獨立佐證。
             </p>
           </div>
         </div>
@@ -2221,9 +2408,38 @@ function Coverage({ meta }: { meta: Meta | null | undefined }) {
           <dd>部法規 · 民國 100–115 年</dd>
         </dl>
       )}
+      {/* ⚠ 首頁的三個大數字沒有時間戳就是三個沒有時效的斷言。
+          meta.coverage_to 本來就算好了，只是以前沒印出來。 */}
+      {meta?.coverage_to && (
+        <p className="cov-asof">
+          裁處公告資料涵蓋至民國 <span className="num">{meta.coverage_to}</span>
+        </p>
+      )}
       <p className="cov-more">
         <a href="/about">資料來源、涵蓋範圍與已知缺口 →</a>
       </p>
+
+      {/* ⚠⚠ 「不會做什麼」跟「會做什麼」一樣重要，而且要在**使用者查詢之前**
+          就講完。查完之後才說「我們不評分」，他已經把數字讀成分數了。
+          ⚠ 這三條跟結果頁上的紅線是同一組，改一邊一定要改另一邊。 */}
+      <div className="pledge">
+        <div className="pledge-col">
+          <p className="pledge-h">這裡有什麼</p>
+          <ul>
+            <li>9 部法規的<b>公開裁處公告</b>，逐筆附處分字號</li>
+            <li>法條翻成人話，看得出被罰的是什麼事</li>
+            <li>得獎、驗證、安衛人員備查，標明是<b>哪個場所</b>的</li>
+          </ul>
+        </div>
+        <div className="pledge-col is-not">
+          <p className="pledge-h">這裡不做什麼</p>
+          <ul>
+            <li><b>不評分、不排名</b>，不說哪家公司比較危險</li>
+            <li><b>不判定身分</b>，公開資料裡沒有身分證字號</li>
+            <li>不提供人名查詢 —— 輸入的只能是公司</li>
+          </ul>
+        </div>
+      </div>
     </section>
   );
 }
