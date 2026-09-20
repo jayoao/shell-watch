@@ -24,11 +24,14 @@ import {
   TileLayer,
   GeoJSON,
   CircleMarker,
+  Circle,
   Marker,
   Popup,
+  Pane,
   useMap,
 } from "react-leaflet";
 import { divIcon } from "leaflet";
+import type { TileErrorEvent } from "leaflet";
 import type { Feature, Geometry } from "geojson";
 import type { Layer, PathOptions } from "leaflet";
 import type { GeoJsonObject } from "geojson";
@@ -288,7 +291,17 @@ function rateSE2(n: number, base: number): number {
  * 不是用 Leaflet 的 zoomstart —— 因為 fitBounds 自己也會觸發 zoomstart，
  * 用那個判斷會變成「第一次自動 fit 之後就再也不 fit」，等於繞回原來的 bug。
  */
-function KeepSized({ bounds }: { bounds: [[number, number], [number, number]] }) {
+/**
+ * ⚠⚠ focus 一定要走這個元件，不可以另外寫一個 setView。
+ *   KeepSized 的 ResizeObserver 只要沒被使用者接管，每次 resize 都會
+ *   fitBounds 回全台 —— 外面另外呼叫 setView 的話，會被它一腳踢回去，
+ *   而且是間歇性的（要等下一次 resize 才發作），最難查的那一種。
+ *   所以視窗位置只有一個來源：這裡。
+ */
+function KeepSized({ bounds, focus }: {
+  bounds: [[number, number], [number, number]];
+  focus?: { lat: number; lng: number; zoom: number } | null;
+}) {
   const map = useMap();
   const userMoved = useRef(false);
 
@@ -302,7 +315,11 @@ function KeepSized({ bounds }: { bounds: [[number, number], [number, number]] })
       map.invalidateSize({ animate: false });
       if (userMoved.current) return;
       if (el.clientWidth <= 0 || el.clientHeight <= 0) return;
-      map.fitBounds(bounds, { padding: [10, 10], animate: false });
+      /* 從查詢頁帶了行政區進來就對準那一區，否則維持全台。
+         ⚠ 13 級大約是一個行政區填滿畫面。再近會看不出它在哪個縣市，
+         再遠就跟全台沒兩樣，那個連結等於沒作用。 */
+      if (focus) map.setView([focus.lat, focus.lng], focus.zoom, { animate: false });
+      else map.fitBounds(bounds, { padding: [10, 10], animate: false });
     };
 
     sync();
@@ -319,7 +336,7 @@ function KeepSized({ bounds }: { bounds: [[number, number], [number, number]] })
       el.removeEventListener("wheel", markUser);
       el.removeEventListener("keydown", markUser);
     };
-  }, [map, bounds]);
+  }, [map, bounds, focus]);
 
   return null;
 }
@@ -347,12 +364,17 @@ export default function OshaDistrictMap() {
    * ⚠ 對不到就當作沒帶參數，不要跳錯誤 —— 地址推不出區是常態
    *   （郵政信箱、國外地址、舊式地名），那不是壞掉。
    */
+  const qs = useMemo(
+    () => (typeof window === "undefined" ? null : new URLSearchParams(window.location.search)),
+    [],
+  );
+
   const fromQuery = useMemo(() => {
-    if (typeof window === "undefined") return null;
-    const d = new URLSearchParams(window.location.search).get("d");
+    const d = qs?.get("d");
     if (!d) return null;
     return data.rows.find((r) => r.k === d) ?? null;
-  }, [data]);
+  }, [data, qs]);
+
   useEffect(() => {
     if (!fromQuery) return;
     const m = /^(.{2,3}[縣市])/.exec(fromQuery.k);
@@ -364,6 +386,7 @@ export default function OshaDistrictMap() {
   const [pdata, setPdata] = useState<PointDataset | null>(null);
   const [bounds, setBounds] = useState<GeoJsonObject | null>(null);
   const [loadErr, setLoadErr] = useState<string>("");
+  const [tileFail, setTileFail] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -399,6 +422,51 @@ export default function OshaDistrictMap() {
       })),
     [pdata],
   );
+
+  /** 從查詢頁帶過來的公司名（`?c=`）。原字串，只拿來比對與顯示。 */
+  const coName = qs?.get("c") ?? "";
+
+  /**
+   * 這家公司在點位檔裡的位置。
+   *
+   * ⚠⚠ `points.json` 只收**有職安法裁處、而且登記地址定位得出來**的
+   *   事業單位（23,815 家）。站上共 176,268 家，所以有 86.5% 的公司
+   *   在這裡查不到 —— 那不是錯誤，是這份資料的範圍。查不到就退回鄉鎮市區，
+   *   並且要講出來為什麼，不可以安靜地顯示一張全台地圖。
+   *
+   * ⚠ 這裡也做一次台／臺 正規化。產出端（pipeline/points.py）已經合併過了，
+   *   所以正常情況下只會命中一筆 —— 留著是因為查詢頁傳過來的 ?c= 是
+   *   使用者當初查的那個寫法，可能跟點位檔的顯示名不同（顯示名取的是
+   *   紀錄比較多的那個寫法）。不在這裡正規化，查「臺灣電力」就會對不到。
+   */
+  const coPoint = useMemo(() => {
+    if (!coName || !allPoints.length) return null;
+    const norm = (t: string) => t.replace(/臺/g, "台").trim();
+    const want = norm(coName);
+    const hits = allPoints.filter((p) => norm(p.name) === want);
+    if (!hits.length) return null;
+    const head = hits.reduce((a, b) => (b.n > a.n ? b : a));
+    return {
+      name: head.name,
+      lat: head.lat,
+      lng: head.lng,
+      exact: hits.every((p) => p.exact),
+      n: hits.reduce((a, p) => a + p.n, 0),
+      fatal: hits.reduce((a, p) => a + p.fatal, 0),
+      merged: hits.length,
+    };
+  }, [coName, allPoints]);
+  /* ⚠ 要是每次 render 都給新物件，KeepSized 的 effect 會跟著重跑：
+     事件監聽重掛一次，而且使用者還沒動過的話視窗會被一直拉回去。 */
+  /* 有公司座標就對準公司，否則對準行政區。
+     ⚠⚠ 縮放要跟著**定位精度**走，不可以一律拉到最近：
+     路名級的點只知道在哪條路上，zoom 16 的圖釘會宣稱一個
+     資料沒有的精度。門牌級 16、路名級 14、只有行政區 13。 */
+  const focus = useMemo(() => {
+    if (coPoint) return { lat: coPoint.lat, lng: coPoint.lng, zoom: coPoint.exact ? 16 : 14 };
+    if (fromQuery) return { lat: fromQuery.lat, lng: fromQuery.lng, zoom: 13 };
+    return null;
+  }, [coPoint, fromQuery]);
 
   const points = useMemo(() => {
     const bit = hazardFilter ? hazBit[hazardFilter] ?? 0 : 0;
@@ -645,6 +713,14 @@ export default function OshaDistrictMap() {
         </p>
       )}
 
+      {tileFail && (
+        <p className="sw-muted" style={{ margin: "0 0 12px" }}>
+          ⚠ 底圖有圖磚連不上內政部國土測繪中心（重試兩次仍失敗），
+          畫面上可能出現整片的色塊。<b>那是底圖的連線問題，不是那一帶沒有裁處紀錄</b>
+          —— 行政區界、縣市名與所有資料圖層都是本站自己的檔案，不受影響。
+        </p>
+      )}
+
       {layer === "points" ? (
         !pdata ? (
           <p className="sw-muted" style={{ margin: "0 0 12px", fontWeight: 600 }}>
@@ -715,8 +791,29 @@ export default function OshaDistrictMap() {
            */
           scrollWheelZoom
         >
-          <KeepSized bounds={TAIWAN_BOUNDS} />
-          <TileLayer url={BASEMAP_URL} attribution={BASEMAP_ATTR} maxZoom={20} />
+          <KeepSized bounds={TAIWAN_BOUNDS} focus={focus} />
+          {/* ⚠⚠ 圖磚偶爾會單張失敗（實測 16 張掉 1 張，z8/110/212）。
+              那一張在低縮放層級涵蓋台灣東半部，底下透出 --map-sea
+              （深色主題是近黑），看起來就是畫面破一個大洞 ——
+              而且**它跟「這裡沒有資料」長得一樣**，這是最不能誤會的一件事。
+              重試兩次，仍然失敗才承認，並在下面說明那是連線問題。
+              ⚠ 用 dataset 記次數，不要用外部變數 —— 圖磚會被 Leaflet
+              回收重用，計數掛在元素上才不會互相污染。 */}
+          <TileLayer
+            url={BASEMAP_URL}
+            attribution={BASEMAP_ATTR}
+            maxZoom={20}
+            eventHandlers={{
+              tileerror: (e: TileErrorEvent) => {
+                const img = e.tile as HTMLImageElement;
+                const n = Number(img.dataset.retry ?? "0");
+                if (n >= 2) { setTileFail(true); return; }
+                img.dataset.retry = String(n + 1);
+                const base = img.src.split("?")[0];
+                window.setTimeout(() => { img.src = `${base}?r=${n + 1}`; }, 400 * (n + 1));
+              },
+            }}
+          />
           {COUNTY_LABELS.map(([name, lat, lng]) => (
             <Marker
               key={name}
@@ -748,6 +845,35 @@ export default function OshaDistrictMap() {
 
           {layer === "points" && (
             <Clusters points={points} hazName={(c) => HAZARD_NAME[c] ?? c} />
+          )}
+
+          {/* ⚠⚠ 半徑用公尺不是像素，而且門牌級與路名級不一樣大。
+              圓圈畫的是「我們知道到多細」，不是裝飾 ——
+              一根圖釘會宣稱門牌級的精度，但 20.3% 的點沒有那個精度。 */}
+          {coPoint && (
+            /* ⚠⚠ 一定要放在自己的 pane 裡，而且 z-index 要高過 markerPane(600)。
+               預設的 overlayPane 是 400，會被叢集的圓圈整個蓋掉 ——
+               實測圈有畫出來（70×70 px、就在畫面中央），但看不見。
+               「數字對但使用者看不到」跟沒做是一樣的。 */
+            <Pane name="focus-co" style={{ zIndex: 650 }}>
+            <Circle
+              center={[coPoint.lat, coPoint.lng]}
+              radius={coPoint.exact ? 70 : 300}
+              pathOptions={{
+                color: "var(--accent)", weight: 3, opacity: 1,
+                fillColor: "var(--accent)", fillOpacity: 0.16,
+              }}
+            >
+              <Popup>
+                <b>{coPoint.name}</b>
+                <br />職安法裁處 {coPoint.n.toLocaleString()} 筆
+                {coPoint.fatal > 0 && <>（其中 {coPoint.fatal} 筆公告涉及死亡災害）</>}
+                <br />
+                {coPoint.exact ? "門牌級定位" : "路名級定位 —— 圓圈為大約範圍"}
+                <br />商工登記地址，不是職災發生地點
+              </Popup>
+            </Circle>
+            </Pane>
           )}
 
           {/*
@@ -901,7 +1027,36 @@ export default function OshaDistrictMap() {
           365 列裡自己找一列，跟直接告訴他，差別很大。
           ⚠ 措辭只給數字，不說「這一區很危險」—— 密度高可能是
           稽核密集，也可能是工業區，我們分不出來，就不要講。 */}
-      {fromQuery && (
+      {/* ⚠⚠ 帶了 ?c= 卻找不到，一定要講出原因。
+          直接顯示一張全台地圖，使用者會以為是連結壞了，
+          或更糟 —— 以為「這家公司沒有職安問題」。
+          點位檔只收 23,815 家（有職安法裁處且定位得出來），
+          站上共 176,268 家，查不到是常態不是例外。 */}
+      {coName && !coPoint && (
+        <p className="from-q">
+          本站的職安法點位裡沒有「<b>{coName}</b>」——
+          可能是它沒有職安法裁處，或登記地址無法定位成座標。
+          {fromQuery && <>已改為顯示它登記地址所在的鄉鎮市區。</>}
+        </p>
+      )}
+
+      {coPoint && (
+        <p className="from-q">
+          <b>{coPoint.name}</b>
+          {"\u3000"}職安法裁處 <span className="num">{coPoint.n.toLocaleString()}</span> 筆
+          {coPoint.fatal > 0 && <>{"\u3000·\u3000"}其中 <span className="num">{coPoint.fatal}</span> 筆公告涉及死亡災害</>}
+          <span className="from-q-note">
+            {/* ⚠ 精度一定要標。路名級的點只知道在哪條路上，
+                圓圈畫的就是那個不確定範圍 —— 圖釘會讓人以為是門牌。 */}
+            {coPoint.exact
+              ? "圖上的圓圈是商工登記地址（門牌級定位），不是職災發生地點。"
+              : "此筆只定位到路名，圓圈是大約範圍、不是確切門牌；且為商工登記地址，不是職災發生地點。"}
+            {coPoint.merged > 1 && "\u3000本站把「台」「臺」兩種寫法視為同一家，已合併計算。"}
+          </span>
+        </p>
+      )}
+
+      {fromQuery && !coPoint && (
         <p className="from-q">
           <b>{fromQuery.k}</b>
           {"\u3000"}職安法裁處 <span className="num">{countOf(fromQuery).toLocaleString()}</span> 件

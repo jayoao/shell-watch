@@ -1873,6 +1873,22 @@ function Result({ hit, onPick }: {
 
   // 登記地址所在的鄉鎮市區。⚠ 算一次就好，JSX 裡不要重複呼叫。
   const dist = districtOf(hit.company.address);
+
+  /**
+   * 這家公司有沒有職安法的裁處。
+   *
+   * ⚠⚠ 決定連結**怎麼寫**，不只是帶不帶參數。
+   *   職安地圖的點位檔只收「有職安法裁處且登記地址定位得出來」的
+   *   23,815 家，站上共 176,268 家。沒有職安法裁處的公司一定不在裡面 ——
+   *   對這些公司寫「看它在地圖上的位置」就是開一張兌現不了的支票。
+   *
+   * ⚠ 用法條字串判斷，不要用 hazards 是否為空。
+   *   hazards 空陣列的意思是「公告文字未指明危害型態」，
+   *   那仍然是一筆職安法裁處，只是沒分類到。
+   * ⚠ 反過來不成立：有職安法裁處也可能因為地址定不出座標而不在點位檔裡，
+   *   那種情形由地圖頁自己講明並退回鄉鎮市區。
+   */
+  const hasOsha = hit.company.own_violations.some((v) => v.law.includes("職業安全衛生"));
   return (
     <div className="res">
       <header className="res-head">
@@ -1896,8 +1912,14 @@ function Result({ hit, onPick }: {
                   ⚠ 措辭是「這一區的密度」不是「這家公司的位置」：
                   地圖畫的是鄉鎮市區聚合，不是單一公司的點。 */}
               {dist && (
-                <a className="to-map" href={`/osha?d=${encodeURIComponent(dist)}`}>
-                  看 {dist} 的職安裁處密度 →
+                <a
+                  className="to-map"
+                  href={
+                    `/osha?d=${encodeURIComponent(dist)}` +
+                    (hasOsha ? `&c=${encodeURIComponent(hit.company.name)}` : "")
+                  }
+                >
+                  {hasOsha ? "在職安地圖上看它的位置" : `看 ${dist} 的職安裁處密度`} →
                 </a>
               )}
             </Field>

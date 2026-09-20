@@ -1153,3 +1153,10 @@
 .from-q .num { color: var(--ink-1); font-weight: 600; }
 .sw-table tr.row-q { background: var(--desk); }
 .sw-table tr.row-q td { font-weight: 600; color: var(--ink-1); }
+
+/* 公司橫幅裡的精度說明。⚠ 它不是小字註腳 —— 「圓圈是大約範圍」
+   跟數字本身一樣重要，所以自己一行，不要縮成 11px 的灰字。 */
+.from-q-note {
+  display: block; margin-top: 7px;
+  font-size: 12.5px; line-height: 1.75; color: var(--ink-3);
+}
