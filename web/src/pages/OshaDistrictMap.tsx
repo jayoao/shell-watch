@@ -34,10 +34,10 @@ import type { Layer, PathOptions } from "leaflet";
 import type { GeoJsonObject } from "geojson";
 import type { DistrictDataset, DistrictRow } from "../types/geo";
 import raw from "../data/osha_district.json";
-import ptsRaw from "../data/points.json";
+import ptsUrl from "../data/points.json?url";
 import Clusters from "./OshaClusters";
 import type { PointDataset, Pt } from "../types/points";
-import boundaries from "../data/tw_districts.json";
+import boundsUrl from "../data/tw_districts.json?url";
 import hazardTable from "../data/hazards.json";
 
 /**
@@ -78,7 +78,22 @@ import hazardTable from "../data/hazards.json";
  * 代價是沒有地名標籤（Popup 裡有區名補上）與 288 KB 的檔案
  * （gzip 後 78 KB，而且這一頁是 lazy 載入的，查詢頁不受影響）。
  */
-const BOUNDARIES = boundaries as unknown as GeoJsonObject;
+/* ⚠⚠ 這兩份資料**不再編進 JS**，改成執行時抓。
+   原本 points.json（1,756 KB）與 tw_districts.json（281 KB）是
+   `import` 進來的，Vite 會把它們轉成 JS 字面量塞進 chunk ——
+   地圖頁的 chunk 因此是 2,373 KB，其中 91% 是資料不是程式。
+   實測冷載傳輸 606 KB、下載 14.0 秒，整頁要 25 秒才能用，
+   而查詢頁現在有一個連結指過來。
+
+   改成 `?url` 之後：Vite 把它們當靜態檔發出去（帶內容雜湊、可快取、
+   由 CDN 各自壓縮），JS 只剩程式。介面、篩選列與表格立刻就出來，
+   圖層資料後補。
+
+   ⚠ 這不是把問題搬家。分開之後三件事變了：
+     一、JS 不必等資料下載完才能執行（原本是同一個檔案）
+     二、資料檔可以獨立快取，改程式不會讓使用者重抓 2 MB
+     三、兩份資料並行下載，不是串行
+   ⚠ 抓失敗要看得出來，不可以安靜地畫一張空地圖。 */
 
 /**
  * 陸地要比海**亮**，不能反過來。
@@ -346,16 +361,39 @@ export default function OshaDistrictMap() {
   }, [fromQuery]);
 
   /** 點位資料。⚠ hazmask 的位元順序以檔案裡的 haz_order 為準，不要另外寫死一份。 */
-  const pdata = ptsRaw as unknown as PointDataset;
+  const [pdata, setPdata] = useState<PointDataset | null>(null);
+  const [bounds, setBounds] = useState<GeoJsonObject | null>(null);
+  const [loadErr, setLoadErr] = useState<string>("");
+
+  useEffect(() => {
+    let alive = true;
+    // 兩份並行。⚠ 任何一份失敗都要講出來 ——
+    // 靜默失敗的地圖跟「這一區沒有違規」長得一模一樣。
+    void Promise.allSettled([
+      fetch(ptsUrl).then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status))))),
+      fetch(boundsUrl).then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status))))),
+    ]).then(([p, b]) => {
+      if (!alive) return;
+      if (p.status === "fulfilled") setPdata(p.value as PointDataset);
+      if (b.status === "fulfilled") setBounds(b.value as GeoJsonObject);
+      const bad = [
+        p.status === "rejected" ? "事業單位點位" : "",
+        b.status === "rejected" ? "行政區界線" : "",
+      ].filter(Boolean);
+      if (bad.length) setLoadErr(bad.join("、"));
+    });
+    return () => { alive = false; };
+  }, []);
+
   const hazBit = useMemo(() => {
     const m: Record<string, number> = {};
-    pdata.haz_order.forEach((c, i) => (m[c] = 1 << i));
+    (pdata?.haz_order ?? []).forEach((c, i) => (m[c] = 1 << i));
     return m;
   }, [pdata]);
 
   const allPoints = useMemo<Pt[]>(
     () =>
-      pdata.pts.map((p) => ({
+      (pdata?.pts ?? []).map((p) => ({
         name: p[0], lat: p[1], lng: p[2], exact: p[3] === 1,
         n: p[4], fatal: p[5], pending: p[6], haz: p[7], year: p[8], mask: p[9],
       })),
@@ -598,7 +636,21 @@ export default function OshaDistrictMap() {
         </label>
       </div>
 
+      {/* ⚠ 抓失敗要講出來。一張少了點位的地圖跟「這裡沒有違規」
+          長得一模一樣，而那是這個站最不能讓人誤會的一件事。 */}
+      {loadErr && (
+        <p className="alert" style={{ margin: "0 0 12px" }}>
+          ⚠ {loadErr}載入失敗，這張圖目前不完整。請重新整理；
+          <b>畫面上的空白是載入問題，不是那些地方沒有裁處紀錄。</b>
+        </p>
+      )}
+
       {layer === "points" ? (
+        !pdata ? (
+          <p className="sw-muted" style={{ margin: "0 0 12px", fontWeight: 600 }}>
+            事業單位點位載入中…（1.7 MB，第一次比較久，之後走快取）
+          </p>
+        ) : (
         <p className="sw-muted" style={{ margin: "0 0 12px", fontWeight: 600 }}>
           目前 {points.length.toLocaleString()} 家事業單位在圖上，合計{" "}
           {points.reduce((a, p) => a + p.n, 0).toLocaleString()} 筆職安法裁處
@@ -611,6 +663,7 @@ export default function OshaDistrictMap() {
           另有 {(data.osha_mapped - pdata.pts.reduce((a, p) => a + p[4], 0)).toLocaleString()}
           {" "}筆裁處的事業單位地址對不到座標，未出現在本圖層
         </p>
+        )
       ) : (
       <p className="sw-muted" style={{ margin: "0 0 12px", fontWeight: 600 }}>
         目前 {stats.districts} 個區有資料，合計 {stats.records.toLocaleString()} 筆
@@ -683,13 +736,15 @@ export default function OshaDistrictMap() {
               style 函式變了就重畫，要換 key 強制重建。
           */}
           {/* 行政區永遠畫界線；只有密度圖層才填色。 */}
+          {bounds && (
           <GeoJSON
             key={`v-${layer}-${metric}-${hazardFilter}-${countyFilter}-${max}`}
-            data={BOUNDARIES}
+            data={bounds}
             style={layer === "density" ? styleFor : () => OUTLINE_ONLY}
             onEachFeature={layer === "density" ? onEachFeature : undefined}
             interactive={layer === "density"}
           />
+          )}
 
           {layer === "points" && (
             <Clusters points={points} hazName={(c) => HAZARD_NAME[c] ?? c} />
