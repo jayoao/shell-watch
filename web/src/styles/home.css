@@ -14,6 +14,156 @@
    中間留 18px 的 --paper 會讓帶看起來是「貼上去的一塊」而不是版面。 */
 .page.landing { padding-top: 0; }
 
+
+/* ══ 門面：圖示、敘述、流程、情境 ════════════════════════════
+   來源是設計稿 landing-preview_1.html，改了四件事，每一件都有理由：
+
+   ⚠⚠ 1. 拿掉全部的無限循環動畫（原稿 swFocus / swFocusBorder / swFocusBar，
+        8 個元素每 8 秒脈動一次、永遠不停）。進場的階梯式淡入留著 ——
+        它只跑一次，而且在教人怎麼看那張圖；循環是永久的視覺噪音，
+        看懂之後還在動，而且錄影時畫面會隨時機不同。
+
+   ⚠⚠ 2. 搜尋框的 delay 從 2.4s 提前到 0.15s。實測原稿：搜尋框在 2.4 秒前
+        opacity 是 0，加上本站 936ms 的首次繪製，**從點開到看得見搜尋框
+        約 3.4 秒**。這是查詢工具，那個框不能是最後才出現的東西。
+
+   ⚠⚠ 3. 輸入框與搜尋卡的邊框從 --rule-2 改成 --ink-3。
+        --rule-2 壓在淺色面上只有 2.18–2.65，過不了非文字的 3.0。
+        這正是 tokens.css 裡標註過的那個坑，原稿又踩了一次。
+
+   ⚠ 4. 「怎麼用」三步驟移到搜尋框後面（見 Home.tsx 的註解，手機版高度）。
+
+   ⚠ 整段只在 .page.landing 底下生效，結果模式一個字都不要動。
+   ══════════════════════════════════════════════════════ */
+
+@keyframes swReveal {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes swDraw { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes swFade { from { opacity: 0; } to { opacity: 1; } }
+
+/* 進場序列。⚠ 搜尋框排在最前面那一批，不要因為「視覺節奏」把它往後挪。 */
+.landing .hero .hero-t     { animation: swReveal .5s ease-out both; }
+.landing .hero .hero-p     { animation: swReveal .5s ease-out .06s both; }
+.landing .search           { animation: swReveal .45s ease-out .15s both; }
+.landing .search-note      { animation: swReveal .35s ease-out .22s both; }
+.dia-row .dia-box:not(.is-new) { animation: swReveal .45s ease-out .28s both; }
+.dia-mid i                 { transform-origin: left; animation: swDraw .4s ease-out .42s both; }
+.dia-mid::before,
+.dia-mid::after            { animation: swReveal .3s ease-out .56s both; }
+.dia-row .dia-box.is-new   { animation: swReveal .45s ease-out .6s both; }
+.dia-cap                   { animation: swReveal .4s ease-out .72s both; }
+.dia-tl-seg                { transform-origin: left; animation: swDraw .45s ease-out .8s both; }
+.dia-tl-gap span           { animation: swReveal .35s ease-out .9s both; }
+.dia-tl-marks              { animation: swReveal .4s ease-out .95s both; }
+.dia-note                  { animation: swReveal .4s ease-out 1s both; }
+.dia-narrate li.n1         { animation-delay: 1.05s; }
+.dia-narrate li.n2         { animation-delay: 1.15s; }
+.dia-narrate li.n3         { animation-delay: 1.25s; }
+.dia-narrate li.n4         { animation-delay: 1.35s; }
+.howto-step.s1             { animation-delay: 1.45s; }
+.howto-arrow.a1            { animation-delay: 1.52s; }
+.howto-step.s2             { animation-delay: 1.58s; }
+.howto-arrow.a2            { animation-delay: 1.65s; }
+.howto-step.s3             { animation-delay: 1.72s; }
+.scenarios .kicker         { animation: swReveal .35s ease-out 1.8s both; }
+.scenario-item.c1          { animation-delay: 1.88s; }
+.scenario-item.c2          { animation-delay: 1.96s; }
+.scenario-item.c3          { animation-delay: 2.04s; }
+.landing .coverage         { animation: swReveal .45s ease-out 2.1s both; }
+
+/* ── 圖底下的白話敘述 ─────────────────────── */
+.dia-narrate {
+  margin: 16px 0 0; padding: 0; list-style: none; text-align: left;
+  display: grid; gap: 10px;
+}
+.dia-narrate li {
+  display: flex; align-items: flex-start; gap: 10px;
+  font-size: 13.5px; line-height: 1.6; color: var(--ink);
+  animation: swReveal .4s ease-out both;
+}
+.dia-narrate li b { font-weight: 700; }
+.dia-narrate-ic {
+  flex: none; width: 26px; height: 26px; margin-top: 1px; border-radius: 50%;
+  border: 1px solid var(--ink-3); color: var(--ink-3);
+  display: flex; align-items: center; justify-content: center;
+}
+.dia-narrate-ic svg { width: 15px; height: 15px; }
+
+/* ── 怎麼用：三步驟 ───────────────────────── */
+.howto {
+  list-style: none; margin: 24px auto 0; padding: 0; max-width: 420px;
+  display: flex; flex-direction: column; align-items: stretch; gap: 8px;
+}
+.howto-step {
+  display: flex; align-items: center; gap: 10px;
+  border: 1px solid var(--rule); border-radius: 3px;
+  background: var(--sheet); padding: 10px 14px;
+  animation: swReveal .4s ease-out both;
+}
+.howto-n {
+  flex: none; width: 26px; height: 26px; border-radius: 50%;
+  border: 1px solid var(--link); color: var(--link);
+  display: flex; align-items: center; justify-content: center;
+}
+.howto-n svg { width: 15px; height: 15px; }
+.howto-t { font-size: 15px; font-weight: 600; }
+.howto-arrow {
+  align-self: center; color: var(--ink-3); font-size: 16px; line-height: 1;
+  transform: rotate(90deg); animation: swFade .3s ease-out both;
+}
+
+/* ── 使用情境 ─────────────────────────────── */
+.scenarios { margin: 26px auto 0; max-width: 620px; text-align: left; }
+.scenario-list { margin: 12px 0 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+.scenario-item {
+  display: flex; align-items: flex-start; gap: 12px;
+  background: var(--sheet); border: 1px solid var(--rule);
+  border-radius: 12px; padding: 13px 15px;
+  animation: swReveal .4s ease-out both;
+}
+.scenario-ic {
+  flex: none; width: 32px; height: 32px; border-radius: 50%;
+  border: 1px solid var(--ink-3); color: var(--ink-2);
+  display: flex; align-items: center; justify-content: center;
+}
+.scenario-ic svg { width: 17px; height: 17px; }
+.scenario-h { margin: 0; font-size: 13.5px; font-weight: 700; color: var(--ink); }
+.scenario-p { margin: 3px 0 0; font-size: 12.5px; line-height: 1.6; color: var(--ink-2); }
+
+/* ⚠ 輸入框／按鈕的樣式**只有一份**，寫在下面「門面模式」那一區
+   （`.landing .sw-input` 等）。這裡不要再寫第二份 —— 兩份同特異度的
+   規則靠「誰寫在後面」決勝負，改了前面那份會完全沒反應，很難查。
+   這一版差點就這樣重複了。 */
+
+/* ── 出處 ─────────────────────────────────── */
+.cov-trust {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  max-width: 44em; margin: 10px auto 0;
+  font-size: 12px; line-height: 1.6; color: var(--ink-3); text-align: center;
+}
+.cov-trust-ic { display: flex; flex: none; }
+.cov-trust-ic svg { width: 14px; height: 14px; }
+
+/* ── 會做/不做：標題列加圖示 ───────────────── */
+.pledge-hd { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; }
+.pledge-ic {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; flex: none;
+  border-radius: 999px; border: 1.5px solid currentColor; color: var(--ink);
+}
+.pledge-ic svg { width: 13px; height: 13px; }
+.pledge-col.is-not .pledge-ic { color: var(--ink-3); }
+
+@media (min-width: 720px) {
+  .dia-narrate li { font-size: 14px; }
+  .howto { flex-direction: row; align-items: center; justify-content: center; max-width: none; gap: 14px; }
+  .howto-arrow { transform: none; }
+  .scenario-list { grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .scenario-item { flex-direction: column; }
+}
+
 /* ══ 門面模式（首頁，尚未查詢）══════════════════════════
    ⚠⚠ 只有 .page.landing 底下才生效。結果模式的版面一個字都不要動 ——
    查完之後使用者要的是密度，不是門面。
@@ -43,7 +193,16 @@
 }
 /* 帶是滿版的，帶裡面的東西不是 —— 一律置中收窄。 */
 .landing .hero   { max-width: 720px; margin: 0 auto; text-align: center; }
-.landing .search { max-width: 620px; margin: 28px auto 0; }
+/* ⚠ 搜尋框做成一張卡（設計稿 B 決議採用）：門面用圓角＋陰影的卡片語彙，
+   **結果頁維持原本的直角細線語彙不動**。門面跟工具長得不一樣是刻意的，
+   Violation Tracker 也是這樣 —— 結果頁的密度不適合卡片。
+   ⚠ 邊框用 --ink-3 不是 --rule-2，理由見下方 --rule-2 的註解。 */
+.landing .search {
+  max-width: 620px; margin: 28px auto 0;
+  background: var(--sheet); border: 1px solid var(--ink-3);
+  border-radius: 16px; box-shadow: var(--shadow);
+  padding: 22px 22px 20px;
+}
 
 /* ⚠ 2026-09-18 起標題不再包在 .band 裡（那條 3px 上緣線是結果頁的
    語彙，壓在門面帶上會多出一條跟誰都沒關係的線），也從
@@ -926,3 +1085,71 @@
   .years-list { grid-template-columns: repeat(3, 1fr); }
   .cov-list { font-size: 14px; }
 }
+
+/* ══ 時間重心 · 死亡災害落點 · 素養出口 · 地圖連結 ══════════
+   2026-09-20 新增。四件事都不是新資料，是把已經算出來但沒有
+   講出來的東西講出來。 */
+
+/* 「最近一筆裁處」。⚠ 比 block-sub 重一階：block-sub 講涵蓋範圍，
+   這一行講時間重心，是使用者真正拿來做決定的那個數字。 */
+.block-recent {
+  margin: 6px 0 0; font-size: 13.5px; line-height: 1.8;
+  color: var(--ink-2); letter-spacing: .02em;
+}
+.block-recent .num { color: var(--ink-1); font-weight: 600; }
+.block-recent-s { color: var(--ink-3); }
+
+/* 死亡災害落在哪幾類。⚠ 用 --fatal，因為它講的就是死亡災害；
+   但底色壓得很淡 —— 這是一行索引，不是第二次警告。 */
+.fatal-where {
+  margin: 10px 0 0; display: flex; flex-wrap: wrap;
+  align-items: center; gap: 8px;
+  font-size: 13px; line-height: 1.7;
+}
+.fatal-where-k { color: var(--ink-3); letter-spacing: .1em; }
+.fatal-chip {
+  display: inline-flex; align-items: baseline; gap: 6px;
+  padding: 3px 10px; border-radius: 3px;
+  background: var(--fatal-soft); color: var(--fatal-ink);
+  border: 1px solid var(--fatal);
+}
+.fatal-chip i { font-style: normal; font-weight: 700; }
+
+/* 你可以確認什麼。⚠ 整段刻意不用警告色 —— 這不是警告，
+   是給使用者的行動資訊，用中性的卡片。 */
+.ask {
+  margin: 26px 0 0; padding: 18px 20px 20px;
+  border: 1px solid var(--line); border-radius: 4px;
+  background: var(--desk);
+}
+.ask-lead {
+  margin: 8px 0 0; font-size: 13.5px; line-height: 1.95; color: var(--ink-2);
+}
+.ask-lead b { color: var(--ink-1); }
+.ask-list { margin: 16px 0 0; padding-left: 20px; }
+.ask-list li { margin-bottom: 14px; }
+.ask-list li:last-child { margin-bottom: 0; }
+.ask-t {
+  display: block; font-size: 14.5px; font-weight: 700;
+  color: var(--ink-1); margin-bottom: 5px;
+}
+.ask-d { display: block; font-size: 13.5px; line-height: 1.95; color: var(--ink-2); }
+
+/* 到職安地圖的連結。⚠ 放在登記地址旁邊，因為它就是從地址推出來的 —— 
+   位置本身說明了這個連結憑什麼存在。 */
+.to-map {
+  display: inline-block; margin-left: 10px; font-size: 12.5px;
+  color: var(--ink-3); letter-spacing: .02em;
+}
+.to-map:hover { color: var(--ink-1); }
+
+/* 地圖頁：從查詢頁帶過來的那一區 */
+.from-q {
+  margin: 0 0 12px; padding: 10px 14px; border-radius: 3px;
+  border: 1px solid var(--line); background: var(--desk);
+  font-size: 13.5px; line-height: 1.8; color: var(--ink-2);
+}
+.from-q b { color: var(--ink-1); }
+.from-q .num { color: var(--ink-1); font-weight: 600; }
+.sw-table tr.row-q { background: var(--desk); }
+.sw-table tr.row-q td { font-weight: 600; color: var(--ink-1); }

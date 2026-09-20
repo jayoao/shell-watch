@@ -124,6 +124,83 @@ function yearSpan(vs: ViolationRef[]): string {
 }
 
 /**
+ * 最近一筆裁處，以及最近三個年度的筆數。
+ *
+ * ⚠⚠ 為什麼要加這一行：原本畫面只講「255 筆 · 民國 104–115 年」。
+ *   那是一個**沒有時間重心**的敘述 —— 十年前一百筆和去年五筆，
+ *   對「我要不要去這家公司上班」的意義完全不同，但畫面上長得一樣。
+ *   逐年點陣其實回答得了這個問題，可是它要求讀者自己去數。
+ *
+ * ⚠ 基準年用「資料涵蓋到哪一年」，不是「今天是哪一年」。
+ *   用今天的話，同一份資料在跨年那天會突然少掉一整年的「近 3 年」，
+ *   而資料根本沒有變 —— 畫面上的數字不可以因為時鐘走動而改變。
+ *
+ * ⚠ 只陳述日期與筆數，不加任何形容詞。「最近還在被罰」與
+ *   「這家公司現在很危險」是兩件事，我們只講得起前面那件。
+ */
+function recency(vs: ViolationRef[], covTo: string) {
+  const ds = vs.map((v) => v.date).filter(Boolean).sort();
+  if (!ds.length) return null;
+  const last = ds[ds.length - 1];
+  const base = Number(rocYear(covTo) || rocYear(last));
+  if (!base) return { last, from: 0, to: 0, n: 0, share: 0 };
+  const from = base - 2;                       // 含基準年共三個年度
+  const n = vs.filter((v) => Number(rocYear(v.date)) >= from).length;
+  return { last, from, to: base, n, share: vs.length ? n / vs.length : 0 };
+}
+
+/**
+ * 改制前後的行政區名對照。
+ *
+ * ⚠⚠ 這不是我們的錯字，是**來源資料的行政區名過期了**。
+ *   職安地圖的鄉鎮市區界來自 g0v/twgeojson，裡面仍是
+ *   「彰化縣員林鎮」「苗栗縣頭份鎮」—— 這兩個地方分別在
+ *   民國 104 年 8 月與 10 月升格為縣轄市，至今十一年。
+ *   商工登記的地址用的是現名（員林市），界線檔用的是舊名（員林鎮），
+ *   不做對照，這兩個地方的連結會永遠落空，而且是安靜地落空。
+ *
+ * ⚠ 這裡只做「讓連結接得上」，不改畫面上的地名 ——
+ *   地圖標的是哪一版名稱，是界線檔的事實，要修得從資料端修。
+ *   這一條已列入「關於資料」的已知缺口。
+ */
+const DISTRICT_ALIAS: Record<string, string> = {
+  "彰化縣員林市": "彰化縣員林鎮",
+  "苗栗縣頭份市": "苗栗縣頭份鎮",
+};
+
+/**
+ * 從登記地址推出鄉鎮市區的鍵，例如「台北市中正區」。
+ *
+ * ⚠ 商工登記寫「臺北市」，職安地圖的鍵是「台北市」—— 兩個字不一樣，
+ *   不正規化就永遠對不到。這類「看起來一樣的字」是串接失敗的常見原因，
+ *   所以寧可在這裡多寫一行，也不要讓連結安靜地失效。
+ *
+ * ⚠ 推不出來就回 null，畫面上就不顯示那個連結。
+ *   寧可少一個入口，也不要把使用者送到一張錯的地圖上。
+ */
+function districtOf(address: string | null | undefined): string | null {
+  if (!address) return null;
+  const a = address.trim();
+  const c = /^(.{2,3}[縣市])/.exec(a);
+  if (!c) return null;
+  const rest = a.slice(c[0].length);
+
+  /* ⚠⚠ 一定要先試「區」，不能寫成一條 `.{1,4}?[區鄉鎮市]`。
+     那樣寫「高雄市前鎮區成功二路」會在「鎮」就停住，推成「前鎮」；
+     反過來用貪婪的話，「臺中市西屯區市政北二路」會吃成「西屯區市」。
+     行政區名一定以這四個字其中之一結尾，而「區」在台灣的層級最低，
+     所以逐一嘗試、區優先，是唯一不會被路名騙到的寫法。 */
+  let d = "";
+  for (const suf of ["區", "鄉", "鎮", "市"]) {
+    const m = new RegExp(`^(.{1,3}?${suf})`).exec(rest);
+    if (m) { d = m[1]; break; }
+  }
+  if (!d) return null;
+  const key = (c[1] + d).replace(/臺/g, "台");
+  return DISTRICT_ALIAS[key] ?? key;
+}
+
+/**
  * 設立年份。
  *
  * ⚠ 商工登記的設立年份是**西元**（"1989"），可是這一頁其他所有日期都是
@@ -553,6 +630,12 @@ function PlainBars({ vs }: { vs: ViolationRef[] }) {
   if (groups.length === 0) return null;
   const max = Math.max(...groups.flatMap(([, r]) => r.map((x) => x[1].n)));
   const fatalTotal = vs.filter((v) => v.fatal).length;
+  // 涉及死亡災害的公告落在哪幾類，多到少。⚠ 收容類別不排除 ——
+  // 「未對應到本站的危害分類」裡若真的有死亡災害，藏起來比難看更糟。
+  const fatalRows = groups
+    .flatMap(([, r]) => r)
+    .filter(([, x]) => x.fatal > 0)
+    .sort((a, b) => b[1].fatal - a[1].fatal);
 
   // ⚠ 最大的那一類先用一句話講完。134 / 255 這種事使用者不會自己算，
   //   而它往往就是整頁最有資訊量的一行（台電有 52.5% 是承攬管理 ——
@@ -568,6 +651,15 @@ function PlainBars({ vs }: { vs: ViolationRef[] }) {
     ? flat.reduce((a, b) => (b[1].n > a[1].n ? b : a))
     : null;
   const share = top && vs.length ? top[1].n / vs.length : 0;
+
+  // 前三類（排除收容桶）且**查得到法規義務原文**的才進清單。
+  // ⚠ 查不到 duty 的就跳過，不要為了湊三條去寫一段自己的話。
+  const checklist = flat
+    .slice()
+    .sort((a, b) => b[1].n - a[1].n)
+    .map(([label, x]) => [label, x.duty || duty[label]?.duty || ""] as const)
+    .filter(([, d]) => d.length > 0)
+    .slice(0, 3);
 
   return (
     <div className="bars">
@@ -660,6 +752,21 @@ function PlainBars({ vs }: { vs: ViolationRef[] }) {
           不是「公告沒寫」，也不是「沒有危害」。
         </p>
       )}
+      {/* ⚠⚠ 「有 10 筆涉及死亡災害」回答的是「有多嚴重」，
+          但組別叫**視覺化防災**，防災的第一個問題是「要防什麼」。
+          每一類的 fatal 計數本來就算好了，只是沒有收攏成一句話。
+          ⚠ 用的是跟長條同一份 groups —— 每筆公告只歸第一類，
+          所以這幾個數字相加等於 fatalTotal，不會對不起來。 */}
+      {fatalRows.length > 0 && (
+        <p className="fatal-where">
+          <span className="fatal-where-k">集中在</span>
+          {fatalRows.map(([label, x]) => (
+            <span key={label} className="fatal-chip">
+              {label}<i className="num">{x.fatal}</i>
+            </span>
+          ))}
+        </p>
+      )}
       {fatalTotal > 0 && (
         <Caveat className="warnbox" label="「涉及」包含哪些情形？"
                 lead={<>共 {fatalTotal} 筆公告<b>涉及</b>死亡災害。「涉及」指
@@ -667,6 +774,37 @@ function PlainBars({ vs }: { vs: ViolationRef[] }) {
           包含「未依規定通報死亡災害」的情形 —— 那種罰的是通報義務，
           不是災害本身。詳情請以處分字號查閱原始公告。
         </Caveat>
+      )}
+
+      {/* ⚠⚠ 素養提升的出口。上面講完「這家公司被罰過什麼」之後，
+          使用者手上有資訊卻沒有動作 —— 他不知道自己能拿這個做什麼。
+          這一區把最前面幾類對應的**法規義務原文**攤開，讓他知道
+          面試或到職時可以確認哪些具體項目。
+
+          ⚠⚠ 這裡一個字都不是我們寫的判斷。duty 全部來自
+          hazards.json／法條對照表，是法規本文的摘錄。我們只換了
+          一個框架：從「雇主應該做什麼」變成「你可以確認什麼」。
+          一旦開始寫「這家公司可能沒有做到 X」，就是在做認定，
+          那是主管機關的事，不是我們的。
+
+          ⚠ 標題底下那句免責必須跟著，不可以只留清單。 */}
+      {checklist.length > 0 && (
+        <section className="ask">
+          <div className="kicker">你可以確認什麼</div>
+          <p className="ask-lead">
+            以下是這家公司被罰最多的{checklist.length === 1 ? "一" : checklist.length === 2 ? "兩" : "三"}類，
+            法規對雇主的要求。<b>這是法規對所有雇主的一般性要求，不是對這家公司的認定</b> ——
+            面試或到職時，可以據此確認你要去的工地或廠區是否落實。
+          </p>
+          <ol className="ask-list">
+            {checklist.map(([label, d]) => (
+              <li key={label}>
+                <b className="ask-t">{label}</b>
+                <span className="ask-d">{d}</span>
+              </li>
+            ))}
+          </ol>
+        </section>
       )}
     </div>
   );
@@ -778,6 +916,40 @@ function YearDots({ vs }: { vs: ViolationRef[] }) {
  *   而實際上有幾筆根本沒公告金額。整組都沒有金額時顯示「全數未載」，
  *   不顯示 0 —— 0 會被讀成「罰了 0 元」。
  */
+/**
+ * 門面用的線框圖示。
+ *
+ * ⚠ 全部用 `stroke="currentColor"`，顏色一律由外層的 CSS 決定 ——
+ *   圖示裡寫死顏色就會在深色主題消失，而且繞過 tokens.css。
+ * ⚠ 都是裝飾性的：外層文字已經把意思講完了，所以掛 aria-hidden，
+ *   不要給它們 aria-label，否則螢幕閱讀器會把同一件事唸兩次。
+ */
+const ICON: Record<string, ReactNode> = {
+  megaphone: <><path d="M4 10v4h3l6 4V6l-6 4H4z" /><path d="M17 9a4 4 0 0 1 0 6" /></>,
+  link: <><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></>,
+  plus: <><circle cx="12" cy="12" r="8.5" /><path d="M12 8v8M8 12h8" /></>,
+  arrow: <><path d="M5 12h14" /><path d="M13 6l6 6-6 6" /></>,
+  keyboard: <><rect x="3" y="8.3" width="18" height="8" rx="2" /><path d="M6.5 12.3h6" /><path d="M16.5 9.6v5.4" /></>,
+  search: <><circle cx="10.5" cy="10.5" r="6" /><path d="M20 20l-4.8-4.8" /></>,
+  doc: <><rect x="5" y="3" width="14" height="18" rx="1.5" /><path d="M8.5 8.5h7M8.5 12.5h7M8.5 16.5h4" /></>,
+  bag: <><rect x="3" y="8" width="18" height="12" rx="1.5" /><path d="M8.5 8V6.5a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2V8" /></>,
+  clipboard: <><rect x="6" y="3.5" width="12" height="17" rx="1.5" />
+               <path d="M9.5 3.5V3a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v.5" /><path d="M9 12.5l2 2 4-4.5" /></>,
+  bank: <><path d="M12 3l9 5H3l9-5z" /><path d="M5 10v8M9 10v8M15 10v8M19 10v8" /><path d="M4 20h16" /></>,
+  check: <><path d="M20 6.5L9.5 17 4 11.5" /></>,
+  minus: <><circle cx="12" cy="12" r="8.5" /><path d="M8 12h8" /></>,
+};
+
+function Ic({ k, w = 2 }: { k: keyof typeof ICON | string; w?: number }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={w}
+         strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {ICON[k]}
+    </svg>
+  );
+}
+
 function LawGroup({ law, vs }: { law: string; vs: ViolationRef[] }) {
   const [open, setOpen] = useState(false);
   const fined = vs.filter((v) => v.fine > 0);
@@ -958,6 +1130,7 @@ function ViolationList({ vs, title, company }: {
   // ⚠ 註腳只在真的有「公告未載金額」的時候才出現。
   //   每一串都掛一句「0 元不是免罰」，看到第三次就沒有人在看了。
   const hasZeroFine = vs.some((v) => v.fine <= 0);
+  const rec = useMemo(() => recency(vs, covTo), [vs, covTo]);
   const long = vs.length > LONG_LIST;
   const [facet, setFacet] = useState("all");
   const [shown, setShown] = useState(PAGE);
@@ -1044,6 +1217,21 @@ function ViolationList({ vs, title, company }: {
             年度圖的星號上，等於算了卻沒講。 */}
         {covTo && <> · 資料涵蓋至 <span className="num">{covTo}</span></>}
       </p>
+      {/* ⚠ 單獨一行，不併進上面那串。上面那行講的是「涵蓋範圍」，
+          這行講的是「時間重心」，兩個是不同的問題，併在一起會被讀過去。 */}
+      {rec && (
+        <p className="block-recent">
+          最近一筆裁處{"\u3000"}<span className="num">{rec.last}</span>
+          {rec.to > 0 && rec.n > 0 && (
+            <>{"\u3000·\u3000"}近三個年度（民國 {rec.from}–{rec.to}）
+              <span className="num"> {rec.n} </span>筆
+              <span className="block-recent-s">
+                {"\u3000"}佔全部的 {(rec.share * 100).toFixed(1)}%
+              </span>
+            </>
+          )}
+        </p>
+      )}
       <p className="block-dl">
         <button className="linkish" onClick={() => downloadCsv(vs, company, covTo)}>
           下載這 {vs.length} 筆（CSV）
@@ -1683,6 +1871,8 @@ function Result({ hit, onPick }: {
   //   2026-09-17：原本的五格（其中兩格常常是 0，卻佔跟 255 一樣大的位置）
   //   換成 <Ledger>，理由寫在該元件的說明裡。
 
+  // 登記地址所在的鄉鎮市區。⚠ 算一次就好，JSX 裡不要重複呼叫。
+  const dist = districtOf(hit.company.address);
   return (
     <div className="res">
       <header className="res-head">
@@ -1701,6 +1891,15 @@ function Result({ hit, onPick }: {
           {hit.company.address && (
             <Field label="登記地址">
               <span style={{ color: "var(--ink-2)" }}>{hit.company.address}</span>
+              {/* ⚠ 查詢頁與職安地圖原本完全沒有互連 —— 兩頁各自獨立，
+                  而整合性正是這個系統宣稱的特色之一。這個連結補上那個缺口。
+                  ⚠ 措辭是「這一區的密度」不是「這家公司的位置」：
+                  地圖畫的是鄉鎮市區聚合，不是單一公司的點。 */}
+              {dist && (
+                <a className="to-map" href={`/osha?d=${encodeURIComponent(dist)}`}>
+                  看 {dist} 的職安裁處密度 →
+                </a>
+              )}
             </Field>
           )}
         </dl>
@@ -2120,6 +2319,32 @@ export default function Home() {
               ⚠ 姓名相同<b>不等於</b>同一人。本站不判定身分，
               只呈現這個連結有多少獨立佐證。
             </p>
+            {/* ⚠⚠ 這四句是把上面那張圖用白話再講一次，給看不懂圖的人。
+                第 2 句原稿是「這兩家公司，登記的負責人**是同一個人**」——
+                那句話直接違反我們整站的紅線，而且它就印在
+                「姓名相同不等於同一人」下面 40px 的地方，**自己打自己**。
+                改成「負責人姓名相同」：陳述我們真的看得到的事實，
+                不做身分認定。
+                ⚠ 這一段 aria-hidden，因為整張 .dia 已經有完整的 aria-label，
+                  不 hidden 的話螢幕閱讀器會把同一件事唸兩次。 */}
+            <ol className="dia-narrate" aria-hidden="true">
+              <li className="n1">
+                <span className="dia-narrate-ic"><Ic k="megaphone" w={1.8} /></span>
+                <span>甲公司在民國 100–114 年間，被公告裁罰 12 次</span>
+              </li>
+              <li className="n2">
+                <span className="dia-narrate-ic"><Ic k="link" w={1.8} /></span>
+                <span>兩家公司登記的<b>負責人姓名相同</b></span>
+              </li>
+              <li className="n3">
+                <span className="dia-narrate-ic"><Ic k="plus" w={1.8} /></span>
+                <span>乙公司今年才新設立，目前 0 筆紀錄</span>
+              </li>
+              <li className="n4">
+                <span className="dia-narrate-ic"><Ic k="arrow" w={1.8} /></span>
+                <span>甲公司先解散，乙公司才成立 —— 紀錄留在了舊公司</span>
+              </li>
+            </ol>
           </div>
         </div>
       )}
@@ -2167,6 +2392,62 @@ export default function Home() {
           </p>
         )}
       </form>
+
+      {fresh && (
+        <>
+          {/* ⚠⚠ 「怎麼用」刻意放在搜尋框**後面**，設計稿原本放前面。
+              理由是量出來的：放前面時手機 375×812 上查詢鈕底緣在 y=1173，
+              視窗只有 812 —— 要捲 1.4 屏才看得到搜尋框。
+              這是查詢工具，搜尋框不能是捲下去才有的東西。
+              放後面之後它仍然在第一次捲動就看得到，而且「先看到框、
+              再看到三步驟」讀起來也通。 */}
+          <ol className="howto">
+            <li className="howto-step s1">
+              <span className="howto-n"><Ic k="keyboard" w={1.8} /></span>
+              <span className="howto-t">輸入公司名稱</span>
+            </li>
+            <li className="howto-arrow a1" aria-hidden="true">→</li>
+            <li className="howto-step s2">
+              <span className="howto-n"><Ic k="search" w={1.8} /></span>
+              <span className="howto-t">查詢裁處紀錄</span>
+            </li>
+            <li className="howto-arrow a2" aria-hidden="true">→</li>
+            <li className="howto-step s3">
+              <span className="howto-n"><Ic k="doc" w={1.8} /></span>
+              <span className="howto-t">看見完整歷史</span>
+            </li>
+          </ol>
+
+          <section className="scenarios">
+            <div className="kicker" style={{ marginBottom: 10 }}>適合這樣用</div>
+            <ul className="scenario-list">
+              <li className="scenario-item c1">
+                <span className="scenario-ic"><Ic k="bag" w={1.8} /></span>
+                <div>
+                  <p className="scenario-h">投履歷、面試前</p>
+                  <p className="scenario-p">先查這家公司過去有沒有公開的裁處紀錄</p>
+                </div>
+              </li>
+              <li className="scenario-item c2">
+                <span className="scenario-ic"><Ic k="clipboard" w={1.8} /></span>
+                <div>
+                  <p className="scenario-h">簽約、發包前</p>
+                  <p className="scenario-p">看看往來廠商在公告裡出現過幾次</p>
+                </div>
+              </li>
+              {/* ⚠ 原稿是「查查負責人**是不是同一個**」—— 我們不回答那個問題。
+                  改成陳述我們真的會呈現的東西：同名的負責人出現在哪些公司。 */}
+              <li className="scenario-item c3">
+                <span className="scenario-ic"><Ic k="link" w={1.8} /></span>
+                <div>
+                  <p className="scenario-h">公司解散又重開</p>
+                  <p className="scenario-p">看看同名的負責人，還出現在哪些公司的紀錄上</p>
+                </div>
+              </li>
+            </ul>
+          </section>
+        </>
+      )}
 
       </div>{/* /.face */}
 
@@ -2457,6 +2738,18 @@ function Coverage({ meta }: { meta: Meta | null | undefined }) {
           裁處公告資料涵蓋至民國 <span className="num">{meta.coverage_to}</span>
         </p>
       )}
+      {/* ⚠ 「非本站自行蒐集」是這一行的重點，不是裝飾。
+          一個列出真實公司裁處紀錄的網站，最需要先講清楚的就是
+          「這些不是我們認定的，是主管機關公告的」。
+          ⚠ 用官方全名「違反勞動法令事業單位（雇主）查詢系統」，
+            不要寫成「勞動部裁罰檢查系統」——那個系統不叫這個名字。
+          ⚠ 商工登記是**經濟部**的，所以這裡寫「勞動部與經濟部」，
+            不可以整句掛到勞動部頭上。 */}
+      <p className="cov-trust">
+        <span className="cov-trust-ic"><Ic k="bank" w={1.8} /></span>
+        資料來自勞動部「違反勞動法令事業單位（雇主）查詢系統」等公開資料，
+        與經濟部商工登記；非本站自行蒐集或調查。
+      </p>
       <p className="cov-more">
         <a href="/about">資料來源、涵蓋範圍與已知缺口 →</a>
       </p>
@@ -2466,7 +2759,10 @@ function Coverage({ meta }: { meta: Meta | null | undefined }) {
           ⚠ 這三條跟結果頁上的紅線是同一組，改一邊一定要改另一邊。 */}
       <div className="pledge">
         <div className="pledge-col">
-          <p className="pledge-h">這裡有什麼</p>
+          <div className="pledge-hd">
+            <span className="pledge-ic"><Ic k="check" w={2.2} /></span>
+            <p className="pledge-h">這裡有什麼</p>
+          </div>
           <ul>
             <li>9 部法規的<b>公開裁處公告</b>，逐筆附處分字號</li>
             <li>法條翻成人話，看得出被罰的是什麼事</li>
@@ -2474,7 +2770,12 @@ function Coverage({ meta }: { meta: Meta | null | undefined }) {
           </ul>
         </div>
         <div className="pledge-col is-not">
-          <p className="pledge-h">這裡不做什麼</p>
+          <div className="pledge-hd">
+            {/* ⚠ 用「減號」不用「叉」。叉是錯誤／失敗的符號；
+                這一欄講的是我們**選擇不做**的事，那是自我約束不是錯誤。 */}
+            <span className="pledge-ic"><Ic k="minus" w={2.2} /></span>
+            <p className="pledge-h">這裡不做什麼</p>
+          </div>
           <ul>
             <li><b>不評分、不排名</b>，不說哪家公司比較危險</li>
             <li><b>不判定身分</b>，公開資料裡沒有身分證字號</li>

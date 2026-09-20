@@ -321,6 +321,30 @@ export default function OshaDistrictMap() {
   const [why, setWhy] = useState(false);
   const [countyFilter, setCountyFilter] = useState<string>("");
 
+  /**
+   * 從查詢頁帶過來的鄉鎮市區：`/osha?d=台北市中正區`。
+   *
+   * ⚠⚠ 這兩頁原本完全沒有互連。使用者查完一家公司，想知道「這一帶
+   *   的職安狀況如何」，只能自己回到地圖、自己在 365 個區裡面找。
+   *
+   * ⚠ 只讀一次。之後使用者在地圖上自己改篩選是他的操作，
+   *   不可以被網址再蓋回去。
+   * ⚠ 對不到就當作沒帶參數，不要跳錯誤 —— 地址推不出區是常態
+   *   （郵政信箱、國外地址、舊式地名），那不是壞掉。
+   */
+  const fromQuery = useMemo(() => {
+    if (typeof window === "undefined") return null;
+    const d = new URLSearchParams(window.location.search).get("d");
+    if (!d) return null;
+    return data.rows.find((r) => r.k === d) ?? null;
+  }, [data]);
+  useEffect(() => {
+    if (!fromQuery) return;
+    const m = /^(.{2,3}[縣市])/.exec(fromQuery.k);
+    if (m) setCountyFilter(m[1]);
+    setSelected(fromQuery);
+  }, [fromQuery]);
+
   /** 點位資料。⚠ hazmask 的位元順序以檔案裡的 haz_order 為準，不要另外寫死一份。 */
   const pdata = ptsRaw as unknown as PointDataset;
   const hazBit = useMemo(() => {
@@ -818,6 +842,20 @@ export default function OshaDistrictMap() {
           （值＝裁處件數），看起來像程式壞掉。四個數字一起看也比較有用：
           率高是因為分子大還是分母小，一眼就看得出來。
       */}
+      {/* ⚠ 從查詢頁帶過來的那一區，在表格上方單獨陳述一次。
+          365 列裡自己找一列，跟直接告訴他，差別很大。
+          ⚠ 措辭只給數字，不說「這一區很危險」—— 密度高可能是
+          稽核密集，也可能是工業區，我們分不出來，就不要講。 */}
+      {fromQuery && (
+        <p className="from-q">
+          <b>{fromQuery.k}</b>
+          {"\u3000"}職安法裁處 <span className="num">{countOf(fromQuery).toLocaleString()}</span> 件
+          {fatalOf(fromQuery) > 0 && <>{"\u3000·\u3000"}其中 <span className="num">{fatalOf(fromQuery)}</span> 件涉及死亡災害</>}
+          {fromQuery.base >= MIN_BASE && (
+            <>{"\u3000·\u3000"}每千家 <span className="num">{((1000 * countOf(fromQuery)) / fromQuery.base).toFixed(1)}</span></>
+          )}
+        </p>
+      )}
       <table className="sw-table" style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead>
           <tr>
@@ -836,7 +874,8 @@ export default function OshaDistrictMap() {
         </thead>
         <tbody>
           {top.map((r) => (
-            <tr key={r.k} style={{ borderTop: "1px solid var(--line)" }}>
+            <tr key={r.k} style={{ borderTop: "1px solid var(--line)" }}
+                className={fromQuery && r.k === fromQuery.k ? "row-q" : undefined}>
               <td>{r.k}</td>
               <td style={{ textAlign: "right" }}>
                 {r.base >= MIN_BASE ? (
