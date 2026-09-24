@@ -704,6 +704,42 @@ export default function OshaDistrictMap() {
         </label>
       </div>
 
+      {/* ⚠⚠ 沒上圖的那些去哪了，一定要講。
+          一張地圖上的空白，跟「那裡沒有違規」長得一模一樣。
+          三類成因分開列，而且四個數字相加等於總數 ——
+          讀的人要能自己核對，不能只看到一個「涵蓋 87.8%」。 */}
+      {layer === "density" && (
+        <details className="cov-split">
+          <summary>
+            職安法 {data.osha_total.toLocaleString()} 筆裡，
+            <b>{data.osha_mapped.toLocaleString()} 筆</b>（
+            {((100 * data.osha_mapped) / data.osha_total).toFixed(1)}%）在這張圖上
+            {"\u3000"}·{"\u3000"}其餘 {(data.osha_total - data.osha_mapped).toLocaleString()} 筆為什麼不在？
+          </summary>
+          <ul>
+            <li>
+              <b>{data.no_company_osha.toLocaleString()} 筆</b>
+              {"\u3000"}公司名欄位是空的，無從歸戶到任何一家事業單位。
+            </li>
+            <li>
+              <b>{data.no_addr_osha.toLocaleString()} 筆</b>
+              {"\u3000"}（{data.no_addr_companies.toLocaleString()} 家）在商工登記裡對不到地址 ——
+              多為診所、補習班、工作室等未登記為公司的型態。
+            </li>
+            <li>
+              <b>{data.addr_unmapped_osha.toLocaleString()} 筆</b>
+              {"\u3000"}（{data.addr_unmapped_companies.toLocaleString()} 家）有地址，但地址裡
+              沒有寫到「區」（以新竹市、嘉義市為主）。省轄市的地址常見只寫到里與路名，
+              從文字無法判斷是哪一區，本站不猜。
+            </li>
+          </ul>
+          <p>
+            這三類不是「那些地方沒有違規」，是這張圖放不進去。
+            四個數字相加等於 {data.osha_total.toLocaleString()} 筆，可以自行核對。
+          </p>
+        </details>
+      )}
+
       {/* ⚠ 抓失敗要講出來。一張少了點位的地圖跟「這裡沒有違規」
           長得一模一樣，而那是這個站最不能讓人誤會的一件事。 */}
       {loadErr && (

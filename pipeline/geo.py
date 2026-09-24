@@ -38,6 +38,7 @@ pipeline/centroids.json 是 377 個鄉鎮市區的幾何中心，從 g0v/twgeojs
 from __future__ import annotations
 
 import json
+import re
 import sys
 from collections import Counter, defaultdict
 from datetime import date
@@ -70,22 +71,72 @@ def load_centroids() -> tuple[dict[str, list[float]], dict[str, list[str]]]:
     return cent, dict(by_county)
 
 
+# ⚠⚠ 行政區改制對照。**兩個方向都要有**，因為錯位是雙向的：
+#
+#   桃園縣 → 桃園市      2014 升格。**地址是舊的**（商工登記沒有跟著改），
+#                        我們的區名是新的 —— 89 家對不到。
+#   員林鎮 → 員林市      2015 升格。**地址是新的**，我們的區名是舊的
+#   頭份鎮 → 頭份市      （界線檔來自 g0v/twgeojson，沿用改制前名稱）
+#                        —— 206 家對不到。
+#
+# ⚠ 這不是模糊比對。每一條都是一次有公告依據的行政區改制，
+#   一對一、可查證，跟「名字看起來很像」是兩回事。
+# ⚠ 升格成直轄市時，底下的縣轄市／鄉／鎮**同時**改制為區
+#   —— 桃園市→桃園區、中壢市→中壢區、蘆竹鄉→蘆竹區…
+#   只換縣市名不夠，89 家的地址是「桃園縣桃園市…」，
+#   換完縣市會變成「桃園市」配「桃園市…」，還是對不到。
+COUNTY_ALIAS = {"桃園縣": "桃園市"}
+UPGRADED = set(COUNTY_ALIAS.values())      # 這些縣市底下要試舊的市／鄉／鎮寫法
+TOWN_ALIAS = {
+    ("彰化縣", "員林鎮"): "員林市",
+    ("苗栗縣", "頭份鎮"): "頭份市",
+}
+# 反向：地址寫新名，而我們的鍵是舊名時用
+TOWN_ALIAS_REV = {(c, new): old for (c, old), new in TOWN_ALIAS.items()}
+
+# ⚠ 園區不是行政區。「新竹科學園區新竹市東區力行路11號」的前三字是
+#   「新竹科」，不是縣市 —— 81 家因此整批落空。真正的縣市區就寫在
+#   後面，把前綴剝掉就對得到了。
+PARK_PREFIX = re.compile(
+    r"^(?:[^市縣]{0,6}?(?:科學工業園區|科學園區|加工出口區|工業區|科技園區))")
+
+
 def to_district(addr: str, by_county: dict[str, list[str]]) -> str:
     """「新北市中和區安和路7號」→「新北市中和區」。對不到回空字串。
 
     ⚠ 不做模糊比對。對不到就是對不到，寧可少算也不要把紀錄放到錯的區 ——
       地圖上一個放錯位置的圓點，比一個不存在的圓點更難發現。
+
+    ⚠⚠ 但「對不到」不可以是安靜的。實測 25,635 家裡有 540 家落空、
+      涉及 1,088 筆職安法裁處，其中 245 家**同時出現在點位圖層** ——
+      同一張地圖的兩個圖層對同一家公司說法不一致。
+      成因查清楚之後，三類是可以救的（見上面的對照表），
+      剩下「有縣市但沒寫區」那一類救不了，那就要**數出來報給使用者**，
+      不是當作不存在。
     """
     if len(addr) < 6:
         return ""
-    county = addr[:3]
+    a = PARK_PREFIX.sub("", addr, count=1)
+    if len(a) < 6:
+        a = addr
+    county = COUNTY_ALIAS.get(a[:3], a[:3])
     towns = by_county.get(county)
     if not towns:
         return ""
-    rest = addr[3:]
+    rest = a[3:]
+    upgraded = county in UPGRADED
     for t in towns:
         if rest.startswith(t):
             return county + t
+        # 地址寫改制後的名字，而我們的鍵還是改制前的（員林市／頭份市）
+        alias = TOWN_ALIAS.get((county, t))
+        if alias and rest.startswith(alias):
+            return county + t
+        # 地址寫改制前的名字，而我們的鍵是改制後的「區」（桃園）
+        if upgraded and t.endswith("區"):
+            stem = t[:-1]
+            if any(rest.startswith(stem + suf) for suf in ("市", "鄉", "鎮")):
+                return county + t
     return ""
 
 
@@ -175,15 +226,37 @@ def main() -> int:
     agg: dict[str, dict] = {}
     companies: dict[str, set[str]] = defaultdict(set)
     matched_all = matched_osha = total_osha = 0
+    # ⚠⚠ 沒上圖的公司要分成**兩個**數字，不可以合成一個。
+    #   一、商工登記對不到地址（串接率的問題，第一版寫成一個數字時是
+    #       29,049 家 —— 那其實是已知的 86.5% 串接率，不是新發現）
+    #   二、有地址但地址沒寫區（實測 192 家：新竹市 163、嘉義市 26…），
+    #       這一類是從文字救不回來的
+    #   合成一個數字的話，第二類（真正的缺口）會被第一類淹掉，
+    #   而讀的人會以為是同一個問題。這跟「把裁處和得獎相減」是同一種錯。
+    no_addr_co: set[str] = set()
+    no_addr_osha = 0
+    # ⚠ 公司名是空的那一批也要數。原本直接 continue 跳過，於是
+    #   四個數字加起來比總數少 2,050 筆 —— 讀的人沒辦法自己核對，
+    #   而「加不起來的統計」比「數字難看的統計」更傷信任。
+    no_company_osha = 0
+    addr_unmapped_co: set[str] = set()
+    addr_unmapped_osha = 0
 
     for row in rec.itertuples(index=False):
         osha = row.group == "osha"
         total_osha += osha          # ⚠ 分母要含「公司名是空的」那些，否則涵蓋率是灌水的
         co = row.company
         if not isinstance(co, str):
+            no_company_osha += osha
             continue
         d = district_of.get(co)
         if not d:
+            if co in addr_of:
+                addr_unmapped_co.add(co)      # 有地址，但地址對不到區
+                addr_unmapped_osha += osha
+            else:
+                no_addr_co.add(co)            # 商工登記根本對不到地址
+                no_addr_osha += osha
             continue
         matched_all += 1
         cell = agg.setdefault(d, {"n": 0, "all": 0, "fatal": 0, "pending": 0,
@@ -213,9 +286,16 @@ def main() -> int:
                 cell["hazf"][code] += 1
             if pending:
                 cell["hazp"][code] += 1
+        # ⚠⚠ disposition_date 是**民國**（"114/12/31"）。
+        #   原本寫 dd[:4] 會拿到 "114/"，isdigit() 為假 ——
+        #   所以這個計數器**從來沒有進過任何一筆**，365 列的 yr 全是 {}。
+        #   不會報錯、不會壞畫面，只是一個型別上宣告了卻永遠空著的欄位
+        #   （web/src/types/geo.ts 第 33 行）。這種錯最難發現。
         dd = row.disposition_date
-        if isinstance(dd, str) and len(dd) >= 4 and dd[:4].isdigit():
-            cell["yr"][dd[:4]] += 1
+        if isinstance(dd, str):
+            y = dd.split("/")[0]
+            if y.isdigit():
+                cell["yr"][str(int(y) + 1911)] += 1
 
     rows = []
     for d, cell in agg.items():
@@ -247,8 +327,28 @@ def main() -> int:
         "osha_total": total_osha,
         "osha_mapped": matched_osha,
         "all_mapped": matched_all,
+        # ⚠ 這兩個數字要在畫面上出現。地圖少掉的公司跟「那裡沒有違規」
+        #   長得一模一樣，而後者是這個站最不能讓人誤會的事。
+        # ⚠ 下面四個相加必須等於 osha_total。等不了就是漏數了一類。
+        "no_company_osha": no_company_osha,
+        "no_addr_companies": len(no_addr_co),
+        "no_addr_osha": no_addr_osha,
+        "addr_unmapped_companies": len(addr_unmapped_co),
+        "addr_unmapped_osha": addr_unmapped_osha,
     }
     out["rows"] = rows
+
+    # ⚠⚠ 這條不變式要在**程式裡**擋，不能只寫在註解裡。
+    #   「四者相加等於總數，讀者可自行核對」這句話已經印在畫面上，
+    #   一旦哪天多了一種落空的成因而沒有被數到，畫面就會開始說謊。
+    #   寧可讓管線在這裡停掉，也不要產生一份加不起來的資料檔。
+    parts = (matched_osha, no_company_osha, no_addr_osha, addr_unmapped_osha)
+    if sum(parts) != total_osha:
+        raise SystemExit(
+            f"涵蓋率四分類加不起來：{' + '.join(f'{x:,}' for x in parts)}"
+            f" = {sum(parts):,}，但 osha_total = {total_osha:,}"
+            f"（差 {total_osha - sum(parts):,}）。"
+            "多半是新增了一種『沒上圖』的成因而沒有計數。")
 
     for p in (OUT, OUT_SRC):
         p.parent.mkdir(parents=True, exist_ok=True)

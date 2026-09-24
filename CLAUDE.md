@@ -61,6 +61,13 @@
 - **hooks 絕對不能放在 early return 之後。** 兩次渲染的 hook 數量不同 → React error #310 → 整頁白屏，而且 TypeScript 檢查不出來。`eslint.config.mjs` 已經把 `react-hooks/rules-of-hooks` 設成 error 並納入 `npm run build`。
 - **顏色一律用 `var(--xxx)`，禁止寫死色碼。** 唯一來源是 `web/src/styles/tokens.css`。
 - **資料從 JSON import，不要寫死在元件裡。** 真資料上線時只換檔案。
+- **JSX 文字裡不可以出現全形空格（U+3000）。** eslint 的
+  `no-irregular-whitespace` 會擋，但它預設 `skipStrings: true` ——
+  所以 `{"　"}`、`.join("　")` 這些**字串裡**的全形空格是放行的，
+  只有寫在 JSX 文字節點的會被抓。要排版就寫 `{"\u3000"}`。
+  這個錯犯過兩次，兩次都是 build 到 eslint 那一關才發現。
+  掛在網路磁碟上時 eslint 連單檔都可能跑不動，所以送 build 之前
+  先掃一遍：把每行的字串字面量剔掉之後，還有 U+3000 的就是要改的。
 
 ### 資料
 

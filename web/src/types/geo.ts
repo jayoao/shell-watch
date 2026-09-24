@@ -43,5 +43,16 @@ export interface DistrictDataset {
   osha_total: number;
   osha_mapped: number;
   all_mapped: number;
+  /** ⚠⚠ 下面四個相加必須等於 osha_total。
+   *  沒上圖的三類成因要分開，合成一個數字的話，真正的缺口
+   *  （地址對不到區）會被最大的那一類（串接率）淹掉。 */
+  /** 公司名欄位是空的，無從歸戶 */
+  no_company_osha: number;
+  /** 商工登記對不到地址的公司家數／其職安法筆數 */
+  no_addr_companies: number;
+  no_addr_osha: number;
+  /** 有地址、但地址沒有寫到「區」（新竹市、嘉義市為主）的家數／筆數 */
+  addr_unmapped_companies: number;
+  addr_unmapped_osha: number;
   rows: DistrictRow[];
 }
