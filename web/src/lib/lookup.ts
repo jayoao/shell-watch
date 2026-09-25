@@ -321,13 +321,31 @@ function getPrefix(n: number): Promise<Record<string, string[]> | null> {
   return p;
 }
 
+/** subseqScore 的「對不上」。⚠ 不可以用 -1 —— 見下面。 */
+const NO_MATCH = -999;
+
 /**
  * name 是否依序包含 q 的每一個字。回傳「鬆緊程度」，數字越小越貼。
- * 對不上回 -1。
+ * 對不上回 NO_MATCH。
  *
  * 鬆緊 = 最後一個配對字的位置 − q 的長度。
  * 「台積電」對「台灣積體電路製造⋯」→ 電在第 5 位，5 − 3 = 2；
  * 對「台北市積善電機⋯」之類位置更後面的就會拿到更大的數字，排後面。
+ *
+ * ⚠⚠ 2026-09-25：這裡原本用 -1 當「對不上」的哨兵值，而**前綴完全吻合
+ *   算出來也是 -1**（前綴吻合時 last === q.length - 1）。兩者撞號，於是
+ *   呼叫端的 `sc >= 0` 把每一個前綴吻合的候選都當成沒對上丟掉。
+ *
+ *   實測後果：索引裡 176,359 家公司，有 176,344 家「打自己名字的前 2–4
+ *   個字反而查不到」。打「國城」找不到國城營造有限公司，打「保吉」找不到
+ *   保吉早午餐卻找得到保信吉商行 —— 而本站搜尋框的範例就寫著「國城營造
+ *   有限公司」。
+ *
+ *   「台積電」是少數會過的，因為它是**不連續**子序列（台⋯積⋯電），
+ *   算出來 sc = 1。難的那種會，簡單的那種不會，所以沒有人發現。
+ *
+ * ⚠ 哨兵值與合法回傳值永遠要能分辨。這個函式的合法值域含負數，
+ *   所以哨兵不可以是 -1。
  */
 function subseqScore(q: string, name: string): number {
   let i = 0;
@@ -338,7 +356,7 @@ function subseqScore(q: string, name: string): number {
       last = j;
     }
   }
-  return i === q.length ? last - q.length : -1;
+  return i === q.length ? last - q.length : NO_MATCH;
 }
 
 const ABBREV_MIN = 2;      // 一個字的查詢會撈回幾千家，沒有意義
@@ -357,7 +375,14 @@ export async function searchAbbrev(query: string, meta: Meta): Promise<string[]>
     const sc = subseqScore(q, normName(name));
     // 走到這裡代表完整名稱與核心名都已經試過且查不到，
     // 所以不會有「完全相同卻被當成候選」的情形。
-    if (sc >= 0) scored.push([Math.min(2, sc >> 1), pos, name.length, name]);
+    if (sc === NO_MATCH) return;
+    // ⚠⚠ 分級用 Math.max(0, sc)，**不可以直接用 sc**。
+    //   前綴完全吻合的 sc 是 -1，而 -1 >> 1 === -1，會自成一個比 0 更前面
+    //   的等級 —— 於是「台電」的第一名變成「台電馬鞍山冰品部」，把
+    //   台灣電力股份有限公司擠掉。前綴吻合**不代表**那就是使用者要的那家。
+    //   夾到 0 之後它與 sc=0、sc=1 同級，再由索引順序（裁處筆數）決定，
+    //   台灣電力與台灣積體電路的第一名都保住了。
+    scored.push([Math.min(2, Math.max(0, sc) >> 1), pos, name.length, name]);
   });
   // ⚠ 排序刻意**不是**「貼的排最前面」。實測「台積電」的四個候選裡，
   //   「台積光電科技有限公司」比「台灣積體電路製造股份有限公司」更貼
