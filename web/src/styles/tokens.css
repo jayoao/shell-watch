@@ -57,7 +57,13 @@
 
   /* ── 線 ──（非文字，對比門檻 3.0）─────────────────────── */
   --rule:   #D7D3D3;  /* 一般分隔線 */
-  --rule-2: #9B9797;  /* 輸入框、可點的邊界 */
+  /* ⚠ 2026-09-25：原本是 #9B9797，壓在 --sheet 上只有 2.65:1。
+     輸入框與可點的邊界屬於 WCAG 1.4.11 的「UI 元件」，門檻 3.0 ——
+     也就是**現行線上版本沒過**。它的症狀是「有點難看清楚」而不是
+     「壞掉」，所以三個多月沒有人回報。改成 #8A8686 → 3.30:1。
+     這是加霓虹主題時寫了 tests/test_contrast.py 才算出來的；
+     在那之前這個值一直是靠目測。 */
+  --rule-2: #8A8686;  /* 輸入框、可點的邊界 */
   /* ⚠⚠ --rule-2 的值是對著 --paper / --sheet 調的。壓在 --desk 上時
      淺色主題只有 **2.18:1**，過不了非文字的 3.0 —— 首頁門面帶上的
      輸入框因此用 --ink-3（深色 6.65:1、淺色 4.92:1）。
@@ -120,7 +126,10 @@
 
 /* 深色主題的值只寫一次，兩個選擇器共用。 */
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
+  /* ⚠ 一定要排除 neon。`:root:not([data-theme="light"])` 與
+     `:root[data-theme="neon"]` **特異度相同**，只靠「誰寫在後面」決勝負 ——
+     那種相依很脆，有人搬動區塊順序就會安靜地壞掉。寫明白。 */
+  :root:not([data-theme="light"]):not([data-theme="neon"]) {
     color-scheme: dark;
     --paper:#191817; --sheet:#201E1D; --sheet-2:#2A2726; --desk:#0E0D0D;
     --ink:#ECE8E6; --ink-2:#C5BFBC; --ink-3:#9C9693;
@@ -151,6 +160,56 @@
   --good:#6BBF8E; --good-soft:#12301F; --on-good-soft:#B6E3C8;
   --map-land:#201E1D; --map-sea:#0E0D0D;
   --shadow: 0 1px 2px rgba(0,0,0,.5), 0 10px 30px -16px rgba(0,0,0,.85);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   霓虹深色（data-theme="neon"）
+
+   為什麼有這個主題：指導老師說畫面「過於黯淡」。追下去發現他看到的
+   **不是**報紙亮色那一版 —— 他的系統是深色模式，所以他看到的是上面那個
+   暖灰的 [data-theme="dark"]。「黯淡」是對它非常精準的描述，它本來就
+   刻意低彩度。所以這一版不是換一套設計，是**把深色主題的彩度拉起來**。
+
+   ⚠ 語意色仍然只有三個，而且仍然不可以合併成同一個色相：
+       --fatal   涉及死亡災害（嚴重）
+       --pending 行政救濟尚未確定（還不知道）
+       --link    可以點的東西
+     「霓虹」只作用在底色與藍，不是拿來多加裝飾色的藉口。
+     新增顏色前一樣要先回答「它代表什麼」。
+
+   ⚠ 每一組前景／背景的對比度由 tests/test_contrast.py 實算，不是目測。
+     改這裡的任何一個值都要跑那支。
+
+   ⚠ 這一版**不動** :root（報紙亮色）與 [data-theme="dark"]（暖灰深色）。
+     要退回去只要拿掉 index.html 上的 data-theme，不需要動 git。
+   ══════════════════════════════════════════════════════════════ */
+:root[data-theme="neon"] {
+  color-scheme: dark;
+
+  --paper:#070B14; --sheet:#0E1626; --sheet-2:#16223A; --desk:#050810;
+  --ink:#E9F1FC; --ink-2:#AFC2DB; --ink-3:#8698B4;
+
+  /* ⚠ --rule-2 是輸入框與可點邊界，屬於 WCAG 1.4.11 的「UI 元件」，
+     門檻 3.0。--rule 只是列與列之間的裝飾線，不在規範範圍內。
+     兩者不可以用同一個亮度，否則不是輸入框看不見、就是整頁被線切碎。 */
+  --rule:#1E2C47; --rule-2:#5C7FB4;
+
+  --fatal:#FF7A66; --fatal-ink:#FFBDB0; --fatal-soft:#31120C;
+  --fatal-tag-bg:#8A2418; --fatal-tag-fg:#FFD5CC;
+  --pending:#FFC24D; --pending-ink:#FFDF9E; --pending-soft:#2E2208;
+
+  --link:#4DB2FF;
+  --accent-soft:#0C2A47; --on-accent-soft:#9BD6FF;
+  --accent-fill:#1E7FD6;
+  /* ⚠ 按鈕底色夠亮，白字壓上去反而不到 AA。這裡要用深字。 */
+  --on-accent:#03111F;
+
+  --good:#3FDDA0; --good-soft:#062A1D; --on-good-soft:#A8F0D2;
+
+  /* ⚠ 陸地一定要比海亮，否則整座島看起來像一個洞。 */
+  --map-land:#16223A; --map-sea:#050810;
+
+  --shadow: 0 1px 2px rgba(0,0,0,.6), 0 10px 34px -16px rgba(9,40,80,.9);
 }
 
 /* ── 基礎版面 ───────────────────────────── */

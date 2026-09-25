@@ -1,5 +1,10 @@
 <!doctype html>
-<html lang="zh-Hant">
+<!-- ⚠ data-theme="neon" 是全站主題的**唯一開關**。
+     拿掉這個屬性，整站就回到原本的行為（跟隨系統的亮／暗色）。
+     不需要改 tokens.css，也不需要動 git —— :root 的報紙亮色與
+     [data-theme="dark"] 的暖灰深色都原封不動留著。
+     改這裡之後要跑 python tests/test_contrast.py。 -->
+<html lang="zh-Hant" data-theme="neon">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
