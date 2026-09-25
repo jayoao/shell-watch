@@ -2498,7 +2498,8 @@ export default function Home() {
       )}
 
       {!busy && outcome?.kind === "miss"
-        && <Miss asked={asked} meta={meta} registry={outcome.registry} />}
+        && <Miss asked={asked} meta={meta} registry={outcome.registry}
+                 also={outcome.also} onPick={(n) => { setQ(n); void run(n); }} />}
 
       {!busy && outcome?.kind === "nodata" && (
         <div className="band">
@@ -2626,10 +2627,12 @@ function regEst(y: number): string {
  *   現在第一屏只留答案與一句最關鍵的警語，其餘收進「為什麼」。
  *   警語不是刪掉 —— 刪掉會變成我們在暗示「沒紀錄 = 安全」。
  */
-function Miss({ asked, meta, registry }: {
+function Miss({ asked, meta, registry, also, onPick }: {
   asked: string;
   meta: Meta | null | undefined;
   registry?: RegistryHit;
+  also?: Candidate[];
+  onPick?: (name: string) => void;
 }) {
   const [why, setWhy] = useState(false);
   const closed = registry && registry.status !== "核准設立"
@@ -2697,6 +2700,39 @@ function Miss({ asked, meta, registry }: {
       <p className="miss-caveat">
         沒有裁處紀錄<b>不等於</b>沒有問題。這一頁只能告訴你主管機關公告過什麼。
       </p>
+
+      {/* ⚠⚠ 「國城」逼出來的。商工登記裡真的有一家就叫「國城」（1993 年
+          設立、已歇業），存在性索引先命中就直接回傳，走不到簡稱比對 ——
+          而使用者要找的幾乎一定是「國城營造有限公司」，本站搜尋框的
+          範例寫的就是那一家。
+
+          ⚠ 但上面那個答案是**確定的事實**（這個名稱在商工登記查得到、
+            沒有裁處紀錄），不可以被猜測取代。所以兩個並存：事實在上面，
+            候選在下面，而且要講清楚「這些是另外幾家不同的公司」。
+            這跟 Choose 的 abbrev 說法是同一條規則。 */}
+      {also && also.length > 0 && (
+        <div className="also">
+          <p className="also-h">
+            另外有 {also.length} 家<b>名稱字面上像</b>、而且有裁處紀錄的事業單位。
+            它們是<b>不同的公司</b>，不是上面那一家的紀錄。
+          </p>
+          <ul className="also-list">
+            {also.map((c, i) => (
+              <li key={`${c.tax_id}-${i}`}>
+                <a href={qHref(c.name)}
+                   onClick={(e) => {
+                     if (onPick && plainClick(e)) { e.preventDefault(); onPick(c.name); }
+                   }}>{c.name}</a>
+                <span className="also-meta">
+                  {c.tax_id && <span className="num">{c.tax_id}</span>}
+                  {c.address && <span>{c.address}</span>}
+                  <span>{c.violation_count} 筆裁處</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <button className="linkish" onClick={() => setWhy((v) => !v)}>
         {why ? "收合" : "為什麼？"}

@@ -1174,3 +1174,25 @@
 .cov-split li { margin-bottom: 9px; }
 .cov-split li b { color: var(--ink-1); }
 .cov-split > p { margin: 12px 0 0; color: var(--ink-3); }
+
+/* 「另外有 N 家名稱字面上像的」。⚠ 這是**附帶資訊**，視覺重量一定要低於
+   上面那個確定的答案 —— 不加框、不加底色，只用一條上緣線隔開。
+   一旦它看起來比答案顯眼，就變成我們在暗示「你要找的其實是這幾家」。 */
+.also {
+  margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--line);
+}
+.also-h {
+  margin: 0 0 10px; font-size: 13px; line-height: 1.8; color: var(--ink-3);
+}
+.also-h b { color: var(--ink-2); }
+.also-list { margin: 0; padding: 0; list-style: none; }
+.also-list li { margin-bottom: 11px; }
+.also-list a {
+  font-size: 14px; color: var(--link); text-decoration: none;
+}
+.also-list a:hover { text-decoration: underline; }
+.also-meta {
+  display: block; margin-top: 2px;
+  font-size: 12px; line-height: 1.7; color: var(--ink-3);
+}
+.also-meta > span + span::before { content: "　·　"; }

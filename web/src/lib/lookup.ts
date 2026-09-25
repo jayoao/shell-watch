@@ -359,6 +359,9 @@ function subseqScore(q: string, name: string): number {
   return i === q.length ? last - q.length : NO_MATCH;
 }
 
+/** 查到登記、但另外列出的相似候選上限。⚠ 每一家要多抓一片分片。 */
+const ALSO_LIMIT = 6;
+
 const ABBREV_MIN = 2;      // 一個字的查詢會撈回幾千家，沒有意義
 const ABBREV_LIMIT = 12;
 
@@ -552,7 +555,14 @@ export type LookupOutcome =
       reason?: "core" | "suffix" | "abbrev" }
   // 有資料，但沒有這家的裁處紀錄。registry 有值 = 這個名稱在商工登記查得到，
   // 也就是「這家公司存在，而且紀錄乾淨」，不是「你可能打錯了」。
-  | { kind: "miss"; registry?: RegistryHit }
+  //
+  // ⚠ also = 字面上相似、且**有裁處紀錄**的事業單位。
+  //   「國城」在商工登記裡真的有一家同名公司（1993 年設立、已歇業），
+  //   於是 registry 先命中、直接回傳，走不到下面的簡稱比對 ——
+  //   而使用者要找的幾乎一定是「國城營造有限公司」。
+  //   把候選一起帶出來，讓確定的事實與可能的候選**並存**，
+  //   不要用猜的取代事實，也不要因為有事實就把候選藏起來。
+  | { kind: "miss"; registry?: RegistryHit; also?: Candidate[] }
   | { kind: "nodata" };                        // 完整資料沒部署，只有展示樣本
 
 /**
@@ -588,7 +598,17 @@ export async function lookup(query: string): Promise<LookupOutcome> {
     //   名稱在商工登記查得到 = 這是一家真的公司，使用者沒打錯，
     //   結論就是「紀錄乾淨」。不要再猜。
     const reg = await findInRegistry(query, meta);
-    if (reg) return { kind: "miss", registry: reg };
+    if (reg) {
+      // ⚠ 這裡只多抓一片 x（約 26 KB）。describe() 每一家要各抓一片，
+      //   所以刻意收斂到 ALSO_LIMIT 家 —— 這是附帶資訊，不是主答案，
+      //   不值得為它多下載十幾片。
+      const near = (await searchAbbrev(query, meta)).slice(0, ALSO_LIMIT);
+      return {
+        kind: "miss",
+        registry: reg,
+        also: near.length ? await describe(near, shards) : undefined,
+      };
+    }
 
     // 尾端可能是打到一半的組織型態（「旭隆實業股份」）。切掉再試。
     //
