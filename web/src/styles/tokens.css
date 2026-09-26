@@ -283,6 +283,27 @@ a:hover { color: var(--ink); }
 /* 資料規模。⚠ 375px 放不下，只有桌機顯示 —— 硬塞會把報頭擠成兩行。 */
 .sw-nav .scale { display: none; }
 
+/* ── 配色切換 ──────────────────────────────────────────────
+   ⚠ 這是報頭上唯一的按鈕，刻意做得比導覽連結更安靜 ——
+     它不是功能，是給展示用的開關。使用者不該覺得非按不可。
+   ⚠ 邊界用 --rule-2（UI 元件，對比門檻 3.0），不是 --rule。 */
+.theme-toggle {
+  display: flex; margin-left: auto;
+  padding: 2px; gap: 2px;
+  font-family: var(--mono); font-size: 11px; line-height: 1;
+  background: transparent; color: var(--ink-3);
+  border: 1px solid var(--rule-2); border-radius: 4px;
+  cursor: pointer;
+}
+.theme-toggle span {
+  padding: 4px 8px; border-radius: 3px;
+  white-space: nowrap;
+}
+.theme-toggle span.on { background: var(--accent-soft); color: var(--on-accent-soft); }
+.theme-toggle:hover { border-color: var(--accent); }
+/* ⚠ 不要拿掉 focus 樣式。鍵盤使用者沒有滑鼠游標可以告訴他焦點在哪。 */
+.theme-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
 @media (min-width: 980px) {
   .sw-nav { gap: 28px; justify-content: flex-start; padding: 16px 20px; }
   .sw-nav .brand { font-size: 18px; }

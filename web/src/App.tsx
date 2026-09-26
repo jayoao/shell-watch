@@ -17,6 +17,60 @@ const OshaDistrictMap = lazy(() => import("./pages/OshaDistrictMap"));
 /** 關於資料。純文字，很小，但沒有理由讓查詢頁載它。 */
 const About = lazy(() => import("./pages/About"));
 
+/* ── 配色切換 ──────────────────────────────────────────────────
+   兩個選項，不是三個：
+
+     霓虹  data-theme="neon"   高彩度深色
+     原本  **拿掉屬性**         跟隨系統：亮色 → 報紙、深色 → 暖灰
+
+   ⚠ 「原本」不是 data-theme="dark"。寫死 dark 會讓亮色模式的人
+     也被強迫看深色 ——「原本」的定義就是「照系統，不要干預」。
+
+   ⚠ 預設值寫在 index.html 的 <html data-theme="neon">，
+     使用者的選擇由 <head> 裡的 inline script 在第一次繪製前套用。
+     這裡的 effect 只負責**之後**的切換與保存。 */
+const THEME_KEY = "sw-theme";
+type ThemeChoice = "auto" | "neon";
+
+function readTheme(): ThemeChoice {
+  // ⚠ 私密視窗讀 localStorage 會丟例外，不是回 null。
+  try {
+    return localStorage.getItem(THEME_KEY) === "auto" ? "auto" : "neon";
+  } catch {
+    return "neon";
+  }
+}
+
+function ThemeToggle() {
+  const [theme, setTheme] = useState<ThemeChoice>(readTheme);
+  useEffect(() => {
+    const el = document.documentElement;
+    if (theme === "auto") el.removeAttribute("data-theme");
+    else el.setAttribute("data-theme", "neon");
+    try {
+      localStorage.setItem(THEME_KEY, theme);
+    } catch {
+      /* 私密視窗寫不進去。切換在本次瀏覽仍然有效，只是不會被記住。 */
+    }
+  }, [theme]);
+
+  return (
+    <button
+      type="button"
+      className="theme-toggle"
+      /* ⚠ 兩個可見的字不足以讓螢幕閱讀器知道「現在是哪一個、按下去會怎樣」。
+         aria-label 要把狀態與動作都講出來。 */
+      aria-label={theme === "neon"
+        ? "目前是霓虹配色，切換回原本配色"
+        : "目前是原本配色，切換為霓虹配色"}
+      onClick={() => setTheme((t) => (t === "neon" ? "auto" : "neon"))}
+    >
+      <span className={theme === "auto" ? "on" : ""}>原本</span>
+      <span className={theme === "neon" ? "on" : ""}>霓虹</span>
+    </button>
+  );
+}
+
 /**
  * 頁首。設計稿的作法是「報紙的報頭」：粗的刊名、細的分隔線、
  * 右邊一行等寬字的資料規模。不用 logo、不用陰影、不用圓角。
@@ -46,6 +100,7 @@ function Masthead() {
             `${meta.violations.toLocaleString("zh-TW")} 筆公告 · 民國 100–115 年`
           : ""}
       </span>
+      <ThemeToggle />
     </header>
   );
 }

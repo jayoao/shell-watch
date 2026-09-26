@@ -1,12 +1,25 @@
 <!doctype html>
-<!-- ⚠ data-theme="neon" 是全站主題的**唯一開關**。
-     拿掉這個屬性，整站就回到原本的行為（跟隨系統的亮／暗色）。
-     不需要改 tokens.css，也不需要動 git —— :root 的報紙亮色與
-     [data-theme="dark"] 的暖灰深色都原封不動留著。
-     改這裡之後要跑 python tests/test_contrast.py。 -->
+<!-- ⚠ data-theme 是全站主題的唯一開關。
+     有值（neon）＝霓虹深色；**拿掉屬性**＝回到原本行為（跟隨系統亮／暗色）。
+     :root 的報紙亮色與 [data-theme="dark"] 的暖灰深色都原封不動留著。
+     這裡寫 neon 是**預設值**，會被下面的 inline script 依使用者的選擇覆蓋。
+     改配色之後要跑 python tests/test_contrast.py。 -->
 <html lang="zh-Hant" data-theme="neon">
   <head>
     <meta charset="UTF-8" />
+    <!-- ⚠⚠ 這段一定要 inline 在 <head>，而且在任何 CSS 與 JS bundle 之前。
+         主題如果等 React 掛載之後才設，第一次繪製會先用預設值畫一遍再跳，
+         使用者看到的就是「閃一下」。那是 FOUC，不是效能問題，
+         而且在慢的裝置上特別明顯。
+         ⚠ localStorage 在私密視窗會直接丟例外，一定要包 try/catch ——
+           丟了就用 HTML 上的預設值，不要讓整頁掛掉。 -->
+    <script>
+      try {
+        if (localStorage.getItem("sw-theme") === "auto") {
+          document.documentElement.removeAttribute("data-theme");
+        }
+      } catch (e) { /* 私密視窗或封鎖 cookie：沿用預設 */ }
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <!-- ⚠ 畫面上有真實姓名，不要被搜尋引擎收錄。見 public/robots.txt -->
     <meta name="robots" content="noindex, nofollow" />
