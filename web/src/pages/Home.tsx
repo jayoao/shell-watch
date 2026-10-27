@@ -39,6 +39,7 @@ import type {
 } from "../types/contracts";
 import sample from "../data/lookup.sample.json";
 import { getMeta, getPlainLaw, hashMismatch, lookup } from "../lib/lookup";
+import { DEMO, demoHref, maskOutcome, maskQuery, unmask } from "../lib/demo";
 import type { LookupOutcome, Meta, PlainDict, RegistryHit } from "../lib/lookup";
 import "../styles/home.css";
 
@@ -316,7 +317,8 @@ function nameEv(c: LinkedCompany) {
 
 /** 查詢網址。⚠ 跟 Home 的 pushState 用同一個格式，改一邊要改兩邊。 */
 function qHref(name: string): string {
-  return `/?q=${encodeURIComponent(name)}`;
+  // ⚠ demo 遮罩模式下 name 是遮罩後的字，要換回原名並帶著 demo=1。非 demo 模式行為不變。
+  return demoHref(name);
 }
 
 /**
@@ -2172,11 +2174,12 @@ export default function Home() {
    *   而且每按一個鍵就抓一次分片。
    */
   const run = useCallback(async (name: string, push = true) => {
-    const t = name.trim();
+    // ⚠ demo 遮罩模式：畫面上點到的是遮罩後的名字，查詢前換回原名。
+    const t = unmask(name.trim());
     if (!t) { setOutcome(null); setAsked(""); return; }
     if (push) {
       // ⚠ pushState 不是 replaceState —— 要讓「上一頁」回得到前一次查詢。
-      const u = `${window.location.pathname}?q=${encodeURIComponent(t)}`;
+      const u = `${window.location.pathname}?q=${encodeURIComponent(t)}${DEMO ? "&demo=1" : ""}`;
       if (u !== window.location.pathname + window.location.search) {
         window.history.pushState({ q: t }, "", u);
       }
@@ -2189,10 +2192,10 @@ export default function Home() {
       window.scrollTo(0, 0);
     }
     setBusy(true);
-    setAsked(t);
+    setAsked(maskQuery(t));
     try {
       if (meta) {
-        setOutcome(await lookup(t));
+        setOutcome(maskOutcome(await lookup(t)));
       } else {
         const r = DATA.results.find(
           (x) => x.query.includes(t) || x.company.name.includes(t)) ?? null;
@@ -2207,10 +2210,10 @@ export default function Home() {
   useEffect(() => {
     if (meta === undefined) return;          // 還在確認有沒有完整資料
     const t = readUrl();
-    if (t) { setQ(t); void run(t, false); }
+    if (t) { setQ(maskQuery(t)); void run(t, false); }
     const onPop = () => {
       const s2 = readUrl();
-      setQ(s2);
+      setQ(maskQuery(s2));
       if (s2) void run(s2, false);
       else { setOutcome(null); setAsked(""); }
     };
@@ -2252,6 +2255,13 @@ export default function Home() {
        使用者的原話是「第一眼要能很清楚知道在幹嘛」。
        ⚠ 改這裡之前先確認 `/?q=…` 仍然跳過門面。 */
     <div className={fresh ? "page landing" : "page"}>
+      {/* demo 遮罩模式的標示。⚠ 一定要顯示 —— 畫面上的 ○ 要有交代，
+          評審才不會以為是資料壞掉，也不會以為這是一份手做的假畫面。 */}
+      {DEMO && (
+        <p className="demo-tag">
+          去識別化示範：人名、公司名、地址、統一編號與處分字號已遮蔽；資料與運算皆為正式版本。
+        </p>
+      )}
       {/* 索引不一致是硬錯誤，不能安靜地回「查無」。設計稿 A8。 */}
       {hashMismatch && (
         <div className="alert">

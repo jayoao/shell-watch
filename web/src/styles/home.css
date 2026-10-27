@@ -1196,3 +1196,13 @@
   font-size: 12px; line-height: 1.7; color: var(--ink-3);
 }
 .also-meta > span + span::before { content: "　·　"; }
+
+/* demo 遮罩模式的標示（src/lib/demo.ts）。只在 ?demo=1 出現。 */
+.demo-tag {
+  margin: 0 0 12px;
+  padding: 6px 12px;
+  border: 1px dashed var(--accent, #FF8C2B);
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--ink-2, inherit);
+}
