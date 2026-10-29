@@ -42,6 +42,13 @@ export function normName(s: string): string {
     .replace(/）/g, ")");
 }
 
+/** ⚠ 2026-10-29：商工登記快照裡的統編是數字存的，開頭的 0 被吃掉了（台電 03795904 →
+ *  "3795904"，4,968 家）。pipeline/refine.py 已經補回 8 碼；這裡是給舊分片的保險。 */
+export function tax8(t: string | null | undefined): string {
+  const s = (t ?? "").trim();
+  return /^\d{1,7}$/.test(s) ? s.padStart(8, "0") : s;
+}
+
 const SHARDS_FALLBACK = 512;
 
 /** 分片裡一筆裁處的欄位順序。⚠ 改順序要同時改 publish.py 並升 schema */
@@ -141,6 +148,8 @@ export interface Meta {
   g_shards?: number;
   /** 商工登記前綴索引（前三個字）的分片數。只有 registry_prefix.py 跑過才會有。 */
   rp_shards?: number;
+  /** 重大職災對到的事業單位家數（publish.py 寫入）。舊的 meta 沒有。 */
+  incident_companies?: number;
   companies: number;
   violations: number;
   source: string;
@@ -485,7 +494,7 @@ async function predecessors(query: string, shards: number, haz: HazardDict)
     // ⚠ 現況與統編用 zr.json 的（核對過代表人的那一筆），不用分片裡的 ——
     //   同名公司時分片的商工登記事實可能是別家，那一筆不一定已停業。
     out.push({
-      tax_id: oldTaxId || "",
+      tax_id: tax8(oldTaxId),
       name: oldName,
       status: oldStatus || other.s,
       established: other.e ?? null,
@@ -529,7 +538,7 @@ async function successors(self: RawEntry, meta: Meta): Promise<LinkedCompany[]> 
   const out: LinkedCompany[] = [];
   for (const [newName, [, , oldLast, newEst, county, rep, principal,
                         repCount, oldRepSame, addr, oldTaxId]] of rows) {
-    if (self.t && oldTaxId && self.t !== oldTaxId) continue;
+    if (self.t && oldTaxId && tax8(self.t) !== tax8(oldTaxId)) continue;
     const reg = await findInRegistry(newName, meta);
     const evidence: { kind: EvidenceKind; detail: string }[] = [
       { kind: "same_county", detail: `兩家公司在商工登記上都登記在${county}。` },
@@ -683,12 +692,16 @@ const SOURCE_URL = "https://announcement.mol.gov.tw/";
 const DESCRIBE_LIMIT = 24;
 
 async function describe(names: string[], shards: number): Promise<Candidate[]> {
+  // ⚠ 2026-10-29：「台灣電力」列出「台灣電力股份有限公司」與「臺灣電力股份有限公司」兩張
+  //   一模一樣的卡（核心名索引兩種寫法都收了）。正規化後相同的只留一張。
+  const uniq = new Set<string>();
+  names = names.filter((n) => { const k = normName(n); if (uniq.has(k)) return false; uniq.add(k); return true; });
   const head = names.slice(0, DESCRIBE_LIMIT);
   const rest = names.slice(DESCRIBE_LIMIT);
   const got = await Promise.all(head.map((n) => findEntry(n, shards)));
   const out: Candidate[] = head.map((name, i) => ({
     name,
-    tax_id: got[i]?.t ?? "",
+    tax_id: tax8(got[i]?.t),
     status: got[i]?.s ?? "",
     established: got[i]?.e ?? null,
     address: got[i]?.a ?? null,
@@ -763,6 +776,39 @@ function summariseHazards(vs: ViolationRef[]) {
     .sort((a, b) => b.count - a.count);
 }
 
+/**
+ * 常見簡稱／品牌／英文名對照（7-11、TSMC、台電⋯⋯）。
+ *
+ * ⚠⚠ 2026-10-29：AI 只在**離線**建表時用（tools/alias_seed.tsv），
+ *   每一個法定名稱都由 tools/alias_build.py 核對過商工登記或裁處紀錄，查不到的丟掉。
+ *   查詢時不呼叫任何 AI、不送出查詢 —— 跟嚴重度分級同一個做法。
+ * ⚠ 一律列成候選讓使用者點，不自動跳進去：品牌背後的經營公司會換。
+ * ⚠ 鍵的正規化跟 tools/alias_build.py 的 alias_key() 一模一樣。
+ */
+export function aliasKey(s: string): string {
+  return [...s.normalize("NFKC").toLowerCase().replace(/臺/g, "台")]
+    .filter((ch) => !" \t-_.'’°".includes(ch)).join("");
+}
+let aliasPromise: Promise<Record<string, string[]>> | null = null;
+function getAlias(): Promise<Record<string, string[]>> {
+  aliasPromise ??= import("../data/alias.json")
+    .then((m) => m.default as Record<string, string[]>)
+    .catch(() => ({}));
+  return aliasPromise;
+}
+
+/** 候選卡：有紀錄的用分片補統編與地址；沒有紀錄的問商工登記補現況。 */
+async function candidatesFor(names: string[], meta: Meta, shards: number): Promise<Candidate[]> {
+  const out = await describe(names, shards);
+  for (const c of out) {
+    if (!c.status && !c.tax_id && c.violation_count === 0) {
+      const r = await findInRegistry(c.name, meta);
+      if (r) { c.status = r.status; c.established = r.established ? String(r.established) : null; }
+    }
+  }
+  return out;
+}
+
 /** 查詢的四種結果。查不到跟沒資料是兩件事，UI 的說法完全不同。 */
 export type LookupOutcome =
   | { kind: "hit"; result: LookupResult }
@@ -771,7 +817,7 @@ export type LookupOutcome =
   //   suffix  使用者把組織型態字尾打到一半
   //   abbrev  使用者打的是簡稱，系統用字面猜的
   | { kind: "choose"; candidates: Candidate[]; note?: string;
-      reason?: "core" | "suffix" | "abbrev" }
+      reason?: "core" | "suffix" | "abbrev" | "alias" }
   // 有資料，但沒有這家的裁處紀錄。registry 有值 = 這個名稱在商工登記查得到，
   // 也就是「這家公司存在，而且紀錄乾淨」，不是「你可能打錯了」。
   //
@@ -782,7 +828,11 @@ export type LookupOutcome =
   //   把候選一起帶出來，讓確定的事實與可能的候選**並存**，
   //   不要用猜的取代事實，也不要因為有事實就把候選藏起來。
   //   before = 負責人姓名相符、已停業且被裁處過的另一家公司（見 predecessors）。
-  | { kind: "miss"; registry?: RegistryHit; also?: Candidate[]; before?: LinkedCompany[] }
+  | { kind: "miss"; registry?: RegistryHit; also?: Candidate[]; before?: LinkedCompany[];
+      /** 使用者打的是 8 碼統一編號（本站還不能用統編查） */
+      taxQuery?: string;
+      /** 打不到兩個字 */
+      tooShort?: boolean }
   | { kind: "nodata" };                        // 完整資料沒部署，只有展示樣本
 
 /**
@@ -797,6 +847,12 @@ export async function lookup(query: string): Promise<LookupOutcome> {
   const shards = meta.shards || SHARDS_FALLBACK;
   const haz = await getHazards();
 
+  // ⚠ 2026-10-29：打統編原本得到「這個名稱⋯很可能不是它的法定全名」，那是錯的說法。
+  //   本站沒有統編索引；老實講，並把人帶到商工登記用統編查。
+  const qq = normName(query);
+  if (/^\d{8}$/.test(qq)) return { kind: "miss", taxQuery: qq };
+  if ([...qq].length < 2) return { kind: "miss", tooShort: true };
+
   let self = await findEntry(query, shards);
   if (!self) {
     const cands = await findByCore(query, shards);
@@ -810,6 +866,21 @@ export async function lookup(query: string): Promise<LookupOutcome> {
     //   （已解散、有裁處），畫面標題是另一家的全名，使用者很容易沒注意到換了公司。
     if (cands.length === 1 && !(await findInRegistry(query, meta))) {
       self = await findEntry(cands[0], shards);
+    }
+  }
+  if (!self) {
+    // 常見簡稱／品牌／英文名。⚠ 放在商工登記之前：「全聯」「台電」在商工登記都真的有一家
+    //   同名的小公司，先命中它就走不到對照表 —— 而使用者要找的幾乎一定是全聯實業、台灣電力。
+    //   名稱完全相同的那一家照樣列在候選裡，不藏起來。
+    const al = (await getAlias())[aliasKey(query)] ?? [];
+    if (al.length) {
+      const names = [...al];
+      if (await findInRegistry(query, meta)) names.push(normName(query));
+      return {
+        kind: "choose", reason: "alias",
+        candidates: await candidatesFor(names, meta, shards),
+        note: `「${query.trim()}」對照到下列公司。`,
+      };
     }
   }
   if (!self) {
@@ -942,7 +1013,7 @@ export async function lookup(query: string): Promise<LookupOutcome> {
           }
         : undefined;
       linked.push({
-        tax_id: other?.t ?? "",
+        tax_id: tax8(other?.t),
         name: otherName,
         status: other?.s ?? "",
         established: other?.e ?? null,
@@ -973,7 +1044,7 @@ export async function lookup(query: string): Promise<LookupOutcome> {
   const result: LookupResult = {
     query,
     company: {
-      tax_id: self.t,
+      tax_id: tax8(self.t),
       name: self.n,
       status: self.s,
       established: self.e,

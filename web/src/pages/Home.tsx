@@ -1042,13 +1042,18 @@ const ICON: Record<string, ReactNode> = {
 function Elsewhere({ name, taxId }: { name: string; taxId?: string }) {
   if (DEMO) return null;
   const n = name.trim();
-  const qType = /分公司$/.test(n) ? "brCmpyType" : /公司$/.test(n) ? "cmpyType" : "busmType";
+  // ⚠ 名稱裡有「公司」但不在結尾（「台灣電力股份有限公司台中發電廠」）＝廠區或分支，
+  //   商工登記要用總公司名稱查，型態也是公司，不是商號（2026-10-29 實測抓到）。
+  const ci = n.indexOf("公司");
+  const parent = ci > 0 && ci + 2 < n.length && !/分公司$/.test(n) ? n.slice(0, ci + 2) : n;
+  // 只有統編（查無頁的統編提示）時不知道型態，用最常見的「公司」。
+  const qType = /分公司$/.test(n) ? "brCmpyType" : /公司|^\d{8}$/.test(n) ? "cmpyType" : "busmType";
   const links = [
     { k: "search", label: "Google", site: "Google 搜尋",
       href: `https://www.google.com/search?q=${encodeURIComponent(n)}` },
     { k: "bank", label: "商工登記", site: "經濟部商工登記公示資料查詢",
       href: "https://findbiz.nat.gov.tw/fts/query/QueryList/queryList.do?qryCond="
-        + `${encodeURIComponent(taxId || n)}&infoType=D&qryType=${qType}&isAlive=all` },
+        + `${encodeURIComponent(taxId || parent)}&infoType=D&qryType=${qType}&isAlive=all` },
     { k: "chat", label: "職場評價", site: "GoodJob 職場透明化運動",
       href: `https://www.goodjob.life/search?q=${encodeURIComponent(n)}` },
   ];
@@ -2733,6 +2738,7 @@ export default function Home() {
       {!busy && outcome?.kind === "miss"
         && <Miss asked={asked} meta={meta} registry={outcome.registry}
                  also={outcome.also} before={outcome.before}
+                 taxQuery={outcome.taxQuery} tooShort={outcome.tooShort}
                  onPick={(n) => { setQ(n); void run(n); }} />}
 
       {!busy && outcome?.kind === "nodata" && (
@@ -2769,7 +2775,10 @@ function Choose({ outcome, asked, onPick }: {
         {/* ⚠ 只對到一家也要走這裡，不可以直接跳進去。切字尾是猜測，
             猜測不能替使用者決定他在看哪一家公司的裁處紀錄。
             但話要講對 ——「我們沒辦法判斷你要查哪一家」在只有一家時是廢話。 */}
-        {outcome.reason === "abbrev" ? (
+        {outcome.reason === "alias" ? (
+          /* ⚠ 對照表是本站整理的（AI 輔助、逐筆核對過商工登記），不是官方資料。 */
+          <p>常見簡稱、品牌或英文名的對照（本站整理、已核對商工登記）。品牌的經營公司可能變動，請確認後再點進去。</p>
+        ) : outcome.reason === "abbrev" ? (
           /* ⚠ 簡稱這條路跟「撞名」完全是兩件事，說法不能共用。
              實測「全聯」會列出「全國聯合工程有限公司」—— 因為全聯實業
              根本不在本站的資料裡（本站只收錄被裁處過的事業單位）。
@@ -2862,7 +2871,9 @@ function regEst(y: number): string {
  *   現在第一屏只留答案與一句最關鍵的警語，其餘收進「為什麼」。
  *   警語不是刪掉 —— 刪掉會變成我們在暗示「沒紀錄 = 安全」。
  */
-function Miss({ asked, meta, registry, also, before, onPick }: {
+function Miss({ asked, meta, registry, also, before, onPick, taxQuery, tooShort }: {
+  taxQuery?: string;
+  tooShort?: boolean;
   asked: string;
   meta: Meta | null | undefined;
   registry?: RegistryHit;
@@ -2873,6 +2884,22 @@ function Miss({ asked, meta, registry, also, before, onPick }: {
   const [why, setWhy] = useState(false);
   const closed = registry && registry.status !== "核准設立"
     && registry.status !== "核准停業";
+  if (taxQuery) {
+    return (
+      <div className="miss">
+        <h1 className="res-title" style={{ fontSize: 22 }}>本站還不能用統一編號查詢</h1>
+        <p className="miss-lead">請輸入公司名稱。要用統編 {taxQuery} 查登記資料，可以直接到商工登記：</p>
+        <Elsewhere name={taxQuery} taxId={taxQuery} />
+      </div>
+    );
+  }
+  if (tooShort) {
+    return (
+      <div className="miss">
+        <h1 className="res-title" style={{ fontSize: 22 }}>請至少輸入兩個字</h1>
+      </div>
+    );
+  }
   return (
     <div className="miss">
       {registry ? (
@@ -2907,6 +2934,18 @@ function Miss({ asked, meta, registry, also, before, onPick }: {
             </div>
           </div>
           <Elsewhere name={asked} />
+          {/* ⚠ 2026-10-29：查「全聯」直接命中一家名稱就叫「全聯」的公司（0 筆），
+              而大家要找的全聯實業（62 筆）只排在下面的「字面上像」。名稱很短時，
+              把第一個有紀錄的候選拉到這裡一行。 */}
+          {also && also.length > 0 && [...asked].length <= 4 && (
+            <p className="maybe">
+              也許你要找{"\u3000"}
+              <a href={qHref(also[0].name)} onClick={(e) => {
+                if (onPick && plainClick(e)) { e.preventDefault(); onPick(also[0].name); }
+              }}>{also[0].name}</a>
+              <span className="num">（{also[0].violation_count} 筆）</span>
+            </p>
+          )}
           {closed && (
             <div className="band" style={{ marginTop: 14 }}>
               <p>

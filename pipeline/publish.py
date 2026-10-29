@@ -710,6 +710,9 @@ def main(argv=None) -> int:
         #   **不要寫死在前端** —— 每次重抓都會往後長，寫死就等著過時。
         "coverage_to": latest_disp,
         "companies": total,
+        # ⚠ 關於資料頁的「裁處公告 → 重大職災 N 家」從這裡讀，不要再寫死在前端
+        #   （2026-10-29：統編補回 8 碼之後這個數字會變）。
+        "incident_companies": sum(1 for sh in shards for e in sh["e"].values() if e.get("ic")),
         # ⚠⚠ 一定要從 shards 數，不能從 by_company 數。
         #   merge_entry 的 `prev["v"].extend(new["v"])` 改的是
         #   **by_company 裡那個 list 本身**（entry["v"] 是同一個物件，

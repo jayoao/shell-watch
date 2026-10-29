@@ -99,6 +99,13 @@ def load_facts(con, wanted: set[str], principals: dict[str, set[str]] | None = N
             mask_match(rep, p) is True for p in principals.get(name, ()))
 
     for name, eid, kind, cap, est, status, addr, ndir, rep in rows:
+        # ⚠⚠ 2026-10-29：商工登記快照裡的統編是**數字**存的，開頭的 0 被吃掉了
+        #   （台電 03795904 → "3795904"），影響 4,968 家。畫面上的統編是錯的，
+        #   而重大職災是用 8 碼統編 join 的 —— 這些公司的職災一筆都對不上。
+        #   在這裡補回 8 碼；gcis/load.py 那一層要重建整個資料庫才改得到。
+        eid = str(eid or "")
+        if eid.isdigit() and len(eid) < 8:
+            eid = eid.zfill(8)
         cur = facts.get(name)
         key = (not rep_ok(name, rep), -(cap or 0), str(eid or ""))
         if cur is None or key < cur["_key"]:

@@ -1241,3 +1241,5 @@
 .ew svg { width: 16px; height: 16px; }
 .ew-x { display: inline-flex; opacity: .55; }
 .ew-x svg { width: 12px; height: 12px; }
+.maybe { margin: 12px 0 0; font-size: 15px; }
+.maybe a { font-weight: 700; }

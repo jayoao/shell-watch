@@ -1,10 +1,11 @@
 <!doctype html>
 <!-- ⚠ data-theme 是全站主題的唯一開關。
-     有值（neon）＝霓虹深色；**拿掉屬性**＝回到原本行為（跟隨系統亮／暗色）。
+     light＝原本的報紙亮色（2026-10-29 起的預設，不跟隨系統暗色：海報、三折頁上的
+     手機畫面都是亮色，評審掃 QR 看到的要一樣）；neon＝霓虹深色。
      :root 的報紙亮色與 [data-theme="dark"] 的暖灰深色都原封不動留著。
-     這裡寫 neon 是**預設值**，會被下面的 inline script 依使用者的選擇覆蓋。
+     這裡寫 light 是**預設值**，會被下面的 inline script 依使用者的選擇覆蓋。
      改配色之後要跑 python tests/test_contrast.py。 -->
-<html lang="zh-Hant" data-theme="neon">
+<html lang="zh-Hant" data-theme="light">
   <head>
     <meta charset="UTF-8" />
     <!-- ⚠⚠ 這段一定要 inline 在 <head>，而且在任何 CSS 與 JS bundle 之前。
@@ -15,8 +16,8 @@
            丟了就用 HTML 上的預設值，不要讓整頁掛掉。 -->
     <script>
       try {
-        if (localStorage.getItem("sw-theme") === "auto") {
-          document.documentElement.removeAttribute("data-theme");
+        if (localStorage.getItem("sw-theme") === "neon") {
+          document.documentElement.setAttribute("data-theme", "neon");
         }
       } catch (e) { /* 私密視窗或封鎖 cookie：沿用預設 */ }
     </script>

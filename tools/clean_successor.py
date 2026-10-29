@@ -198,7 +198,9 @@ def write_json(out_dir: Path, src: Path = OUT) -> int:
             zr.setdefault(h["new_norm"], []).append(
                 [h["old_name"], h["old_status"], int(h["old_last"]), int(h["new_est"]),
                  h["county"], h["rep_masked"], h["principal"], int(h["rep_count"]),
-                 int(h["old_rep_same"]), h["same_address"], h["old_tax_id"]])
+                 int(h["old_rep_same"]), h["same_address"],
+                 # ⚠ 統編補回 8 碼（快照裡開頭的 0 被吃掉了，見 pipeline/refine.py）
+                 (h["old_tax_id"].zfill(8) if h["old_tax_id"].isdigit() else h["old_tax_id"])])
     (out_dir / "zr.json").write_text(
         json.dumps(zr, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     return len(zr)

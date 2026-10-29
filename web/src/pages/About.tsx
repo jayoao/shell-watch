@@ -280,7 +280,7 @@ export default function About() {
               <td>裁處公告 → 重大職災</td>
               {/* ⚠ 2026-10-29 重跑 publish（修正同名公司挑錯）之後是 395 家。
                   這個數字寫死在這裡，重跑之後要看 publish 的輸出「重大職災對到 N 家」。 */}
-              <td className="right num">395 家</td>
+              <td className="right num">{(meta?.incident_companies ?? 395).toLocaleString("zh-TW")} 家</td>
               <td>統一編號優先，無統編才退回名稱並標示</td>
             </tr>
             <tr>

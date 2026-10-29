@@ -21,23 +21,24 @@ const About = lazy(() => import("./pages/About"));
    兩個選項，不是三個：
 
      霓虹  data-theme="neon"   高彩度深色
-     原本  **拿掉屬性**         跟隨系統：亮色 → 報紙、深色 → 暖灰
+     原本  data-theme="light"  報紙亮色
 
-   ⚠ 「原本」不是 data-theme="dark"。寫死 dark 會讓亮色模式的人
-     也被強迫看深色 ——「原本」的定義就是「照系統，不要干預」。
+   ⚠ 2026-10-29 改：「原本」原本是「拿掉屬性、跟隨系統」，手機設成深色的人會看到暖灰深色。
+     預設改成固定亮色，因為海報與三折頁上的手機畫面是亮色，評審掃 QR 看到的要一樣。
 
-   ⚠ 預設值寫在 index.html 的 <html data-theme="neon">，
+   ⚠ 預設值寫在 index.html 的 <html data-theme="light">，
      使用者的選擇由 <head> 裡的 inline script 在第一次繪製前套用。
      這裡的 effect 只負責**之後**的切換與保存。 */
 const THEME_KEY = "sw-theme";
-type ThemeChoice = "auto" | "neon";
+type ThemeChoice = "light" | "neon";
 
 function readTheme(): ThemeChoice {
   // ⚠ 私密視窗讀 localStorage 會丟例外，不是回 null。
   try {
-    return localStorage.getItem(THEME_KEY) === "auto" ? "auto" : "neon";
+    // ⚠ 2026-10-29 起預設亮色。舊版存的 "auto" 一律當亮色。
+    return localStorage.getItem(THEME_KEY) === "neon" ? "neon" : "light";
   } catch {
-    return "neon";
+    return "light";
   }
 }
 
@@ -45,8 +46,7 @@ function ThemeToggle() {
   const [theme, setTheme] = useState<ThemeChoice>(readTheme);
   useEffect(() => {
     const el = document.documentElement;
-    if (theme === "auto") el.removeAttribute("data-theme");
-    else el.setAttribute("data-theme", "neon");
+    el.setAttribute("data-theme", theme);
     try {
       localStorage.setItem(THEME_KEY, theme);
     } catch {
@@ -63,9 +63,9 @@ function ThemeToggle() {
       aria-label={theme === "neon"
         ? "目前是霓虹配色，切換回原本配色"
         : "目前是原本配色，切換為霓虹配色"}
-      onClick={() => setTheme((t) => (t === "neon" ? "auto" : "neon"))}
+      onClick={() => setTheme((t) => (t === "neon" ? "light" : "neon"))}
     >
-      <span className={theme === "auto" ? "on" : ""}>原本</span>
+      <span className={theme === "light" ? "on" : ""}>原本</span>
       <span className={theme === "neon" ? "on" : ""}>霓虹</span>
     </button>
   );
@@ -115,6 +115,12 @@ export default function App() {
             <Route path="/" element={<Home />} />
             <Route path="/osha" element={<OshaDistrictMap />} />
             <Route path="/about" element={<About />} />
+            {/* ⚠ 2026-10-29：打錯網址原本是一整片空白。 */}
+            <Route path="*" element={
+              <div style={{ padding: "48px 0" }}>
+                <h1 className="res-title" style={{ fontSize: 22 }}>找不到這一頁</h1>
+                <p><a href="/">回到查詢</a>{" · "}<a href="/osha">職安地圖</a>{" · "}<a href="/about">關於資料</a></p>
+              </div>} />
           </Routes>
         </Suspense>
       </main>
