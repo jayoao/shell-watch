@@ -591,6 +591,27 @@ export async function findBranches(name: string): Promise<Branches> {
   return out;
 }
 
+/**
+ * 使用者沒打組織型態字尾時，接上常見字尾逐一問商工登記。
+ *
+ * ⚠ 每個字尾各抓一片商工登記索引（每片約 28 KB），只在「什麼都查不到」時才走，
+ *   所以刻意只列最常見的幾種。打了錯的字尾（「保吉生化學有限公司」）先切掉再接。
+ */
+const REG_SUFFIX = [
+  "股份有限公司", "有限公司", "企業社", "商行", "工程行", "實業社",
+  "企業行", "行", "社", "工作室", "商號", "事務所",
+];
+async function registryBySuffix(query: string, meta: Meta): Promise<[string, RegistryHit][]> {
+  let base = normName(query);
+  for (const suf of [...ORG_SUFFIX].sort((a, b) => b.length - a.length)) {
+    if (base.endsWith(suf) && base.length > suf.length + 1) { base = base.slice(0, -suf.length); break; }
+  }
+  if (base.length < 2) return [];
+  const names = REG_SUFFIX.map((suf) => base + suf).filter((n) => n !== normName(query));
+  const hits = await Promise.all(names.map((n) => findInRegistry(n, meta)));
+  return names.flatMap((n, i) => (hits[i] ? [[n, hits[i]!] as [string, RegistryHit]] : []));
+}
+
 /** 這個名稱在經濟部商工登記裡存不存在。沒有索引或查不到都回 null。 */
 export async function findInRegistry(
   query: string, meta: Meta,
@@ -803,11 +824,25 @@ export async function lookup(query: string): Promise<LookupOutcome> {
     //   猜錯就是把 A 公司的裁處紀錄顯示成 B 公司的。使用者自己點，
     //   看到的就是他自己選的公司。
     const abbrev = await searchAbbrev(query, meta);
-    if (abbrev.length) {
+    // ⚠⚠ 2026-10-29：查「保吉生化學」得到「商工登記與勞動部公告裡都查不到」，
+    //   而 Google 一查就是「保吉生化學股份有限公司」。原因是商工登記索引只認**完整名稱**，
+    //   簡稱比對又只掃有裁處紀錄的公司 —— 於是「沒被罰過的公司、使用者沒打字尾」
+    //   這個最常見的情形，兩條路都走不到，畫面還說他可能打錯了。
+    //   所以補上：把常見的組織型態字尾接回去，逐一問商工登記。
+    // ⚠ 一樣走 choose，不自動跳進去（接字尾是猜的）。
+    const bySuffix = await registryBySuffix(query, meta);
+    const regNames = new Set(bySuffix.map(([n]) => normName(n)));
+    const rest = abbrev.filter((n) => !regNames.has(normName(n)));
+    if (bySuffix.length || rest.length) {
+      const regCands: Candidate[] = bySuffix.map(([name, hit]) => ({
+        name, tax_id: "", status: hit.status,
+        established: hit.established ? String(hit.established) : null,
+        address: null, violation_count: 0,
+      }));
       return {
         kind: "choose",
         reason: "abbrev",
-        candidates: await describe(abbrev, shards),
+        candidates: [...regCands, ...(rest.length ? await describe(rest, shards) : [])],
         note: `本站沒有名稱正好是「${query.trim()}」的事業單位。`,
       };
     }
