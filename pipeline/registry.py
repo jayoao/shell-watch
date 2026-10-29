@@ -88,14 +88,17 @@ def main() -> int:
     con = duckdb.connect(str(DB), read_only=True)
 
     # 同一個正規化名稱可能對到多家（4,267,888 筆 → 3,703,647 個相異名稱）。
-    # ⚠ 挑**資本額最大**的那一家，跟 pipeline/refine.py 的 load_facts() 同一條規則。
-    #   兩邊用不同規則的話，同一個名字在查詢頁與查無頁會顯示不同的登記現況，
-    #   而且不會報錯。
+    # ⚠ 同名時**先挑營業中的**，再挑資本額最大的。
+    #   這份索引只用在「沒有裁處紀錄」那一頁，那裡沒有負責人可以對，所以不能用
+    #   refine.load_facts() 的代表人規則。2026-10-28 實測：同名多筆的 27.6 萬個名稱裡，
+    #   20 萬個各筆現況不一致；原本挑資本額最大，會把有營業中登記的名稱顯示成
+    #   「解散」並跳出紅色警告 —— 使用者在應徵的那一家很可能就是營業中的那一筆。
     rows = con.execute("""
         SELECT name_norm, status, established
         FROM (SELECT name_norm, status, established,
                      row_number() OVER (PARTITION BY name_norm
-                                        ORDER BY coalesce(capital, 0) DESC) AS rn
+                                        ORDER BY (status IN ('核准設立','核准登記','核准報備')) DESC,
+                                                 coalesce(capital, 0) DESC, id) AS rn
               FROM entity
               WHERE name_norm IS NOT NULL AND name_norm <> '')
         WHERE rn = 1

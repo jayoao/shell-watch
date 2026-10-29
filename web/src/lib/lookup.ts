@@ -436,6 +436,68 @@ function getRegistry(n: number): Promise<Record<string, number> | null> {
   return p;
 }
 
+/* ── 零裁處新公司的前身（tools/clean_successor.py → zr.json）─────────
+   ⚠ 欄位順序跟 tools/clean_successor.py 的 write_json() 一致，改一邊要改兩邊。 */
+type ZrRow = [string, string, number, number, string, string, string, number, number, string, string];
+//  舊公司名 舊現況 舊最後裁處年 新設立年 縣市 商工代表人(遮罩) 公告負責人
+//  全台幾家公司登記此遮罩姓名 舊公司登記的代表人也是此遮罩姓名(0/1) 同地址時的地址 舊公司統編
+let zrPromise: Promise<Record<string, ZrRow[]>> | null = null;
+function getZr(): Promise<Record<string, ZrRow[]>> {
+  zrPromise ??= getJSON<Record<string, ZrRow[]>>("zr.json").then((d) => d ?? {});
+  return zrPromise;
+}
+
+/**
+ * 一家**沒有裁處紀錄**的公司，它的負責人有沒有收掉過一家被罰的公司。
+ *
+ * ⚠⚠ 這是簡報第 3 頁那個情況：「新公司在資料上是乾淨的」。原本的關聯只在
+ *   「兩家都有紀錄」的公司之間算，查乾淨的新公司只會看到「沒有裁處紀錄」。
+ * ⚠ 身分線索只有商工登記的代表人，而它的中間字被遮掉了（「李_漮」）。
+ *   所以只收「全台登記這個遮罩姓名的公司很少」的組合，並且照實寫出幾家。
+ *   姓名相符與罕見都是**姓名訊號**；獨立佐證只有同縣市（剛好同地址再加一項）。
+ * ⚠ 不放 time_adjacent —— 時間先後是樣態，不是身分佐證，走 succession。
+ */
+async function predecessors(query: string, shards: number, haz: HazardDict)
+  : Promise<LinkedCompany[]> {
+  const rows = (await getZr())[normName(query)] ?? [];
+  const out: LinkedCompany[] = [];
+  for (const [oldName, oldStatus, oldLast, newEst, county, rep, principal,
+              repCount, oldRepSame, addr, oldTaxId] of rows) {
+    const other = await findEntry(oldName, shards);
+    if (!other) continue;                      // 舊公司的分片不在 → 不要顯示一個空殼
+    const evidence: { kind: EvidenceKind; detail: string }[] = [
+      { kind: "same_county",
+        detail: `兩家公司在商工登記上都登記在${county}。` },
+    ];
+    if (addr) {
+      evidence.push({ kind: "same_address",
+        detail: `兩家公司都登記在「${addr}」。全國隨機兩家公司同地址的機率是 0.0158%。` });
+    }
+    evidence.push({ kind: "rare_name",
+      detail: `全台商工登記裡，代表人登記為「${rep}」的公司共 ${repCount} 家`
+        + (oldRepSame && repCount === 2 ? "，就是這兩家。" : "。") });
+    evidence.push({ kind: "same_name",
+      detail: `這家公司在商工登記的代表人是「${rep}」（中間的字由商工登記遮蔽），`
+        + `與「${oldName}」在勞動部公告上的負責人「${principal}」相符。`
+        + `⚠ 姓名相符不等於同一人。` });
+    // ⚠ 現況與統編用 zr.json 的（核對過代表人的那一筆），不用分片裡的 ——
+    //   同名公司時分片的商工登記事實可能是別家，那一筆不一定已停業。
+    out.push({
+      tax_id: oldTaxId || "",
+      name: oldName,
+      status: oldStatus || other.s,
+      established: other.e ?? null,
+      dissolved: null,
+      independent: independentCount(evidence),
+      succession: { role: "after", old_last_violation: oldLast,
+                    new_established: newEst, same_year: false },
+      evidence,
+      violations: toViolations(other.v, haz),
+    });
+  }
+  return out;
+}
+
 /** 這個名稱在經濟部商工登記裡存不存在。沒有索引或查不到都回 null。 */
 export async function findInRegistry(
   query: string, meta: Meta,
@@ -562,7 +624,8 @@ export type LookupOutcome =
   //   而使用者要找的幾乎一定是「國城營造有限公司」。
   //   把候選一起帶出來，讓確定的事實與可能的候選**並存**，
   //   不要用猜的取代事實，也不要因為有事實就把候選藏起來。
-  | { kind: "miss"; registry?: RegistryHit; also?: Candidate[] }
+  //   before = 負責人姓名相符、已停業且被裁處過的另一家公司（見 predecessors）。
+  | { kind: "miss"; registry?: RegistryHit; also?: Candidate[]; before?: LinkedCompany[] }
   | { kind: "nodata" };                        // 完整資料沒部署，只有展示樣本
 
 /**
@@ -584,7 +647,13 @@ export async function lookup(query: string): Promise<LookupOutcome> {
       return { kind: "choose", candidates: await describe(cands, shards),
                reason: "core" };
     }
-    if (cands.length === 1) self = await findEntry(cands[0], shards);
+    // ⚠ 核心名只對到一家時原本會直接跳進去。但如果使用者打的**完整名稱本身**
+    //   在商工登記查得到，那家才是他要找的 —— 不可以換成「核心名相同的另一家」。
+    //   實測：「○○華電訊行」（營業中、零裁處）被直接帶到「○○華電訊有限公司」
+    //   （已解散、有裁處），畫面標題是另一家的全名，使用者很容易沒注意到換了公司。
+    if (cands.length === 1 && !(await findInRegistry(query, meta))) {
+      self = await findEntry(cands[0], shards);
+    }
   }
   if (!self) {
     // ⚠⚠ 順序很重要，而且就是這一題踩出來的：先問商工登記這個名稱**存不存在**，
@@ -602,11 +671,16 @@ export async function lookup(query: string): Promise<LookupOutcome> {
       // ⚠ 這裡只多抓一片 x（約 26 KB）。describe() 每一家要各抓一片，
       //   所以刻意收斂到 ALSO_LIMIT 家 —— 這是附帶資訊，不是主答案，
       //   不值得為它多下載十幾片。
-      const near = (await searchAbbrev(query, meta)).slice(0, ALSO_LIMIT);
+      const before = await predecessors(query, shards, haz);
+      // ⚠ 同一家舊公司已經以「前身」列出時，不要在「字面上像」那一組再列一次。
+      const shown = new Set(before.map((c) => normName(c.name)));
+      const near = (await searchAbbrev(query, meta))
+        .filter((n) => !shown.has(normName(n))).slice(0, ALSO_LIMIT);
       return {
         kind: "miss",
         registry: reg,
         also: near.length ? await describe(near, shards) : undefined,
+        before: before.length ? before : undefined,
       };
     }
 

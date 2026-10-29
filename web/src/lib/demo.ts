@@ -96,7 +96,15 @@ function collect(o: Any, people: Set<string>, orgs: Set<string>, addrs: Set<stri
       if (k === "name" && "linked_companies" in r) people.add(v);          // Principal
       else if (k === "name" || k === "query" || k === "counterpart") orgs.add(v);
       else if (k === "address" || k === "site") addrs.add(v);
-      else if (k === "role") {
+      else if (k === "detail" && r.kind === "same_address") {
+        // ⚠ 沒有路名的地址（「○○鄉○○村○○號」）漏過下面的 ADDR 安全網，實測 4 家。
+        //   佐證句子裡引號內的就是地址，直接收進替換表，交給 maskAddr。
+        for (const m of v.matchAll(/「([^」]{6,})」/g)) addrs.add(m[1]);
+      } else if (k === "detail" && r.kind === "same_name") {
+        // 零裁處新公司那一塊沒有 Principal 物件，姓名只出現在佐證句子裡：
+        // 「代表人是「盧_帆」…負責人「盧紀帆」相符」。短的引號內容一律當人名。
+        for (const m of v.matchAll(/「([^」]{2,4})」/g)) people.add(m[1]);
+      } else if (k === "role") {
         // 「本系統在這家公司的公開紀錄上另外看到「X」的寫法；…以「Y」比對出來的」
         for (const m of v.matchAll(/「([^」]{2,6})」/g)) people.add(m[1]);
       }

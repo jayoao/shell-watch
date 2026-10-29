@@ -108,7 +108,8 @@ def load_last_violation() -> dict[str, int]:
     return last
 
 
-def load_facts(names: set[str]) -> dict[str, tuple[str, int]]:
+def load_facts(names: set[str], principals: dict[str, set[str]] | None = None,
+               ) -> dict[str, tuple[str, int]]:
     """公司（正規化名）→ (登記現況, 設立西元年)。同名取資本額最大的。
 
     ⚠⚠ **平手時一定要有確定的順序。**
@@ -129,17 +130,25 @@ def load_facts(names: set[str]) -> dict[str, tuple[str, int]]:
     df = pd.DataFrame(sorted(names), columns=["name_norm"])          # noqa: F841
     con.execute("INSERT INTO want SELECT * FROM df")
     rows = con.execute("""
-        SELECT name_norm, status, established, coalesce(capital, 0) AS cap, id
+        SELECT name_norm, status, established, coalesce(capital, 0) AS cap, id,
+               coalesce(rep_masked, '') AS rep
         FROM entity JOIN want USING(name_norm)
     """).fetchall()
-    best: dict[str, tuple[int, str, int, str]] = {}
-    for name, status, est, cap, eid in rows:
-        # 排序鍵 = (資本額大的優先, 統編小的優先)。第二項只是為了穩定，
+    # ⚠⚠ 2026-10-28：同名多筆時**先挑代表人對得上的那一筆**。原本只看資本額，
+    #   「朋馳有限公司」接到的是 1989 年已解散的那一家，而裁處其實屬於 2023 年
+    #   設立、仍在營業的另一家 —— 一個同時經營兩家公司的人被算成「收掉再開」，
+    #   588 組裡有 39 組是這樣，而且會顯示在網站的「時序」框裡。
+    from pipeline.join import mask_match
+    best: dict[str, tuple[tuple, str, int]] = {}
+    for name, status, est, cap, eid, rep in rows:
+        hit = bool(principals) and any(
+            mask_match(rep, p) is True for p in principals.get(name, ()))
+        # 排序鍵 = (代表人對得上的優先, 資本額大的優先, 統編小的優先)。最後一項只是為了穩定，
         # 沒有任何意義 —— 但「沒有意義而穩定」勝過「有意義而隨機」。
-        key = (-int(cap), str(eid or ""))
+        key = (not hit, -int(cap), str(eid or ""))
         cur = best.get(name)
-        if cur is None or key < (-cur[0], cur[3]):
-            best[name] = (int(cap), status or "", int(est or 0), str(eid or ""))
+        if cur is None or key < cur[0]:
+            best[name] = (key, status or "", int(est or 0))
     return {k: (v[1], v[2]) for k, v in best.items()}
 
 
@@ -158,7 +167,11 @@ def main() -> int:
     print(f"候選組 {len(groups):,}　涉及 {len(names):,} 家公司")
 
     last = load_last_violation()
-    facts = load_facts(names)
+    principals: dict[str, set[str]] = defaultdict(set)
+    for g in groups:
+        for c in g["company_list"].split(" → "):
+            principals[norm_name(c)].add(g["principal"])
+    facts = load_facts(names, principals)
     print(f"  商工登記對到 {len(facts):,} 家（{len(facts) / len(names) * 100:.1f}%）")
 
     by_tier: dict[str, list[int]] = defaultdict(lambda: [0, 0])   # [符合, 總數]

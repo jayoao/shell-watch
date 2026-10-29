@@ -2193,6 +2193,8 @@ export default function Home() {
     }
     setBusy(true);
     setAsked(maskQuery(t));
+    // ⚠ demo 模式下查詢框也不能留著原名（例如有人直接打字送出）。
+    if (DEMO) setQ(maskQuery(t));
     try {
       if (meta) {
         setOutcome(maskOutcome(await lookup(t)));
@@ -2402,6 +2404,15 @@ export default function Home() {
           enterKeyHint="search"
           value={q}
           onChange={(e) => setQ(e.target.value)}
+          // ⚠ demo 遮罩模式：現場要「輸入公司名」，但一個字一個字打（尤其是注音選字視窗）
+          //   會在投影幕上把真名完整打出來。所以 demo 時用貼上：攔下貼上事件，
+          //   框裡只顯示遮罩後的名字，按 Enter 時再換回原名去查。非 demo 模式行為不變。
+          onPaste={DEMO ? (e) => {
+            const text = e.clipboardData.getData("text").trim();
+            if (!text) return;
+            e.preventDefault();
+            setQ(maskQuery(text));
+          } : undefined}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.nativeEvent.isComposing) {
               e.preventDefault();
@@ -2509,7 +2520,8 @@ export default function Home() {
 
       {!busy && outcome?.kind === "miss"
         && <Miss asked={asked} meta={meta} registry={outcome.registry}
-                 also={outcome.also} onPick={(n) => { setQ(n); void run(n); }} />}
+                 also={outcome.also} before={outcome.before}
+                 onPick={(n) => { setQ(n); void run(n); }} />}
 
       {!busy && outcome?.kind === "nodata" && (
         <div className="band">
@@ -2637,11 +2649,12 @@ function regEst(y: number): string {
  *   現在第一屏只留答案與一句最關鍵的警語，其餘收進「為什麼」。
  *   警語不是刪掉 —— 刪掉會變成我們在暗示「沒紀錄 = 安全」。
  */
-function Miss({ asked, meta, registry, also, onPick }: {
+function Miss({ asked, meta, registry, also, before, onPick }: {
   asked: string;
   meta: Meta | null | undefined;
   registry?: RegistryHit;
   also?: Candidate[];
+  before?: LinkedCompany[];
   onPick?: (name: string) => void;
 }) {
   const [why, setWhy] = useState(false);
@@ -2710,6 +2723,26 @@ function Miss({ asked, meta, registry, also, onPick }: {
       <p className="miss-caveat">
         沒有裁處紀錄<b>不等於</b>沒有問題。這一頁只能告訴你主管機關公告過什麼。
       </p>
+
+      {/* ⚠⚠ 簡報第 3 頁那個情況：新公司在資料上是乾淨的，紀錄留在舊公司。
+          這一塊是 tools/clean_successor.py 算出來的，只出現在「沒有裁處紀錄」這一頁。
+          ⚠ 第一句一定要先講「上面這家公司本身沒有紀錄、下面是另一家」——
+            否則使用者會把舊公司的裁處看成這一家的，那正是這個站一路在防的誤讀。
+          ⚠ 措辭不用「換殼」「前身」這類推論，只陳述姓名、縣市與兩個日期。 */}
+      {before && before.length > 0 && (
+        <section className="block" style={{ marginTop: 22 }}>
+          <h2 className="block-h">
+            負責人姓名相符、已停業且被裁處過的公司
+          </h2>
+          <p className="block-sub">
+            <b>上面這家公司本身沒有裁處紀錄。</b>下面是<b>另一家公司</b>，
+            它的紀錄不是這家的。列出來是因為這家公司在商工登記的代表人姓名，
+            與它在勞動部公告上的負責人相符；兩家在同一個縣市；而且這家設立在它最後一次被裁處之後。
+            本系統不判定是不是同一個人，也不推論原因。
+          </p>
+          {before.map((c, i) => <Linked key={`b-${c.tax_id}-${i}`} c={c} onPick={onPick} />)}
+        </section>
+      )}
 
       {/* ⚠⚠ 「國城」逼出來的。商工登記裡真的有一家就叫「國城」（1993 年
           設立、已歇業），存在性索引先命中就直接回傳，走不到簡稱比對 ——

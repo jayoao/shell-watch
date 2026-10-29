@@ -35,7 +35,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from common import use_utf8_stdout                      # noqa: E402
-from pipeline.join import norm_addr, norm_name          # noqa: E402
+from pipeline.join import mask_match, norm_addr, norm_name   # noqa: E402
 
 JOINED = Path("data/joined.csv")
 DB = Path("data/gcis.duckdb")
@@ -45,8 +45,17 @@ CURRENT_YEAR = 2026
 SHARED_ADDR_LIMIT = 10
 
 
-def load_facts(con, wanted: set[str]) -> tuple[dict[str, dict], dict[str, int]]:
-    """公司名（正規化）→ 商工登記事實。同名取資本額最大的那一家。
+def load_facts(con, wanted: set[str], principals: dict[str, set[str]] | None = None,
+               ) -> tuple[dict[str, dict], dict[str, int]]:
+    """公司名（正規化）→ 商工登記事實。
+
+    同名多筆時：**先挑代表人與公告負責人對得上的那一筆**，再挑資本額最大的。
+
+    ⚠⚠ 2026-10-28 實測：原本只看資本額。有裁處紀錄的公司裡 16,554 家在商工登記
+      有同名多筆，其中 7,265 家挑到的是**另一家同名公司** —— 結果頁的統一編號、
+      登記現況、設立年、地址全是別人的（例：營業中的公司被顯示成「解散、2005 年」），
+      重大職災是用統編去對的，也跟著掛錯。
+      principals 不給的時候行為跟以前一樣（rank.py、refine.py 的統計沒有改）。
 
     ⚠ **只查需要的那幾萬家，不要全表掃。** 第一版寫成
       `SELECT ..., (SELECT count(*) FROM director d WHERE d.id = e.id) FROM entity e`
@@ -62,7 +71,7 @@ def load_facts(con, wanted: set[str]) -> tuple[dict[str, dict], dict[str, int]]:
     facts: dict[str, dict] = {}
     rows = con.execute("""
         SELECT e.name_norm, e.id, e.kind, e.capital, e.established,
-               e.status, e.address, coalesce(d.n, 0)
+               e.status, e.address, coalesce(d.n, 0), coalesce(e.rep_masked, '')
         FROM entity e
         JOIN want w USING(name_norm)
         LEFT JOIN (SELECT id, count(*) AS n FROM director
@@ -85,13 +94,19 @@ def load_facts(con, wanted: set[str]) -> tuple[dict[str, dict], dict[str, int]]:
     #   一份要拿去投稿的統計，數字必須可以重現。評審重跑得到不一樣的數字，
     #   比數字難看嚴重得多。平手改用統一編號排序 —— 那個鍵沒有任何意義，
     #   但它唯一而且穩定。**「沒有意義而穩定」勝過「有意義而隨機」。**
-    for name, eid, kind, cap, est, status, addr, ndir in rows:
+    def rep_ok(name: str, rep: str) -> bool:
+        return bool(principals) and any(
+            mask_match(rep, p) is True for p in principals.get(name, ()))
+
+    for name, eid, kind, cap, est, status, addr, ndir, rep in rows:
         cur = facts.get(name)
-        key = (-(cap or 0), str(eid or ""))
-        if cur is None or key < (-(cur["capital"] or 0), str(cur["id"] or "")):
+        key = (not rep_ok(name, rep), -(cap or 0), str(eid or ""))
+        if cur is None or key < cur["_key"]:
             facts[name] = {"id": eid, "kind": kind, "capital": cap,
                            "established": est, "status": status or "",
-                           "addr": addr or "", "directors": ndir}
+                           "addr": addr or "", "directors": ndir, "_key": key}
+    for f in facts.values():
+        f.pop("_key", None)
 
     # 地址的使用家數也只查候選用到的那些地址
     addrs = sorted({f["addr"] for f in facts.values() if f["addr"]})

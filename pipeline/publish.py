@@ -330,7 +330,11 @@ def main(argv=None) -> int:
     # ── 2. 商工登記事實 ──────────────────────────────────────
     import duckdb
     con = duckdb.connect(str(DB), read_only=True)
-    facts, addr_users = load_facts(con, {norm_name(c) for c in by_company})
+    # ⚠ 一定要傳負責人：同名公司要靠代表人才挑得對（見 refine.load_facts）。
+    principals: dict[str, set[str]] = defaultdict(set)
+    for c, n in spellings.items():
+        principals[norm_name(c)].update(n)
+    facts, addr_users = load_facts(con, {norm_name(c) for c in by_company}, principals)
     con.close()
     print(f"商工登記對到　{len(facts):,} 家　"
           f"（{100 * len(facts) / len(by_company):.1f}%）")
@@ -658,6 +662,14 @@ def main(argv=None) -> int:
                   for (topic, label, duty, _see) in PLAIN.values()}
     (out / "plainlaw.json").write_text(
         json.dumps(plain_dict, ensure_ascii=False, indent=1), encoding="utf-8")
+
+    # ⚠ 零裁處新公司的前身（tools/clean_successor.py）。查詢頁走「商工登記查得到、
+    #   沒有裁處紀錄」那條路時才會載這一份。沒跑那支工具就不寫，前端會當成空的。
+    from tools.clean_successor import write_json as write_zr
+    n_zr = write_zr(out)
+    print(f"零裁處新公司的前身：{n_zr:,} 家 → {out / 'zr.json'}" if n_zr else
+          "⚠ 沒有 data/clean_successor.csv，這次不含零裁處新公司的前身"
+          "（跑 python -m tools.clean_successor 產生）")
 
     src_haz = Path("web/src/data/hazards.json")
     if src_haz.parent.exists():
