@@ -1243,3 +1243,14 @@
 .ew-x svg { width: 12px; height: 12px; }
 .maybe { margin: 12px 0 0; font-size: 15px; }
 .maybe a { font-weight: 700; }
+
+/* 財政部稅籍旗標（TaxBadge）。一顆小標籤，不加句子。 */
+.txb { display: inline-block; font-size: 12px; line-height: 1.5; padding: 0 7px; border-radius: 999px;
+       border: 1px solid var(--line); white-space: nowrap; vertical-align: 1px; cursor: help; }
+.txb.ok { color: var(--ink-2); }
+.txb.warn { color: #9a5b00; border-color: #e3b25a; background: #fff6e3; }
+:root[data-theme="neon"] .txb.warn { color: #ffcf6b; border-color: #8a6a2a; background: transparent; }
+
+/* 改名（現名／舊名）一行 */
+.rn-line { margin: -4px 0 10px; font-size: 14px; color: var(--ink-2); }
+.rn-line b { color: var(--ink); font-weight: 600; }

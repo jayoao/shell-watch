@@ -70,6 +70,9 @@ INCIDENT = Path("data/incident.csv")
 SUCCESSION = Path("data/succession.csv")
 SAFETY = Path("data/safety.csv")
 DB = Path("data/gcis.duckdb")
+TAX_DB = Path("data/taxreg.duckdb")          # gcis/taxreg.py（財政部稅籍，可有可無）
+TAX_META = Path("data/taxreg_meta.json")
+RENAME = Path("tools/rename_seed.tsv")        # 改過名的公司（舊名 → 統編）
 OUT = Path("web/public/data")
 
 # 512 片的話平均一片 450 KB（gzip 後 ~70 KB），但**最大的那片**會拖到 2 MB 以上
@@ -253,6 +256,113 @@ def compact_safety(rows: list[dict], tax_id: str, key: str) -> dict:
     return out
 
 
+def load_tax(missing: set[str]) -> tuple[set[str], dict[str, dict], str]:
+    """財政部稅籍（gcis/taxreg.py）。回 (稅籍營業中的統編, 補事實, 資料日期)。
+
+    補事實：商工登記對不到的公司名，在稅籍裡**剛好只有一筆**同名時，補統編、地址，
+    現況寫「營業中」。2026-10-29 實測：家福、統一星巴克、來來超商都不在商工快照裡，
+    畫面上查得到裁處紀錄卻沒有統編 —— 連重大職災也因為對不到統編而漏掉。
+    ⚠ 同名兩筆以上就不補。寧可空著，也不要把別家的統編掛上來。
+    ⚠ 沒有 data/taxreg.duckdb 就整段跳過，輸出跟以前一模一樣。
+    """
+    if not TAX_DB.exists():
+        print(f"⚠ 沒有 {TAX_DB}，這次不含稅籍（跑 部署工具\\fetch_taxreg.bat 產生）")
+        return set(), {}, ""
+    import duckdb
+    con = duckdb.connect(str(TAX_DB), read_only=True)
+    ids: set[str] = set()
+    fill: dict[str, dict] = {}
+    dup: set[str] = set()
+    cur = con.execute("SELECT id, name_norm, est, address FROM tax")
+    while True:
+        rows = cur.fetchmany(200_000)
+        if not rows:
+            break
+        for tid, nn, est, addr in rows:
+            ids.add(tid)
+            if nn in missing:
+                if nn in fill:
+                    dup.add(nn)
+                else:
+                    # ⚠ 不補設立年：稅籍的設立日期是辦稅籍的日期，不是公司設立日（見 registry.py）。
+                    fill[nn] = {"id": tid, "status": "營業中", "addr": addr or None,
+                                "_tax_year": est or 0}
+    con.close()
+    for nn in dup:
+        fill.pop(nn, None)
+    date = ""
+    if TAX_META.exists():
+        date = json.loads(TAX_META.read_text(encoding="utf-8")).get("data_date", "")
+    print(f"財政部稅籍　{len(ids):,} 個營業中統編（{date}）　"
+          f"商工登記對不到的 {len(missing):,} 家裡有 {len(fill):,} 家同名唯一（同名多筆不補 {len(dup):,}；"
+          f"還要過縣市與年份檢查，實際補了幾家看 meta.tax_filled）")
+    return ids, fill, date
+
+
+def load_renames(con) -> dict[str, dict]:
+    """改名表：正規化舊名 → {old, now, id, status, established, addr}。
+
+    2026-10-29：查「家樂福」到「家福股份有限公司」142 筆，卻沒有統編、現況不明；
+    查「康達盛通生活事業」反而得到「商工登記查得到、裁處 0 筆」—— 改名讓紀錄看起來消失了。
+    商工登記快照只有現名，沒有歷史名稱，所以只能靠人工查證的對照表。
+    ⚠ 每一筆都用**統編**回查商工登記，查不到就略過並印出來，不要相信表上的名字。
+    """
+    out: dict[str, dict] = {}
+    if not RENAME.exists():
+        return out
+    for line in RENAME.read_text(encoding="utf-8").splitlines():
+        if not line.strip() or line.startswith("#"):
+            continue
+        parts = line.split("\t")
+        if len(parts) < 2 or not parts[1].strip().isdigit():
+            continue
+        old, tid = parts[0].strip(), parts[1].strip().zfill(8)
+        row = con.execute("SELECT name, status, established, address FROM entity "
+                          "WHERE lpad(id, 8, '0') = ? LIMIT 1", [tid]).fetchone()
+        if not row:
+            print(f"⚠ 改名表：統編 {tid}（{old}）在商工登記查不到，略過")
+            continue
+        out[norm_name(old)] = {"old": old, "now": row[0], "id": tid, "status": row[1],
+                               "established": row[2], "addr": row[3]}
+    print(f"改名表　{len(out)} 家")
+    return out
+
+
+_COUNTY = re.compile(r"^(..[縣市])")
+
+
+def county_ok(addr: str | None, units: set[str]) -> bool:
+    """稅籍補來的統編，地址縣市要跟公告機關對得上。
+
+    名稱在**營業中**的稅籍裡唯一，不代表它就是勞動部公告的那一家 ——
+    公告的那家可能已經收掉，現在營業中的是別縣市一家同名小吃店。
+    公告機關是縣市政府時（小店幾乎都是），要求稅籍地址在那個縣市；
+    只有中央機關（勞動部、職安署…）公告的，沒有縣市可對，照補。
+    """
+    # 公告機關欄位寫的是「台北市」「新北市」這種縣市名（也接受「○○市政府」）。
+    counties = {m.group(1).replace("臺", "台") for u in units
+                if (len(u) == 3 or u.endswith("政府")) and (m := _COUNTY.match(u))}
+    if not counties:
+        return True
+    m = _COUNTY.match((addr or "").strip().replace("臺", "台"))
+    return bool(m) and m.group(1) in counties
+
+
+def tax_fill_ok(tf: dict, units: set[str], violations: list) -> bool:
+    """稅籍補統編的兩道檢查。任一道不過就不補（寧可空著）。
+
+    1. 縣市對得上（county_ok）。
+    2. 稅籍登記年不晚於**最早一筆裁處**的年份。稅籍晚於裁處 = 被罰的時候這家還沒辦稅籍，
+       被罰的是更早的另一家同名店。⚠ 稅籍登記年只拿來做這個檢查，不顯示（不是設立年）。
+    """
+    if not county_ok(tf.get("addr"), units):
+        return False
+    years = [int(v[0][:3]) + 1911 for v in violations
+             if isinstance(v[0], str) and v[0][:3].isdigit()]
+    ty = tf.get("_tax_year") or 0
+    return not (ty and years and ty > min(years))
+
+
 def merge_entry(prev: dict, new: dict) -> None:
     """兩個公司名正規化成同一個 key 時，把資料**合併**而不是覆蓋。
 
@@ -268,7 +378,7 @@ def merge_entry(prev: dict, new: dict) -> None:
     if len(new["v"]) > len(prev["v"]):
         prev["n"] = new["n"]
     prev["v"].extend(new["v"])
-    for k in ("t", "s", "e", "a", "p"):
+    for k in ("t", "s", "e", "a", "p", "tx"):
         if not prev.get(k) and new.get(k):
             prev[k] = new[k]
     if new.get("l"):
@@ -302,6 +412,7 @@ def main(argv=None) -> int:
     #   但連結其實是靠「徐建珩」跟另一家對上的 —— 使用者看到的名字
     #   跟證據講的名字不是同一個，而且看不出為什麼。
     spellings: dict[str, Counter] = defaultdict(Counter)
+    units_of: dict[str, set[str]] = defaultdict(set)     # 公告機關，給稅籍補統編時對縣市用
     latest_disp = ""            # 最後一筆裁處日期（民國 YYY/MM/DD）
     with RECORDS.open(encoding="utf-8-sig", newline="") as f:
         for r in csv.DictReader(f):
@@ -309,6 +420,7 @@ def main(argv=None) -> int:
             if not c:
                 continue
             by_company[c].append(compact_violation(r))
+            units_of[c].add((r.get("unit") or "").strip())
             # ⚠ 資料涵蓋到哪一天，前端一定要知道。
             #   115 年只到 8/31，而畫面上 115 年的筆數跟 114 年整年並排 ——
             #   讀起來是「今年變好了」，實際是資料截斷。
@@ -335,9 +447,12 @@ def main(argv=None) -> int:
     for c, n in spellings.items():
         principals[norm_name(c)].update(n)
     facts, addr_users = load_facts(con, {norm_name(c) for c in by_company}, principals)
+    renames = load_renames(con)
     con.close()
     print(f"商工登記對到　{len(facts):,} 家　"
           f"（{100 * len(facts) / len(by_company):.1f}%）")
+    tax_ids, tax_fill, tax_date = load_tax(
+        {norm_name(c) for c in by_company} - set(facts))
 
     # ── 3. 換殼組 ────────────────────────────────────────────
     groups_of: dict[str, list[dict]] = defaultdict(list)
@@ -489,7 +604,16 @@ def main(argv=None) -> int:
     if a.limit:
         names = names[:a.limit]
     for company in names:
-        fact = facts.get(norm_name(company), {})
+        fact = facts.get(norm_name(company))
+        rn = renames.get(norm_name(company)) if not fact else None
+        if rn:
+            # 改過名：統編、現況、地址用現在那家公司的（統編回查商工登記），畫面另標「現名」。
+            fact = {"id": rn["id"], "status": rn["status"],
+                    "established": rn["established"], "addr": rn["addr"]}
+        if not fact:
+            tf = tax_fill.get(norm_name(company))
+            fact = tf if tf and tax_fill_ok(tf, units_of.get(company, set()),
+                                            by_company[company]) else {}
         entry = {
             "n": company,
             "t": fact.get("id", ""),
@@ -498,6 +622,12 @@ def main(argv=None) -> int:
             "a": fact.get("addr") or None,
             "v": by_company[company],
         }
+        if rn:
+            entry["rn"] = rn["now"]
+        # 稅籍旗標：1 = 財政部稅籍列為營業中、2 = 沒有列。只在有稅籍資料、而且有統編時才寫。
+        #   ⚠ 用統編對，不用名稱對。商工快照說「核准設立」、稅籍卻沒有 → 快照可能過時（青菜豐商行）。
+        if tax_ids and entry["t"]:
+            entry["tx"] = 1 if str(entry["t"]).zfill(8) in tax_ids else 2
         principal = principal_of.get(company, "")
         if principal:
             entry["p"] = principal
@@ -591,6 +721,19 @@ def main(argv=None) -> int:
         if key:
             prefix[prefix_shard(key[0])].setdefault(key[0], []).append(
                 (len(entry["v"]), company))
+
+    # ── 4.5 改名：新名也有紀錄的，掛上舊名（fn）；新名沒紀錄的，寫進 meta.rn 給前端轉過去 ──
+    rn_meta: dict[str, str] = {}
+    for nn_old, rn in renames.items():
+        old_entry = shards[shard_of(rn["old"])]["e"].get(nn_old)
+        if old_entry is None:          # 舊名沒有裁處紀錄，沒什麼好轉的
+            continue
+        new_key = norm_name(rn["now"])
+        new_entry = shards[shard_of(rn["now"])]["e"].get(new_key)
+        if new_entry is not None:
+            new_entry.setdefault("fn", []).append(rn["old"])
+        else:
+            rn_meta[new_key] = rn["old"]
 
     # ── 5. 寫檔 ──────────────────────────────────────────────
     out = a.out
@@ -712,6 +855,11 @@ def main(argv=None) -> int:
         "companies": total,
         # ⚠ 關於資料頁的「裁處公告 → 重大職災 N 家」從這裡讀，不要再寫死在前端
         #   （2026-10-29：統編補回 8 碼之後這個數字會變）。
+        **({"rn": rn_meta} if rn_meta else {}),
+        **({"taxreg_date": tax_date,
+            # 商工登記對不到、由財政部稅籍補上統編的家數（現況只有稅籍會寫「營業中」）
+            "tax_filled": sum(1 for sh in shards for e in sh["e"].values()
+                              if e.get("s") == "營業中")} if tax_date else {}),
         "incident_companies": sum(1 for sh in shards for e in sh["e"].values() if e.get("ic")),
         # ⚠⚠ 一定要從 shards 數，不能從 by_company 數。
         #   merge_entry 的 `prev["v"].extend(new["v"])` 改的是

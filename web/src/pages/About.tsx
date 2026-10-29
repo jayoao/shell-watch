@@ -89,6 +89,14 @@ const OTHER = [
        + "「與姓名無關」的軸線，所以拿它當獨立的校準尺。",
   },
   {
+    name: "全國營業(稅籍)登記資料集",
+    org: "財政部（data.gov.tw 9400）",
+    url: "https://data.gov.tw/dataset/9400",
+    use: "每日更新、只收營業中。補兩件事：商工登記快照裡沒有的公司（例如大型連鎖），"
+       + "以及快照可能過時的現況（商工寫核准設立、稅籍卻沒列為營業中）。"
+       + "⚠ 沒有負責人欄位，所以不參與任何關聯判斷。",
+  },
+  {
     name: "taiwan-address-data",
     org: "民間（BSD 授權，源自 TGOS）",
     url: "https://github.com/zhengda/taiwan-address-data",
@@ -299,6 +307,10 @@ export default function About() {
           ⚠ 有 <b>13.6%</b> 的事業單位在商工登記裡查不到統一編號。
           多數是診所、小吃店、工作室這類以商業登記或執業登記存在的單位。
           它們的裁處紀錄照常顯示，只是沒有統編與登記地址可以佐證。
+          {meta?.tax_filled
+            ? <> 其中 <b className="num">{meta.tax_filled.toLocaleString("zh-TW")}</b> 家在財政部稅籍登記查得到唯一同名的營業人，
+                已補上統一編號（現況顯示「營業中」）；負責人關聯仍只用商工登記。</>
+            : null}
         </p>
       </section>
 

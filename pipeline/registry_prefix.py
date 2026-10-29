@@ -37,7 +37,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from common import use_utf8_stdout                                    # noqa: E402
 from pipeline.publish import fnv1a                                    # noqa: E402
-from pipeline.registry import pack                                    # noqa: E402
+from pipeline.registry import registry_rows, tax_summary             # noqa: E402
 
 DB = Path("data/gcis.duckdb")
 DATA = Path("web/public/data")
@@ -55,24 +55,17 @@ def main(argv: list[str]) -> int:
     import duckdb
 
     con = duckdb.connect(str(DB), read_only=True)
-    # ⚠ 同名多筆時挑哪一筆，跟 pipeline/registry.py 同一條規則（營業中優先，再看資本額）。
-    rows = con.execute(f"""
-        SELECT name_norm, status, established, cap
-        FROM (SELECT name_norm, status, established, coalesce(capital, 0) AS cap,
-                     row_number() OVER (PARTITION BY name_norm
-                                        ORDER BY (status IN ('核准設立','核准登記','核准報備')) DESC,
-                                                 coalesce(capital, 0) DESC, id) AS rn
-              FROM entity
-              WHERE name_norm IS NOT NULL AND length(name_norm) >= {PREFIX_LEN})
-        WHERE rn = 1
-        ORDER BY (status IN ('核准設立','核准登記','核准報備')) DESC, cap DESC, name_norm
-    """).fetchall()
-    print(f"商工登記　{len(rows):,} 個相異名稱　（{time.time() - t0:.0f} 秒）")
+    # ⚠ 同名多筆時挑哪一筆、排序，都跟 pipeline/registry.py 同一個函式（營業中優先，再看資本額）。
+    #   有 data/taxreg.duckdb 時，商工快照沒有、財政部稅籍有的名稱也會進來（現況「營業中」）。
+    rows, has_tax = registry_rows(con, PREFIX_LEN)
+    print(f"商工登記{'＋稅籍' if has_tax else ''}　{len(rows):,} 個相異名稱　（{time.time() - t0:.0f} 秒）")
+    if has_tax:
+        print("  " + tax_summary(rows))
 
     shards: list[dict[str, list]] = [{} for _ in range(PREFIX_SHARDS)]
-    for name, status, est, _cap in rows:
+    for name, packed, _cap in rows:
         p = name[:PREFIX_LEN]
-        shards[fnv1a(p) % PREFIX_SHARDS].setdefault(p, []).append([name[PREFIX_LEN:], pack(status, est)])
+        shards[fnv1a(p) % PREFIX_SHARDS].setdefault(p, []).append([name[PREFIX_LEN:], packed])
 
     if out.exists():
         shutil.rmtree(out)

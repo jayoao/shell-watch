@@ -72,6 +72,12 @@ interface RawEntry {
   e: string | null;
   a: string | null;
   v: RawViolation[];
+  /** 財政部稅籍旗標：1 = 營業中、2 = 沒有列。publish.py 只在有稅籍資料且有統編時寫。 */
+  tx?: number;
+  /** 改過名：現在的名稱（tools/rename_seed.tsv，統編回查商工登記） */
+  rn?: string;
+  /** 這家公司改名前的名稱，舊名也有裁處紀錄 */
+  fn?: string[];
   p?: string;
   /** 依「組的負責人姓名」分群的連結。同一家公司在來源裡有兩種姓名寫法時，
    *  會有兩筆 —— 連結是靠哪一種寫法對上的，就掛在哪一種底下。 */
@@ -148,6 +154,12 @@ export interface Meta {
   g_shards?: number;
   /** 商工登記前綴索引（前三個字）的分片數。只有 registry_prefix.py 跑過才會有。 */
   rp_shards?: number;
+  /** 財政部稅籍資料的檔案日期（YYYY-MM-DD，gcis/taxreg.py）。沒有稅籍資料時不給。 */
+  taxreg_date?: string;
+  /** 商工登記對不到、由財政部稅籍補上統編的家數 */
+  tax_filled?: number;
+  /** 改過名、新名沒有裁處紀錄的：正規化新名 → 舊名。查新名時轉到舊名那一頁。 */
+  rn?: Record<string, string>;
   /** 重大職災對到的事業單位家數（publish.py 寫入）。舊的 meta 沒有。 */
   incident_companies?: number;
   companies: number;
@@ -429,6 +441,8 @@ const registryCache = new Map<number, Promise<Record<string, number> | null>>();
 const STATUS_LABEL: Record<number, string> = {
   1: "核准設立", 2: "核准停業", 3: "歇業", 4: "解散",
   5: "撤銷", 6: "廢止", 7: "歇業/撤銷", 8: "解散已清算完結",
+  // ⚠ 9 不是商工登記的現況：商工快照裡沒有，只在財政部稅籍登記查得到（只收營業中）。
+  9: "營業中",
 };
 
 export interface RegistryHit {
@@ -436,6 +450,25 @@ export interface RegistryHit {
   status: string;
   /** 設立年（西元）。0 代表來源沒有這個欄位 */
   established: number;
+  /** 財政部稅籍：有沒有列為營業中。沒有稅籍資料時不給。 */
+  tax?: "active" | "unlisted";
+  /** 這一筆只在財政部稅籍查得到（商工快照沒有） */
+  taxOnly?: boolean;
+}
+
+/**
+ * g/ 與 rp/ 的整數 = 稅籍 * 100000 + 現況代碼 * 10000 + 西元設立年。
+ * ⚠ 跟 pipeline/registry.py 的 pack() 一模一樣。稅籍 0 = 沒資料、1 = 營業中、2 = 沒列。
+ */
+function unpackReg(packed: number): RegistryHit {
+  const code = Math.floor(packed / 10000) % 10;
+  const tax = Math.floor(packed / 100000);
+  return {
+    status: STATUS_LABEL[code] ?? "",
+    established: packed % 10000,
+    ...(tax === 1 ? { tax: "active" as const } : tax === 2 ? { tax: "unlisted" as const } : {}),
+    ...(code === 9 ? { taxOnly: true } : {}),
+  };
 }
 
 function getRegistry(n: number): Promise<Record<string, number> | null> {
@@ -625,10 +658,7 @@ async function registryPrefix(query: string, meta: Meta): Promise<[string, Regis
   const out: [string, RegistryHit][] = [];
   for (const [rest, packed] of list) {
     if (!rest.startsWith(tail) || head + rest === q) continue;
-    out.push([head + rest, {
-      status: STATUS_LABEL[Math.floor(packed / 10000)] ?? "",
-      established: packed % 10000,
-    }]);
+    out.push([head + rest, unpackReg(packed)]);
     if (out.length >= RP_LIMIT) break;
   }
   return out;
@@ -674,10 +704,7 @@ export async function findInRegistry(
   const shard = await getRegistry(fnv1a(key) % gs);
   const packed = shard?.[key];
   if (packed === undefined) return null;
-  return {
-    status: STATUS_LABEL[Math.floor(packed / 10000)] ?? "",
-    established: packed % 10000,
-  };
+  return unpackReg(packed);
 }
 
 const SOURCE_URL = "https://announcement.mol.gov.tw/";
@@ -889,6 +916,17 @@ export async function lookup(query: string): Promise<LookupOutcome> {
       self = await findEntry(cands[0], shards);
     }
   }
+  // ⚠ 2026-10-29：查「康達盛通生活事業股份有限公司」得到「裁處 0 筆」，但它就是改名前的
+  //   「家福股份有限公司」（142 筆）。改名讓紀錄看起來消失了 —— 這正是本站要防的事。
+  //   對照表是統編查證過的（不是猜的），所以直接轉過去，畫面上講清楚。
+  let viaRename: string | undefined;
+  if (!self) {
+    const old = meta.rn?.[qq];
+    if (old) {
+      self = await findEntry(old, shards);
+      if (self) viaRename = query.trim();
+    }
+  }
   if (!self) {
     // 異體字：換一次再試（完整名稱、核心名、商工登記）。
     const alt: string[] = [];
@@ -1087,6 +1125,10 @@ export async function lookup(query: string): Promise<LookupOutcome> {
       status: self.s,
       established: self.e,
       address: self.a,
+      ...(self.tx === 1 ? { tax_status: "active" as const }
+        : self.tx === 2 ? { tax_status: "unlisted" as const } : {}),
+      ...(self.rn ? { renamed_to: self.rn } : {}),
+      ...(self.fn?.length ? { former_names: self.fn } : {}),
       own_violations: own,
       incidents: self.ic ? toIncidents(self.ic) : undefined,
       safety: self.su ? toSafety(self.su) : undefined,
@@ -1097,6 +1139,7 @@ export async function lookup(query: string): Promise<LookupOutcome> {
         })),
     },
     principals,
+    ...(viaRename ? { via_rename: viaRename } : {}),
     successors: after.length ? after : undefined,
     summary: {
       own_violation_count: own.length,

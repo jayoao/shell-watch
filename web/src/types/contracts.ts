@@ -311,6 +311,14 @@ export interface LookupResult {
     status: string;
     established: string | null;
     address: string | null;
+    /** ⚠ 選填。財政部稅籍登記（每日更新、只收營業中）有沒有列這個統編為營業中。
+     *  "active" = 有；"unlisted" = 沒有。沒有稅籍資料或沒有統編時不給。
+     *  商工快照說「核准設立」、稅籍卻是 unlisted → 快照可能過時。 */
+    tax_status?: "active" | "unlisted";
+    /** ⚠ 選填。改過名：現在的名稱。勞動部公告用舊名，商工登記只剩新名。 */
+    renamed_to?: string;
+    /** ⚠ 選填。改名前的名稱，而且舊名也有裁處紀錄。 */
+    former_names?: string[];
     own_violations: ViolationRef[];
     /** ⚠ 選填。得獎與驗證。沒有不代表這家公司沒得過獎 ——
      *  只代表在我們涵蓋的四份名單裡沒有正規化後完全相同的名稱。 */
@@ -322,6 +330,8 @@ export interface LookupResult {
     safety?: SafetyUnits;
   };
   principals: Principal[];
+  /** ⚠ 選填。使用者打的是改名後的名稱，被轉到舊名這一頁。值是使用者打的字。 */
+  via_rename?: string;
   /** ⚠ 選填。本頁這家（已停業、被裁處過）之後設立、商工登記代表人姓名相符、
    *  而且**沒有裁處紀錄**的公司。是 predecessors 的反方向（同一份 zr.json）。
    *  沒有這一欄，從舊公司那一頁就看不到新公司 —— 兩頁會互相矛盾。 */

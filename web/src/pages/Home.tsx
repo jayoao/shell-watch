@@ -695,16 +695,22 @@ function PlainBars({ vs }: { vs: ViolationRef[] }) {
 
   const groups = useMemo(() => {
     const m = new Map<string, { n: number; fatal: number; topic: string; duty: string }>();
+    // ⚠⚠ 2026-10-29：改成「涉及這一類的筆數」，一筆有幾個危害型態就各算一次。
+    //   原本每筆只歸第一類，於是同一頁上篩選按鈕寫「感電 25」、長條寫「用電安全防護不足 22」，
+    //   評審看到的是同一個網站對同一類講兩個數字。各類相加會超過總筆數，這件事寫在「怎麼算的？」。
+    //   ⚠ 簡報與海報的全國比例（墜落 41.1%）是另一種算法：一筆只歸主要的一類，加總 100%。
     for (const v of vs) {
-      const h = v.hazards && v.hazards.length ? v.hazards[0] : null;
-      const label = v.plain?.label ?? (h ? (h.phrase ?? h.name) : "其他");
-      const topic = v.plain?.topic ?? (h ? "職業安全" : "其他");
-      const cur = m.get(label)
-        ?? { n: 0, fatal: 0, topic, duty: h?.duty ?? "" };
-      cur.n += 1;
-      if (v.fatal) cur.fatal += 1;
-      if (!cur.duty && h?.duty) cur.duty = h.duty;
-      m.set(label, cur);
+      const hs = v.plain || !(v.hazards && v.hazards.length) ? [null] : v.hazards;
+      for (const h of hs) {
+        const label = v.plain?.label ?? (h ? (h.phrase ?? h.name) : "其他");
+        const topic = v.plain?.topic ?? (h ? "職業安全" : "其他");
+        const cur = m.get(label)
+          ?? { n: 0, fatal: 0, topic, duty: h?.duty ?? "" };
+        cur.n += 1;
+        if (v.fatal) cur.fatal += 1;
+        if (!cur.duty && h?.duty) cur.duty = h.duty;
+        m.set(label, cur);
+      }
     }
     const byFam = new Map<string, [string, typeof m extends Map<string, infer V> ? V : never][]>();
     for (const [label, x] of m) {
@@ -837,9 +843,8 @@ function PlainBars({ vs }: { vs: ViolationRef[] }) {
       {why && (
         <p className="fineprint" style={{ marginTop: 6 }}>
           被查過十次的公司不等於比從沒被查過的公司危險——筆數同時反映稽核頻率。
-          每筆公告只歸入一類（取規則順序的第一項），所以上面各類相加
-          等於公告總筆數；下方的篩選晶片是每類分別計數，同一筆會出現在
-          多類裡，兩邊的數字因此不同。
+          每一類是「涉及這一類的筆數」，一筆公告同時涉及兩類就兩邊各算一次，
+          所以各類相加會超過總筆數；下方的篩選按鈕用的是同一套算法。
           職安法公告沒有標籤，是本站的分類規則沒有對到，
           不是「公告沒寫」，也不是「沒有危害」。
         </p>
@@ -847,8 +852,8 @@ function PlainBars({ vs }: { vs: ViolationRef[] }) {
       {/* ⚠⚠ 「有 10 筆涉及死亡災害」回答的是「有多嚴重」，
           但組別叫**視覺化防災**，防災的第一個問題是「要防什麼」。
           每一類的 fatal 計數本來就算好了，只是沒有收攏成一句話。
-          ⚠ 用的是跟長條同一份 groups —— 每筆公告只歸第一類，
-          所以這幾個數字相加等於 fatalTotal，不會對不起來。 */}
+          ⚠ 用的是跟長條同一份 groups（涉及這一類就算），一筆可能出現在兩類，
+          所以這幾個數字相加可能大於 fatalTotal。 */}
       {fatalRows.length > 0 && (
         <p className="fatal-where">
           <span className="fatal-where-k">集中在</span>
@@ -1272,10 +1277,15 @@ function ViolationList({ vs, title, company }: {
     if (pend) out.push({ key: "pending", label: `尚未確定 ${pend}`, test: isPending });
     // 出現最多的三種危害型態
     const cnt = new Map<string, number>();
-    for (const v of vs) for (const h of v.hazards ?? []) cnt.set(h.name, (cnt.get(h.name) ?? 0) + 1);
+    // ⚠ 按鈕上的名稱跟長條圖用同一個（phrase），使用者才認得出是同一類。
+    const lab = new Map<string, string>();
+    for (const v of vs) for (const h of v.hazards ?? []) {
+      cnt.set(h.name, (cnt.get(h.name) ?? 0) + 1);
+      lab.set(h.name, h.phrase ?? h.name);
+    }
     for (const [name, n] of [...cnt.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3)) {
       out.push({
-        key: `h:${name}`, label: `${name} ${n}`,
+        key: `h:${name}`, label: `${lab.get(name) ?? name} ${n}`,
         test: (v) => (v.hazards ?? []).some((h) => h.name === name),
       });
     }
@@ -1987,8 +1997,8 @@ function Ledger({ hit, pending, allWeak }: {
 /* ══════════════════════════════════════════════════════════════
    查詢結果
    ══════════════════════════════════════════════════════════════ */
-function Result({ hit, onPick }: {
-  hit: LookupResult; onPick: (n: string) => void;
+function Result({ hit, onPick, meta }: {
+  hit: LookupResult; onPick: (n: string) => void; meta?: Meta | null;
 }) {
   const linkedAll = hit.principals.flatMap((p) => p.linked_companies);
   const pendingCount = [
@@ -2032,6 +2042,23 @@ function Result({ hit, onPick }: {
       <header className="res-head">
         <div className="kicker" style={{ marginBottom: 10 }}>查詢結果</div>
         <h1 className="res-title">{hit.company.name}</h1>
+        {/* ⚠ 改名（tools/rename_seed.tsv）。勞動部公告用舊名、商工登記只剩新名，
+            不講清楚的話，使用者拿新名去查會以為「0 筆」，拿舊名查會以為「這家已經不在了」。 */}
+        {hit.via_rename ? (
+          <p className="rn-line">
+            你查的「{hit.via_rename}」改名前叫<b>{hit.company.name}</b>；勞動部公告用的是舊名。
+          </p>
+        ) : hit.company.renamed_to ? (
+          <p className="rn-line">現名 <b>{hit.company.renamed_to}</b></p>
+        ) : null}
+        {hit.company.former_names?.map((old) => (
+          <p className="rn-line" key={old}>
+            舊名{" "}
+            <a href={qHref(old)} onClick={(e) => {
+              if (plainClick(e)) { e.preventDefault(); onPick(old); }
+            }}>{old}</a> 另有裁處紀錄 →
+          </p>
+        ))}
         <dl className="fields">
           {hit.company.tax_id && (
             <Field label="統一編號"><span className="num">{hit.company.tax_id}</span></Field>
@@ -2041,6 +2068,8 @@ function Result({ hit, onPick }: {
               {hit.company.status || "登記狀態不明"}
               {hit.company.established ? ` · ${estLabel(hit.company.established)}` : ""}
             </span>
+            {" "}<TaxBadge tax={hit.company.tax_status} status={hit.company.status}
+              date={meta?.taxreg_date} />
           </Field>
           {hit.company.address && (
             <Field label="登記地址">
@@ -2725,7 +2754,7 @@ export default function Home() {
         </div>
       )}
 
-      {!busy && hit && <Result hit={hit} onPick={(n) => { setQ(n); void run(n); }} />}
+      {!busy && hit && <Result hit={hit} meta={meta} onPick={(n) => { setQ(n); void run(n); }} />}
 
       {/* 核心名對到多家：⚠ 絕對不能自己挑一家。
           挑錯就是把 A 公司的裁處紀錄顯示成 B 公司的，那是名譽損害。
@@ -2849,6 +2878,43 @@ function Choose({ outcome, asked, onPick }: {
 }
 
 /** 西元年 → 「西元 1981 年」。⚠ 標示不換算，跟結果頁的 estLabel 一致。 */
+/**
+ * 財政部稅籍旗標（gcis/taxreg.py，每日更新、只收營業中）。
+ *
+ * ⚠⚠ 2026-10-29：商工登記快照是 9 月的，「青菜豐商行」快照寫核准設立、官方已經停業。
+ *   稅籍沒列不代表一定歇業（也可能還沒辦稅籍、或名稱寫法不同），所以只講「沒列」，
+ *   不講「已停業」，而且只在商工寫「核准設立」時才提醒 —— 已經寫解散的不用再補一刀。
+ * ⚠ 使用者回饋「太多文字」：這裡只放一顆小標籤，說明放在 title 與「怎麼判斷的？」。
+ */
+function TaxBadge({ tax, status, date }: {
+  tax?: "active" | "unlisted"; status: string; date?: string;
+}) {
+  if (status === "營業中") {
+    // 商工快照裡查不到、整筆來自財政部稅籍（publish.py load_tax）。標出來源就好。
+    return (
+      <span className="txb ok" title={`商工登記快照裡查不到這家；統編、設立年與地址來自財政部營業（稅籍）登記${date ? `（${date}）` : ""}`}>
+        財政部稅籍
+      </span>
+    );
+  }
+  if (tax === "active") {
+    return (
+      <span className="txb ok" title={`財政部營業（稅籍）登記${date ? `（${date}）` : ""}列為營業中`}>
+        ✓ 稅籍營業中
+      </span>
+    );
+  }
+  if (tax === "unlisted" && status === "核准設立") {
+    return (
+      <span className="txb warn"
+        title={`財政部營業（稅籍）登記${date ? `（${date}）` : ""}沒有列為營業中。商工登記快照可能已過時，請到商工登記確認最新現況。`}>
+        稅籍未列營業中
+      </span>
+    );
+  }
+  return null;
+}
+
 function regEst(y: number): string {
   return y > 0 ? `設立 西元 ${y} 年` : "";
 }
@@ -2885,7 +2951,8 @@ function Miss({ asked, meta, registry, also, before, onPick, taxQuery, tooShort 
 }) {
   const [why, setWhy] = useState(false);
   const closed = registry && registry.status !== "核准設立"
-    && registry.status !== "核准停業";
+    && registry.status !== "核准停業" && registry.status !== "營業中"
+    && registry.tax !== "active";
   if (taxQuery) {
     return (
       <div className="miss">
@@ -2915,11 +2982,16 @@ function Miss({ asked, meta, registry, also, before, onPick, taxQuery, tooShort 
               ⚠ 負責人那一格不可以寫「沒有」——寫「未發現」，因為只抓得到姓名少見的情形。 */}
           <div className="ms-cards">
             <div className="ms-card">
-              <span className="ms-k">商工登記</span>
+              {/* ⚠ 商工快照沒有、只在財政部稅籍查得到的（家福、統一星巴克…）標「財政部稅籍」，
+                  不可以寫成「商工登記 查得到」—— 那是另一個機關的資料。 */}
+              <span className="ms-k">{registry.taxOnly ? "財政部稅籍" : "商工登記"}</span>
               <b>查得到</b>
               <span className="ms-s">
                 {registry.status && <span style={{ color: closed ? "var(--fatal)" : undefined }}>{registry.status}</span>}
                 {regEst(registry.established) ? `・${regEst(registry.established).replace(/^設立 /, "")}設立` : ""}
+                {!registry.taxOnly && (
+                  <>{" "}<TaxBadge tax={registry.tax} status={registry.status} date={meta?.taxreg_date} /></>
+                )}
               </span>
             </div>
             <div className="ms-card">
@@ -2929,9 +3001,12 @@ function Miss({ asked, meta, registry, also, before, onPick, taxQuery, tooShort 
             </div>
             <div className="ms-card">
               <span className="ms-k">負責人關聯</span>
-              <b>{before && before.length > 0 ? `${before.length} 家` : "未發現"}</b>
+              {/* ⚠ 只在財政部稅籍查得到的，沒有負責人可以比 —— 寫「未發現」等於說查過了。 */}
+              <b>{before && before.length > 0 ? `${before.length} 家`
+                : registry.taxOnly ? "無法比對" : "未發現"}</b>
               <span className="ms-s">
-                {before && before.length > 0 ? "已停業、被裁處過（見下方）" : "已停業且被裁處過的公司"}
+                {before && before.length > 0 ? "已停業、被裁處過（見下方）"
+                  : registry.taxOnly ? "稅籍資料沒有負責人欄位" : "已停業且被裁處過的公司"}
               </span>
             </div>
           </div>
@@ -3068,6 +3143,12 @@ function Miss({ asked, meta, registry, also, before, onPick, taxQuery, tooShort 
             商工登記資料來自經濟部商工登記公示資料查詢服務。
             要看統一編號、登記地址與完整的登記事項，請到該系統查詢。
           </p>
+          {meta?.taxreg_date && (
+            <p className="fineprint" style={{ marginTop: 6 }}>
+              「稅籍營業中」來自財政部全國營業（稅籍）登記資料（{meta.taxreg_date}），每日更新、只收營業中的營業人。
+              商工登記寫核准設立、稅籍卻沒有列的，商工資料可能已過時。
+            </p>
+          )}
         </div>
       )}
 

@@ -65,16 +65,96 @@ STATUS_CODE: dict[str, int] = {
     "廢止": 6,
     "歇業/撤銷": 7,
     "解散已清算完結": 8,
+    # ⚠ 9 不是商工登記的現況：商工快照裡沒有這個名稱，只在財政部稅籍登記（每日更新、
+    #   只收營業中）查得到。見 gcis/taxreg.py。
+    "營業中": 9,
 }
 
+TAX_DB = Path("data/taxreg.duckdb")
+ACTIVE = "('核准設立','核准登記','核准報備','營業中')"
 
-def pack(status: str, established: int | None) -> int:
-    """(登記現況, 設立年) 壓成一個整數 = 代碼 * 10000 + 西元年。
 
+def pack(status: str, established: int | None, tax: int = 0) -> int:
+    """(稅籍, 登記現況, 設立年) 壓成一個整數 = 稅籍 * 100000 + 代碼 * 10000 + 西元年。
+
+    稅籍：0 = 沒有稅籍資料可比、1 = 財政部稅籍列為營業中、2 = 稅籍沒有列為營業中。
+    ⚠ 前端 lookup.ts 的 unpackReg() 要同步。舊的前端會把 1xxxxx 當成代碼 1x，
+      所以這份索引跟前端**一定要同一次部署**（deploy_taxreg.bat 就是這樣排的）。
     ⚠ 設立年缺漏時放 0，不要放 1911 或 9999 之類的哨兵值 ——
       那種值會在別的地方被當成真的年份拿去算「開了幾年」。
     """
-    return STATUS_CODE.get(status or "", 0) * 10000 + int(established or 0)
+    return int(tax) * 100000 + STATUS_CODE.get(status or "", 0) * 10000 + int(established or 0)
+
+
+def registry_rows(con, min_len: int = 1) -> tuple[list[tuple], bool]:
+    """每個相異正規化名稱一列：(name_norm, packed, capital)，營業中優先、資本額大優先。
+
+    ⚠ 同名多筆時挑哪一筆：**先挑營業中的**，再挑資本額最大的。
+      這份索引只用在「沒有裁處紀錄」那一頁，那裡沒有負責人可以對，所以不能用
+      refine.load_facts() 的代表人規則。2026-10-28 實測：同名多筆的 27.6 萬個名稱裡，
+      20 萬個各筆現況不一致；原本挑資本額最大，會把有營業中登記的名稱顯示成
+      「解散」並跳出紅色警告 —— 使用者在應徵的那一家很可能就是營業中的那一筆。
+
+    有 data/taxreg.duckdb（gcis/taxreg.py）時多做兩件事：
+      - 名稱底下任何一筆的**統編**在稅籍裡 → 稅籍旗標 1，否則 2（用統編對，不用名稱對）
+      - 商工快照裡沒有、稅籍有的名稱 → 補一列，現況「營業中」（代碼 9）
+
+    ⚠ 2026-10-29 實測（稅籍 171.5 萬筆）：只在稅籍查得到的有 24.6 萬個名稱（四個字以上），
+      多半是診所、小吃店、分公司 —— 正好是勞動部公告裡商工登記對不到的那一群。
+    ⚠ 商工「核准設立」裡有 21.5% 稅籍沒列營業中。資本額前幾名是博達科技、萬客隆、東貝光電 ——
+      早就倒閉、只是沒辦解散登記的公司。所以這個旗標抓的是真的東西，不是比對誤差。
+    ⚠ 設立年**不補**（放 0）：稅籍的「設立日期」是辦稅籍登記的日期，不是公司設立日。
+      保吉生化學 商工 1981、稅籍 1991。寫上去就是一個看起來很精確的錯誤。
+    ⚠ 三個字以內的稅籍名稱不補：獨資行號常直接用負責人姓名當名稱（「王○○」），
+      補進來等於讓人名查得到東西，違反「不提供人名查詢入口」。
+    ⚠ 家福、統一星巴克、來來超商**不是**這裡補得到的：它們是改了名（家福 → 康達盛通生活事業），
+      商工與稅籍都只有新名稱，勞動部公告用的是舊名稱。改名要另外處理。
+    """
+    has_tax = TAX_DB.exists()
+    if has_tax:
+        con.execute(f"ATTACH IF NOT EXISTS '{TAX_DB.as_posix()}' AS tx (READ_ONLY)")
+        taxed = """, taxed AS (
+              SELECT DISTINCT e.name_norm FROM entity e
+              JOIN tx.tax t ON t.id = lpad(e.id, 8, '0'))"""
+        flag = "CASE WHEN tz.name_norm IS NOT NULL THEN 1 ELSE 2 END"
+        join = "LEFT JOIN taxed tz ON tz.name_norm = r.name_norm"
+        extra = f"""
+        UNION ALL
+        SELECT name_norm, '營業中', 0, cap, 1
+        FROM (SELECT name_norm, coalesce(capital, 0) AS cap,
+                     row_number() OVER (PARTITION BY name_norm
+                                        ORDER BY coalesce(capital, 0) DESC, id) AS rn
+              FROM tx.tax
+              WHERE name_norm IS NOT NULL AND length(name_norm) >= greatest({min_len}, 4)
+                AND name_norm NOT IN (SELECT name_norm FROM entity WHERE name_norm IS NOT NULL))
+        WHERE rn = 1"""
+    else:
+        taxed, flag, join, extra = "", "0", "", ""
+    rows = con.execute(f"""
+        WITH rep AS (
+              SELECT name_norm, status, established, coalesce(capital, 0) AS cap,
+                     row_number() OVER (PARTITION BY name_norm
+                                        ORDER BY (status IN {ACTIVE}) DESC,
+                                                 coalesce(capital, 0) DESC, id) AS rn
+              FROM entity
+              WHERE name_norm IS NOT NULL AND length(name_norm) >= {min_len}){taxed}
+        SELECT name_norm, status, established, cap, tax FROM (
+            SELECT r.name_norm, r.status, r.established, r.cap, {flag} AS tax
+            FROM rep r {join}
+            WHERE r.rn = 1{extra})
+        ORDER BY (status IN {ACTIVE}) DESC, cap DESC, name_norm
+    """).fetchall()
+    return [(n, pack(st, est, tx), cap) for n, st, est, cap, tx in rows], has_tax
+
+
+def tax_summary(rows: list[tuple]) -> str:
+    """給 log 看的稅籍對照統計。⚠ 「核准設立但稅籍沒列」的比例太高的話，旗標不能拿來提醒使用者。"""
+    active = sum(1 for _, p, _ in rows if (p // 10000) % 10 == 1)
+    unlisted = sum(1 for _, p, _ in rows if (p // 10000) % 10 == 1 and p // 100000 == 2)
+    only = sum(1 for _, p, _ in rows if (p // 10000) % 10 == 9)
+    return (f"稅籍：只在稅籍查得到（補進來）{only:,} 個名稱；"
+            f"商工「核准設立」{active:,} 個名稱裡稅籍沒列營業中 {unlisted:,}"
+            f"（{unlisted / max(active, 1):.1%}）")
 
 
 def main() -> int:
@@ -87,27 +167,15 @@ def main() -> int:
 
     con = duckdb.connect(str(DB), read_only=True)
 
-    # 同一個正規化名稱可能對到多家（4,267,888 筆 → 3,703,647 個相異名稱）。
-    # ⚠ 同名時**先挑營業中的**，再挑資本額最大的。
-    #   這份索引只用在「沒有裁處紀錄」那一頁，那裡沒有負責人可以對，所以不能用
-    #   refine.load_facts() 的代表人規則。2026-10-28 實測：同名多筆的 27.6 萬個名稱裡，
-    #   20 萬個各筆現況不一致；原本挑資本額最大，會把有營業中登記的名稱顯示成
-    #   「解散」並跳出紅色警告 —— 使用者在應徵的那一家很可能就是營業中的那一筆。
-    rows = con.execute("""
-        SELECT name_norm, status, established
-        FROM (SELECT name_norm, status, established,
-                     row_number() OVER (PARTITION BY name_norm
-                                        ORDER BY (status IN ('核准設立','核准登記','核准報備')) DESC,
-                                                 coalesce(capital, 0) DESC, id) AS rn
-              FROM entity
-              WHERE name_norm IS NOT NULL AND name_norm <> '')
-        WHERE rn = 1
-    """).fetchall()
-    print(f"商工登記　{len(rows):,} 個相異名稱　（{time.time() - t0:.0f} 秒）")
+    # 同一個正規化名稱可能對到多家（4,267,888 筆 → 3,703,647 個相異名稱）。挑法見 registry_rows()。
+    rows, has_tax = registry_rows(con)
+    print(f"商工登記{'＋稅籍' if has_tax else ''}　{len(rows):,} 個相異名稱　（{time.time() - t0:.0f} 秒）")
+    if has_tax:
+        print("  " + tax_summary(rows))
 
     shards: list[dict[str, int]] = [{} for _ in range(REGISTRY_SHARDS)]
-    for name, status, est in rows:
-        shards[fnv1a(name) % REGISTRY_SHARDS][name] = pack(status, est)
+    for name, packed, _cap in rows:
+        shards[fnv1a(name) % REGISTRY_SHARDS][name] = packed
 
     if OUT.exists():
         try:
