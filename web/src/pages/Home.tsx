@@ -38,9 +38,10 @@ import type {
   SafetyUnits, ViolationRef,
 } from "../types/contracts";
 import sample from "../data/lookup.sample.json";
-import { getMeta, getPlainLaw, hashMismatch, lookup } from "../lib/lookup";
+import { findBranches, getMeta, getPlainLaw, hashMismatch, lookup } from "../lib/lookup";
 import { DEMO, demoHref, maskOutcome, maskQuery, unmask } from "../lib/demo";
-import type { LookupOutcome, Meta, PlainDict, RegistryHit } from "../lib/lookup";
+import { ASK } from "../lib/ask";
+import type { Branches, LookupOutcome, Meta, PlainDict, RegistryHit } from "../lib/lookup";
 import "../styles/home.css";
 
 const DATA = sample as unknown as {
@@ -388,7 +389,9 @@ function Violation({ v, compact }: { v: ViolationRef; compact?: boolean }) {
       <li className="vio vio-row">
         <button className="vio-rowbtn" onClick={() => setOpen(true)}>
           <span className="vio-rowdate num">{v.date}</span>
-          <span className="vio-rowlaw">{lines(v.law)[0]}</span>
+          {/* ⚠ 2026-10-29：收合列原本只有法條字號（「勞動基準法第24條」），
+              求職者看不懂那是什麼事。有人話標籤就先講人話，法條留在展開裡。 */}
+          <span className="vio-rowlaw">{v.plain?.label ?? lines(v.law)[0]}</span>
           <span className="vio-rowfine num">{money(v.fine)}</span>
         </button>
         {/* ⚠ 標籤留在收合狀態也要看得到。25 筆裡有 1 筆涉及死亡災害的時候，
@@ -409,6 +412,7 @@ function Violation({ v, compact }: { v: ViolationRef; compact?: boolean }) {
       </div>
       <div className="vio-body">
         <div className="vio-tags"><Tags v={v} /></div>
+        {v.plain && <p className="vio-plain">{v.plain.label}</p>}
         <p className="vio-law">
           {lines(v.law).map((t, i) => <span key={i}>{t}</span>)}
         </p>
@@ -592,6 +596,89 @@ function splitTail<T extends { n: number; fatal: number }>(
   if (head.length === 0 && tail.length > 0) head.push(tail.shift()!);
   if (tail.length < 2) return { head: [...rows], tail: [] };
   return { head, tail };
+}
+
+/** 「你可以確認什麼」清單的一列：法規要求＋面試時可以問的一句。 */
+function AskItems({ items }: { items: readonly (readonly [string, string])[] }) {
+  return (
+    <ol className="ask-list">
+      {items.map(([label, d]) => (
+        <li key={label}>
+          <b className="ask-t">{label}</b>
+          <span className="ask-d">{d}</span>
+          {ASK[label] && <span className="ask-q"><b>可以問</b>{"\u3000"}{ASK[label]}</span>}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+/**
+ * 短清單（≤ 12 筆）的「你可以確認什麼」。長清單由 PlainBars 負責，規則一樣：
+ * 標籤用人話標籤，沒有就用危害型態的 phrase；收容類別不進清單；
+ * 查不到法規義務原文的跳過，不自己寫。
+ */
+const ASK_CATCHALL = new Set(["其他", "公告內容未對應到本站的危害分類"]);
+function ShortAsk({ vs }: { vs: ViolationRef[] }) {
+  const [duty, setDuty] = useState<PlainDict>({});
+  useEffect(() => { void getPlainLaw().then(setDuty); }, []);
+  const items = useMemo(() => {
+    const m = new Map<string, { n: number; duty: string }>();
+    for (const v of vs) {
+      const h = v.hazards && v.hazards.length ? v.hazards[0] : null;
+      const label = v.plain?.label ?? (h ? (h.phrase ?? h.name) : "");
+      if (!label || ASK_CATCHALL.has(label)) continue;
+      const cur = m.get(label) ?? { n: 0, duty: h?.duty ?? "" };
+      cur.n += 1;
+      m.set(label, cur);
+    }
+    return [...m.entries()]
+      .sort((a, b) => b[1].n - a[1].n)
+      .map(([label, x]) => [label, x.duty || duty[label]?.duty || ""] as const)
+      .filter(([, d]) => d.length > 0)
+      .slice(0, 3);
+  }, [vs, duty]);
+  if (!items.length) return null;
+  return (
+    <section className="ask" style={{ marginTop: 18 }}>
+      <div className="kicker">面試時，你可以確認什麼</div>
+      <p className="ask-lead">
+        以下是這家公司被罰過的{items.length === 1 ? "一" : items.length === 2 ? "兩" : "三"}類事，
+        法規對雇主的要求。<b>這是法規對所有雇主的一般性要求，不是對這家公司的認定</b> ——
+        面試或到職時，可以據此確認。
+      </p>
+      <AskItems items={items} />
+    </section>
+  );
+}
+
+/**
+ * 「如果你在職場遇到類似的事」。
+ *
+ * ⚠ 2026-10-29 新增。查完之後使用者手上有資訊，卻不知道真的遇到了能找誰。
+ * ⚠ 每一句都要有出處：1955 專線見勞動部網站（24 小時、免付費，也服務本國勞工）；
+ *   不利處分禁止見職業安全衛生法第 39 條第 4 項、勞動檢查法第 33 條第 4 項；
+ *   申訴人身分保密見勞動檢查法第 33 條第 5 項。不要自己加條文。
+ */
+function Recourse() {
+  return (
+    <section className="recourse">
+      <div className="kicker">如果你在職場遇到勞動權益或安全的問題</div>
+      <ul>
+        <li>
+          <b>勞動部 1955 勞工諮詢申訴專線</b>：24 小時、免付費，可以諮詢，也可以申訴。
+        </li>
+        <li>
+          <b>工資、工時、休假、勞退</b>：可以向工作所在地的縣市政府勞工局（處）申訴。
+        </li>
+        <li>
+          <b>工作場所安全</b>：可以向雇主、主管機關或勞動檢查機構申訴。
+          雇主不得因此解僱、調職或做其他不利的處分（職業安全衛生法第 39 條），
+          勞動檢查機構必須對申訴人的身分保密（勞動檢查法第 33 條）。
+        </li>
+      </ul>
+    </section>
+  );
 }
 
 function PlainBars({ vs }: { vs: ViolationRef[] }) {
@@ -798,14 +885,7 @@ function PlainBars({ vs }: { vs: ViolationRef[] }) {
             法規對雇主的要求。<b>這是法規對所有雇主的一般性要求，不是對這家公司的認定</b> ——
             面試或到職時，可以據此確認你要去的工地或廠區是否落實。
           </p>
-          <ol className="ask-list">
-            {checklist.map(([label, d]) => (
-              <li key={label}>
-                <b className="ask-t">{label}</b>
-                <span className="ask-d">{d}</span>
-              </li>
-            ))}
-          </ol>
+          <AskItems items={checklist} />
         </section>
       )}
     </div>
@@ -1344,6 +1424,10 @@ function ViolationList({ vs, title, company }: {
         </div>
       )}
 
+      {/* ⚠ 2026-10-29：「你可以確認什麼」原本只在長清單（> 12 筆）的 PlainBars 裡出現，
+          達廣商行這種 3 筆的小公司反而沒有 —— 而求職者最常查的正是小公司。 */}
+      {!long && <ShortAsk vs={vs} />}
+
       {/* ⚠ 常駐的是「未載金額不等於免罰」；為什麼會沒有金額收起來。 */}
       {hasZeroFine && (
         <Caveat className="fineprint rule-top" label="為什麼會沒有金額？"
@@ -1844,7 +1928,10 @@ function Ledger({ hit, pending, allWeak }: {
         {linked > 0
           ? <>{allWeak ? "同名者" : "負責人"}的其他公司被罰過 <b>{linked}</b> 筆
             {allWeak && "（僅姓名相同，無其他佐證）"}</>
-          : "負責人姓名未出現在其他公司的公開紀錄上"}
+          : (hit.successors?.length ?? 0) > 0
+            ? <>負責人姓名未出現在其他公司的裁處紀錄上；但商工登記上有{" "}
+                <b>{hit.successors?.length}</b> 家之後設立的公司，代表人姓名相符（見下方）</>
+            : "負責人姓名未出現在其他公司的公開紀錄上"}
       </p>
     </section>
   );
@@ -1867,6 +1954,8 @@ function Result({ hit, onPick }: {
   //   顯示 9 筆 —— 那 9 筆來自 5 個很可能完全無關的同名者。
   //   數字照給（我們不替使用者刪資料），但標籤要把話講完。
   const allWeak = linkedAll.length > 0 && hit.summary.max_independent === 0;
+  const after = hit.successors ?? [];
+  const nameLinked = linkedAll.length > 0 || after.length > 0;
 
   // ⚠ 標籤一律用口語。「行政救濟尚未終結」對求職者是完全陌生的詞，
   //   而它的意思其實很簡單：這筆處分還沒定案。
@@ -1937,14 +2026,17 @@ function Result({ hit, onPick }: {
           ⚠ 包起來也順便修好手機的順序：紅線警語與 Ledger 在清單之前。 */}
       <div className="res-side">
         <div className="res-side-top">
-          {/* 這句話是紅線，不能拿掉也不能縮成註腳。 */}
-          <div className="band">
+          {/* 這句話是紅線，不能拿掉也不能縮成註腳。
+              ⚠ 2026-10-29：只在畫面上**真的有**以姓名連起來的公司時出現。
+                沒有任何連結的頁面（統一超商）頂端也掛著這句，變成每頁都有的雜訊，
+                使用者學會跳過它 —— 到了真正需要它的那一頁就沒人讀了。 */}
+          {nameLinked && <div className="band">
             <p>姓名相同不等於同一人。</p>
             <p>
               公開資料沒有身分證字號。本系統不判定身分，
               只呈現這個連結有多少獨立佐證；判斷請自行進一步查證。
             </p>
-          </div>
+          </div>}
           <Ledger hit={hit} pending={pendingCount} allWeak={allWeak} />
         </div>
         <div className="res-haz">
@@ -1961,6 +2053,8 @@ function Result({ hit, onPick }: {
             ⚠ 這個註解必須放在三元運算式**外面**：JSX 註解本身是一個
             表達式，塞在 `cond ? ( ... )` 的括號裡就是兩個表達式，
             2026-09-18 就是這樣噴 "Parsing error: ')' expected"。 */}
+        <BranchHint name={hit.company.name} onPick={onPick} />
+
         {hit.company.own_violations.length > 0 ? (
           <ViolationList
             vs={hit.company.own_violations}
@@ -1989,7 +2083,23 @@ function Result({ hit, onPick }: {
           </section>
         ))}
 
-        {hit.principals.length === 0 && (
+        {/* ⚠⚠ zr.json 的反方向（見 lookup.ts successors）。
+            ⚠ 第一句一定要先講「下面這家沒有裁處紀錄、上面的紀錄是本頁這家的」，
+              跟查無頁的「前身」區塊是同一條規則，只是方向相反。 */}
+        {after.length > 0 && (
+          <section className="block">
+            <h2 className="block-h">之後設立、負責人姓名相符的公司</h2>
+            <p className="block-sub">
+              <b>下面這家公司本身沒有裁處紀錄</b>，上面那些裁處是本頁這家公司的。
+              列出來是因為它在商工登記的代表人姓名，與本頁這家公司在勞動部公告上的負責人相符；
+              兩家在同一個縣市；而且它設立在本頁這家公司最後一次被裁處之後。
+              本系統不判定是不是同一個人，也不推論原因。
+            </p>
+            {after.map((c, i) => <Linked key={`a-${c.name}-${i}`} c={c} onPick={onPick} />)}
+          </section>
+        )}
+
+        {hit.principals.length === 0 && after.length === 0 && (
           <div className="band">
             <p>負責人的姓名沒有出現在其他公司的公開紀錄上。</p>
             <p>
@@ -1999,6 +2109,8 @@ function Result({ hit, onPick }: {
             </p>
           </div>
         )}
+
+        <Recourse />
       </div>
 
 
@@ -2015,6 +2127,63 @@ function Result({ hit, onPick }: {
           不對任何事業單位或個人作出評價或認定。
         </p>
       </footer>
+    </div>
+  );
+}
+
+/**
+ * 同一家公司的分公司、廠區（或反過來：本頁是分支時的總公司）。
+ *
+ * ⚠⚠ 2026-10-29：查「台灣積體電路製造股份有限公司」只看到總公司 27 筆，
+ *   「⋯先進封測五廠」3 筆、「⋯十八B廠」1 筆完全沒提。要去那個廠區面試的人
+ *   最需要的就是那幾筆。
+ * ⚠ 不合併筆數。分支在公告上是另一個事業單位，加在一起就是把 B 的紀錄算成 A 的。
+ * ⚠ 主答案先出來，這一塊之後才補（多抓一片首字索引，不擋主畫面）。
+ */
+const BRANCH_PREVIEW = 8;
+function BranchHint({ name, onPick }: { name: string; onPick: (n: string) => void }) {
+  const [b, setB] = useState<Branches | null>(null);
+  const [all, setAll] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    setB(null);
+    setAll(false);
+    void findBranches(unmask(name)).then((r) => { if (alive) setB(r); });
+    return () => { alive = false; };
+  }, [name]);
+  if (!b || (!b.parent && b.names.length === 0)) return null;
+  const list = all ? b.names : b.names.slice(0, BRANCH_PREVIEW);
+  const link = (n: string) => (
+    <a className="linked-go" href={qHref(maskQuery(n))}
+       onClick={(e) => { if (plainClick(e)) { e.preventDefault(); onPick(n); } }}>
+      {maskQuery(n)} →
+    </a>
+  );
+  return (
+    <div className="band branch">
+      {b.parent && (
+        <p>
+          這是<b>分公司或廠區</b>的紀錄。總公司另有自己的裁處紀錄：{link(b.parent)}
+        </p>
+      )}
+      {b.names.length > 0 && (
+        <>
+          <p>
+            {b.parent ? "同一家公司另外還有 " : "這家公司另有 "}
+            <b>{b.names.length}</b> 個分公司或廠區，有<b>自己的</b>裁處紀錄。
+            分支在公告上是另一個事業單位，筆數分開算、不合併 ——
+            你要去的如果是某個廠區或門市，請點那一個。
+          </p>
+          <ul className="branch-list">
+            {list.map((n) => <li key={n}>{link(n)}</li>)}
+          </ul>
+          {b.names.length > BRANCH_PREVIEW && (
+            <button className="linkish" onClick={() => setAll((v) => !v)}>
+              {all ? "收合" : `再顯示 ${b.names.length - BRANCH_PREVIEW} 個`}
+            </button>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -2498,7 +2667,7 @@ export default function Home() {
       {busy && (
         <div className="loading">
           <p className="loading-h">正在下載這家公司的資料分片</p>
-          <p className="kicker">約 14 KB · 不會送出你查了誰</p>
+          <p className="kicker">約 14 KB · 本站不記錄你查了誰</p>
           <div className="skels">
             <div className="skel" style={{ height: 22, width: "86%" }} />
             <div className="skel" style={{ height: 11, width: "54%" }} />
@@ -2671,22 +2840,39 @@ function Miss({ asked, meta, registry, also, before, onPick }: {
             這家公司在<b>經濟部商工登記</b>查得到，
             而本站涵蓋的勞動部公告裡<b>沒有它的裁處紀錄</b>。
           </p>
-          <dl className="fields" style={{ marginTop: 12 }}>
-            {registry.status && (
-              <Field label="登記現況">
-                <span style={{ color: closed ? "var(--fatal)" : "var(--ink-2)" }}>
-                  {registry.status}
-                </span>
-              </Field>
-            )}
-            {regEst(registry.established) && (
-              <Field label="設立">
-                <span style={{ color: "var(--ink-2)" }}>
-                  {regEst(registry.established).replace(/^設立 /, "")}
-                </span>
-              </Field>
-            )}
-          </dl>
+          {/* ⚠⚠ 2026-10-29：使用者要的是一張「查過什麼、各得到什麼」的清單。
+              原本只有一句「查得到、沒有紀錄」，沒講負責人那一項到底查了沒有 ——
+              沒有前身區塊的時候，使用者分不出是「查過、沒有」還是「根本沒查」。
+              ⚠ 負責人那一項一定要講明條件與限制：商工登記只公開遮罩後的姓名，
+                所以只抓得到姓名少見的組合。「沒找到」不等於「負責人沒有其他公司」。 */}
+          <ul className="miss-status">
+            <li>
+              <span className="ms-k">經濟部商工登記</span>
+              <span className="ms-v">
+                <b>查得到</b>
+                {registry.status && <>・<span style={{ color: closed ? "var(--fatal)" : undefined }}>{registry.status}</span></>}
+                {regEst(registry.established) ? `・${regEst(registry.established)}` : ""}
+              </span>
+            </li>
+            <li>
+              <span className="ms-k">勞動部裁處公告</span>
+              <span className="ms-v"><b>0 筆</b></span>
+            </li>
+            <li>
+              <span className="ms-k">負責人關聯</span>
+              <span className="ms-v">
+                {before && before.length > 0
+                  ? <><b>找到 {before.length} 家</b>已停業、被裁處過的公司（見下方）</>
+                  : <><b>沒有找到</b>符合條件的已停業、被裁處過的公司</>}
+                <small className="ms-note">
+                  條件：商工登記代表人的遮罩姓名相同且全台少見、登記在同一縣市、
+                  對方已停業，而且這家設立在對方最後一次被裁處之後。
+                  商工登記只公開遮罩後的姓名，所以這一項只抓得到姓名少見的情形；
+                  沒找到不代表負責人沒有其他公司。
+                </small>
+              </span>
+            </li>
+          </ul>
           {closed && (
             <div className="band" style={{ marginTop: 14 }}>
               <p>
@@ -2723,6 +2909,8 @@ function Miss({ asked, meta, registry, also, before, onPick }: {
       <p className="miss-caveat">
         沒有裁處紀錄<b>不等於</b>沒有問題。這一頁只能告訴你主管機關公告過什麼。
       </p>
+
+      {registry && <Recourse />}
 
       {/* ⚠⚠ 簡報第 3 頁那個情況：新公司在資料上是乾淨的，紀錄留在舊公司。
           這一塊是 tools/clean_successor.py 算出來的，只出現在「沒有裁處紀錄」這一頁。
@@ -2792,8 +2980,8 @@ function Miss({ asked, meta, registry, also, before, onPick }: {
                 + `${meta.violations.toLocaleString("zh-TW")} 筆公告，`
                 + `9 部法規、民國 100–115 年。`
               : "本站涵蓋 9 部法規、民國 100–115 年的公開裁處紀錄。"}
-            {" "}各縣市公告保存期間不一：
-            <b>基隆市與新竹市的職業安全衛生法公告在本站一筆都沒有</b>。
+            {" "}各縣市公告保存期間不一；基隆市與新竹市政府自己的公告裡沒有職安法，
+            登記在兩市的事業單位只會出現其他機關公告的職安法裁處。
           </p>
           <p className="fineprint" style={{ marginTop: 10 }}>
             商工登記資料來自經濟部商工登記公示資料查詢服務。

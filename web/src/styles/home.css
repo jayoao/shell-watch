@@ -1206,3 +1206,21 @@
   font-size: 13px;
   color: var(--ink-2, inherit);
 }
+
+/* 分公司、廠區提示（BranchHint）。⚠ 2026-10-29 新增。 */
+.band.branch { margin-bottom: 18px; }
+.branch-list { margin: 8px 0 6px; padding-left: 1.2em; display: grid; gap: 4px; }
+.branch-list li { line-height: 1.5; }
+
+/* 2026-10-29：人話標籤、面試可以問、申訴管道、查無頁的查核清單 */
+.vio-plain { margin: 0 0 4px; font-weight: 700; color: var(--ink); }
+.ask-q { display: block; margin-top: 6px; font-size: 13.5px; line-height: 1.8; color: var(--ink); }
+.ask-q b { color: var(--accent, inherit); font-weight: 700; }
+.recourse { margin-top: 26px; padding: 16px 18px; border: 1px solid var(--line, rgba(127,127,127,.35)); border-radius: 10px; }
+.recourse ul { margin: 8px 0 0; padding-left: 1.2em; display: grid; gap: 8px; font-size: 14px; line-height: 1.75; }
+.miss-status { list-style: none; margin: 14px 0 0; padding: 0; border-top: 1px solid var(--line, rgba(127,127,127,.35)); }
+.miss-status li { display: grid; grid-template-columns: 8.5em 1fr; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line, rgba(127,127,127,.35)); }
+.ms-k { color: var(--ink-2); font-size: 14px; }
+.ms-v { font-size: 15px; line-height: 1.6; }
+.ms-note { display: block; margin-top: 4px; font-size: 12.5px; line-height: 1.7; color: var(--ink-2); }
+@media (max-width: 520px) { .miss-status li { grid-template-columns: 1fr; gap: 2px; } }

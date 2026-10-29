@@ -468,16 +468,63 @@ export default function OshaDistrictMap() {
     return null;
   }, [coPoint, fromQuery]);
 
+  /**
+   * 縣市篩選在點位圖層也要有作用。
+   *
+   * ⚠⚠ 2026-10-29 實測：圖層選「事業單位位置」時，縣市選單改來改去，
+   *   地圖與上面那行統計**完全不動**，只有密度圖層的排名表會變。
+   *   選單就擺在那裡，使用者當然以為它有效。
+   * ⚠ 點位檔沒有縣市欄位，所以用行政區界做點在多邊形內的判斷
+   *   （只算選到的那個縣市，先用外框篩掉，兩萬多個點也只要幾毫秒）。
+   *   邊界是簡化過的，貼著縣市界的少數點可能歸錯邊 —— 這是近似，不是地籍。
+   */
+  const countyShape = useMemo(() => {
+    if (!countyFilter || !bounds) return null;
+    type Ring = number[][];
+    const polys: Ring[][] = [];
+    const fc = bounds as unknown as {
+      features: { properties: { k: string }; geometry: { type: string; coordinates: unknown } }[];
+    };
+    for (const f of fc.features ?? []) {
+      if (!f.properties?.k?.startsWith(countyFilter)) continue;
+      const g = f.geometry;
+      if (g.type === "Polygon") polys.push(g.coordinates as Ring[]);
+      else if (g.type === "MultiPolygon") polys.push(...(g.coordinates as Ring[][]));
+    }
+    if (!polys.length) return null;
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const poly of polys) for (const [x, y] of poly[0]) {
+      x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y);
+    }
+    return { polys, box: [x0, y0, x1, y1] as const };
+  }, [countyFilter, bounds]);
+
   const points = useMemo(() => {
     const bit = hazardFilter ? hazBit[hazardFilter] ?? 0 : 0;
+    const inRing = (ring: number[][], x: number, y: number) => {
+      let inside = false;
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const [xi, yi] = ring[i], [xj, yj] = ring[j];
+        if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+      }
+      return inside;
+    };
+    const inCounty = (p: Pt) => {
+      if (!countyShape) return true;
+      const [x0, y0, x1, y1] = countyShape.box;
+      if (p.lng < x0 || p.lng > x1 || p.lat < y0 || p.lat > y1) return false;
+      return countyShape.polys.some((poly) =>
+        inRing(poly[0], p.lng, p.lat) && !poly.slice(1).some((h) => inRing(h, p.lng, p.lat)));
+    };
     return allPoints.filter((p) => {
       if (fatalOnly && p.fatal <= 0) return false;
+      if (!inCounty(p)) return false;
       // ⚠ 用 mask 不是 p.haz —— p.haz 只是「最主要」的那一種，
       //   拿它來篩會變成「主要危害是感電的公司」，數字會少報。
       if (bit && !(p.mask & bit)) return false;
       return true;
     });
-  }, [allPoints, hazardFilter, fatalOnly, hazBit]);
+  }, [allPoints, hazardFilter, fatalOnly, hazBit, countyShape]);
 
   const counties = useMemo(
     () => Array.from(new Set(data.rows.map((r) => r.k.slice(0, 3)))).sort(
@@ -764,15 +811,31 @@ export default function OshaDistrictMap() {
           </p>
         ) : (
         <p className="sw-muted" style={{ margin: "0 0 12px", fontWeight: 600 }}>
-          目前 {points.length.toLocaleString()} 家事業單位在圖上，合計{" "}
-          {points.reduce((a, p) => a + p.n, 0).toLocaleString()} 筆職安法裁處
+          {/* ⚠⚠ 2026-10-29：篩了危害型態之後，原本寫「合計 20,058 筆職安法裁處」——
+              那是**這些公司的全部**職安法裁處，不是「感電」那一類的筆數
+              （點位檔每家只有總筆數與危害型態遮罩）。評審拿簡報上的
+              「機械 9,986 筆」一比，就會看到同一個網站講兩個數字。
+              所以篩選時改成講「幾家曾因這一類被裁處」，總筆數講明是全部。 */}
+          {countyFilter ? `${countyFilter}：` : ""}
+          {hazardFilter ? (
+            <>
+              {points.length.toLocaleString()} 家事業單位曾因「{HAZARD_NAME[hazardFilter] ?? hazardFilter}」
+              被裁處；這些公司的職安法裁處合計{" "}
+              {points.reduce((a, p) => a + p.n, 0).toLocaleString()} 筆（含其他危害型態）
+            </>
+          ) : (
+            <>
+              目前 {points.length.toLocaleString()} 家事業單位在圖上，合計{" "}
+              {points.reduce((a, p) => a + p.n, 0).toLocaleString()} 筆職安法裁處
+            </>
+          )}
           {" · "}
           其中 {points.reduce((a, p) => a + p.fatal, 0).toLocaleString()} 筆公告涉及死亡災害
           {" · "}
-          定位精度：門牌 {pdata.exact_n.toLocaleString()} 家（
+          {countyFilter ? "全台" : ""}定位精度：門牌 {pdata.exact_n.toLocaleString()} 家（
           {((100 * pdata.exact_n) / pdata.total).toFixed(1)}%）、其餘為路名層級
           {" · "}
-          另有 {(data.osha_mapped - pdata.pts.reduce((a, p) => a + p[4], 0)).toLocaleString()}
+          {countyFilter ? "全台" : ""}另有 {(data.osha_mapped - pdata.pts.reduce((a, p) => a + p[4], 0)).toLocaleString()}
           {" "}筆裁處的事業單位地址對不到座標，未出現在本圖層
         </p>
         )
@@ -1168,8 +1231,8 @@ export default function OshaDistrictMap() {
         名次高低同時受該地區的產業結構影響（工業區的營造與製造業比例高，
         本來就會有較多職安法裁處），不能單獨解讀為「這個地區比較危險」。
         <br />
-        各縣市的資料公開期間長短不一（有些縣市不到 2 年，基隆市與新竹市的職安法一筆都沒有），
-        跨地區比較請一併考慮這一點。
+        各縣市的資料公開期間長短不一（有些縣市不到 2 年；基隆市與新竹市政府自己的公告裡沒有職安法，
+        兩市只會出現其他機關公告的裁處），跨地區比較請一併考慮這一點。
         <br />
         面量圖會放大大面積行政區的視覺份量（花蓮秀林鄉的面積是台北市中正區的數百倍），
         比較時請看數字，不要只看色塊大小。

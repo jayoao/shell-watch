@@ -322,6 +322,10 @@ export interface LookupResult {
     safety?: SafetyUnits;
   };
   principals: Principal[];
+  /** ⚠ 選填。本頁這家（已停業、被裁處過）之後設立、商工登記代表人姓名相符、
+   *  而且**沒有裁處紀錄**的公司。是 predecessors 的反方向（同一份 zr.json）。
+   *  沒有這一欄，從舊公司那一頁就看不到新公司 —— 兩頁會互相矛盾。 */
+  successors?: LinkedCompany[];
   summary: {
     own_violation_count: number;
     linked_violation_count: number;

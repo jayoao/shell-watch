@@ -498,6 +498,99 @@ async function predecessors(query: string, shards: number, haz: HazardDict)
   return out;
 }
 
+/** zr.json 的反方向：舊公司（正規化名）→ [新公司名, 那一列]。 */
+let zrRevPromise: Promise<Record<string, [string, ZrRow][]>> | null = null;
+function getZrReverse(): Promise<Record<string, [string, ZrRow][]>> {
+  zrRevPromise ??= getZr().then((zr) => {
+    const rev: Record<string, [string, ZrRow][]> = {};
+    for (const [newName, rows] of Object.entries(zr)) {
+      for (const row of rows) (rev[normName(row[0])] ??= []).push([newName, row]);
+    }
+    return rev;
+  });
+  return zrRevPromise;
+}
+
+/**
+ * predecessors 的反方向：本頁這家（已停業、被裁處過）**之後**設立、
+ * 商工登記代表人姓名相符、而且沒有裁處紀錄的公司。
+ *
+ * ⚠⚠ 2026-10-29 實測：查「顗博商行」會列出「達廣商行」，但點進達廣商行，
+ *   畫面寫的是「負責人姓名未出現在其他公司的公開紀錄上」。兩頁互相矛盾，
+ *   而且聽過舊公司名字的人永遠不會知道它換了名字重開。
+ * ⚠ 統編要對得上 zr.json 那一列（核對過代表人的那一筆）。同名公司時，
+ *   本頁可能是另一家同名的舊公司 —— 那一家不是這條線索的主角。
+ * ⚠ 新公司沒有分片（沒有裁處紀錄），現況與設立年改問商工登記索引。
+ */
+async function successors(self: RawEntry, meta: Meta): Promise<LinkedCompany[]> {
+  const rows = (await getZrReverse())[normName(self.n)] ?? [];
+  const out: LinkedCompany[] = [];
+  for (const [newName, [, , oldLast, newEst, county, rep, principal,
+                        repCount, oldRepSame, addr, oldTaxId]] of rows) {
+    if (self.t && oldTaxId && self.t !== oldTaxId) continue;
+    const reg = await findInRegistry(newName, meta);
+    const evidence: { kind: EvidenceKind; detail: string }[] = [
+      { kind: "same_county", detail: `兩家公司在商工登記上都登記在${county}。` },
+    ];
+    if (addr) {
+      evidence.push({ kind: "same_address",
+        detail: `兩家公司都登記在「${addr}」。全國隨機兩家公司同地址的機率是 0.0158%。` });
+    }
+    evidence.push({ kind: "rare_name",
+      detail: `全台商工登記裡，代表人登記為「${rep}」的公司共 ${repCount} 家`
+        + (oldRepSame && repCount === 2 ? "，就是這兩家。" : "。") });
+    evidence.push({ kind: "same_name",
+      detail: `「${newName}」在商工登記的代表人是「${rep}」（中間的字由商工登記遮蔽），`
+        + `與本頁這家公司在勞動部公告上的負責人「${principal}」相符。`
+        + `⚠ 姓名相符不等於同一人。` });
+    out.push({
+      tax_id: "",
+      name: newName,
+      status: reg?.status ?? "",
+      established: reg?.established ? String(reg.established) : String(newEst),
+      dissolved: null,
+      independent: independentCount(evidence),
+      succession: { role: "before", old_last_violation: oldLast,
+                    new_established: newEst, same_year: false },
+      evidence,
+      violations: [],
+    });
+  }
+  return out;
+}
+
+/* ── 同一家公司的分公司、廠區 ───────────────────────────────────
+   ⚠⚠ 2026-10-29 實測：查「台灣積體電路製造股份有限公司」只看到總公司 27 筆，
+     而「⋯先進封測五廠」3 筆、「⋯十八B廠」1 筆完全沒提 —— 要去那個廠區面試的人
+     最需要的就是那幾筆。分公司與廠區在公告上是**另一個事業單位**，
+     所以不能合併筆數，只能告訴使用者「另外還有」，讓他自己點。
+   ⚠ 用首字索引（x/）找：名稱以本公司全名開頭、後面還有字的事業單位。
+     只在全名以「公司」結尾時才找 —— 「大同」開頭的不一定是大同公司的分支，
+     「大同股份有限公司」開頭的才是。
+   ⚠ 反方向（本頁是分支）：取到第一個「公司」為止當總公司名，總公司要真的有分片。 */
+export interface Branches { parent?: string; names: string[] }
+
+export async function findBranches(name: string): Promise<Branches> {
+  const meta = await getMeta();
+  const xs = meta?.x_shards ?? 0;
+  const key = normName(name);
+  const out: Branches = { names: [] };
+  if (!meta || !xs || !key) return out;
+  const i = key.indexOf("公司");
+  if (i > 0 && i + 2 < key.length) {
+    const parent = key.slice(0, i + 2);
+    if (await findEntry(parent, meta.shards || SHARDS_FALLBACK)) out.parent = parent;
+  }
+  const root = out.parent ?? (key.endsWith("公司") ? key : "");
+  if (!root) return out;
+  const bucket = await getPrefix(prefixShard(root[0], xs));
+  out.names = (bucket?.[root[0]] ?? []).filter((n) => {
+    const k = normName(n);
+    return k.startsWith(root) && k !== root && k !== key;
+  });
+  return out;
+}
+
 /** 這個名稱在經濟部商工登記裡存不存在。沒有索引或查不到都回 null。 */
 export async function findInRegistry(
   query: string, meta: Meta,
@@ -774,6 +867,7 @@ export async function lookup(query: string): Promise<LookupOutcome> {
   const linked = principals.flatMap((x) => x.linked_companies);
 
   const all = [...own, ...linked.flatMap((c) => c.violations)];
+  const after = await successors(self, meta);
   const result: LookupResult = {
     query,
     company: {
@@ -792,6 +886,7 @@ export async function lookup(query: string): Promise<LookupOutcome> {
         })),
     },
     principals,
+    successors: after.length ? after : undefined,
     summary: {
       own_violation_count: own.length,
       linked_violation_count: linked.reduce((n, c) => n + c.violations.length, 0),
