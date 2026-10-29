@@ -817,10 +817,13 @@ export default function OshaDistrictMap() {
               「機械 9,986 筆」一比，就會看到同一個網站講兩個數字。
               所以篩選時改成講「幾家曾因這一類被裁處」，總筆數講明是全部。 */}
           {countyFilter ? `${countyFilter}：` : ""}
-          {hazardFilter ? (
+          {hazardFilter || fatalOnly ? (
             <>
-              {points.length.toLocaleString()} 家事業單位曾因「{HAZARD_NAME[hazardFilter] ?? hazardFilter}」
-              被裁處；這些公司的職安法裁處合計{" "}
+              {points.length.toLocaleString()} 家事業單位
+              {hazardFilter ? `曾因「${HAZARD_NAME[hazardFilter] ?? hazardFilter}」被裁處` : ""}
+              {hazardFilter && fatalOnly ? "、" : ""}
+              {fatalOnly ? "有公告涉及死亡災害" : ""}
+              ；這些公司的職安法裁處合計{" "}
               {points.reduce((a, p) => a + p.n, 0).toLocaleString()} 筆（含其他危害型態）
             </>
           ) : (

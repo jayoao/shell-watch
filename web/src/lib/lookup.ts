@@ -797,6 +797,27 @@ function getAlias(): Promise<Record<string, string[]>> {
   return aliasPromise;
 }
 
+/**
+ * 常見異體字。⚠ 2026-10-29：「向恆工程有限公司」打成「向恒⋯」就查不到；台／臺已經在 normName 處理，
+ *   其他的只在**查不到時**換一次再試，不改分片的鍵（改鍵要重跑全部分片）。
+ * ⚠ 換字之後一律列成候選，不自動跳進去 —— 資料裡「向恒工程行」與「向恆工程有限公司」
+ *   本來就是兩家不同的公司，異體字不代表同一家。
+ */
+const VARIANT: Record<string, string> = Object.fromEntries(
+  ["恒恆", "峰峯", "群羣", "線綫", "裡裏", "著着", "汙污", "館舘", "雙双", "祕秘", "雞鷄", "啟啓",
+   "衛衞", "匯滙", "眾衆", "為爲", "鉤鈎", "峽峡", "蔥葱", "鹼礆", "鄉鄕", "銳鋭", "說説", "稅税"]
+    .flatMap(([a, b]) => [[a, b], [b, a]]));
+function variants(q: string): string[] {
+  const pos = [...q].map((ch, i) => (VARIANT[ch] ? i : -1)).filter((i) => i >= 0).slice(0, 3);
+  const out = new Set<string>();
+  for (let mask = 1; mask < 1 << pos.length; mask++) {
+    const chars = [...q];
+    pos.forEach((p, k) => { if (mask & (1 << k)) chars[p] = VARIANT[chars[p]]; });
+    out.add(chars.join(""));
+  }
+  return [...out];
+}
+
 /** 候選卡：有紀錄的用分片補統編與地址；沒有紀錄的問商工登記補現況。 */
 async function candidatesFor(names: string[], meta: Meta, shards: number): Promise<Candidate[]> {
   const out = await describe(names, shards);
@@ -817,7 +838,7 @@ export type LookupOutcome =
   //   suffix  使用者把組織型態字尾打到一半
   //   abbrev  使用者打的是簡稱，系統用字面猜的
   | { kind: "choose"; candidates: Candidate[]; note?: string;
-      reason?: "core" | "suffix" | "abbrev" | "alias" }
+      reason?: "core" | "suffix" | "abbrev" | "alias" | "variant" }
   // 有資料，但沒有這家的裁處紀錄。registry 有值 = 這個名稱在商工登記查得到，
   // 也就是「這家公司存在，而且紀錄乾淨」，不是「你可能打錯了」。
   //
@@ -869,6 +890,23 @@ export async function lookup(query: string): Promise<LookupOutcome> {
     }
   }
   if (!self) {
+    // 異體字：換一次再試（完整名稱、核心名、商工登記）。
+    const alt: string[] = [];
+    for (const v of variants(normName(query))) {
+      if (await findEntry(v, shards)) alt.push(v);
+      else {
+        const c = await findByCore(v, shards);
+        if (c.length) alt.push(...c);
+        else if (await findInRegistry(v, meta)) alt.push(v);
+      }
+    }
+    if (alt.length) {
+      return {
+        kind: "choose", reason: "variant",
+        candidates: await candidatesFor(alt, meta, shards),
+        note: `找不到「${query.trim()}」。換成常見的異體字找到以下公司：`,
+      };
+    }
     // 常見簡稱／品牌／英文名。⚠ 放在商工登記之前：「全聯」「台電」在商工登記都真的有一家
     //   同名的小公司，先命中它就走不到對照表 —— 而使用者要找的幾乎一定是全聯實業、台灣電力。
     //   名稱完全相同的那一家照樣列在候選裡，不藏起來。
