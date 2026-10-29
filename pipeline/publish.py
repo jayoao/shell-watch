@@ -60,7 +60,7 @@ from pipeline.export import (HAZARDS, SOURCE_URL, WEIGHTS, appeal_of,  # noqa: E
                              hazards_of, severity_of)
 from pipeline.hazard import HAZARD_PHRASE, is_fatal                  # noqa: E402
 from pipeline.plainlaw import PLAIN, plain_of                        # noqa: E402
-from pipeline.join import norm_addr, norm_name                       # noqa: E402
+from pipeline.join import mask_match, norm_addr, norm_name           # noqa: E402
 from pipeline.refine import load_facts                               # noqa: E402
 
 RECORDS = Path("data/records.csv")
@@ -328,6 +328,54 @@ def load_renames(con) -> dict[str, dict]:
     return out
 
 
+def auto_renames(con, unmatched: dict[str, tuple[str, set[str]]]) -> dict[str, dict]:
+    """組織型態變更（有限公司 ↔ 股份有限公司）自動對照。回傳格式跟 load_renames() 一樣。
+
+    2026-10-29：「盛傑營造有限公司」126 筆裁處，商工登記查不到；商工登記裡是
+    「盛傑營造股份有限公司」，代表人「張_章」，公告上的負責人是「張加章」。
+    公司變更組織（有限 → 股份有限）統編不變、名稱跟著改，但勞動部的舊公告還是舊名稱。
+    商工登記連解散的公司都留著，所以**舊名稱整個查不到**，本身就說明名字改過了。
+
+    三個條件全部成立才對：
+      1. 舊名稱在商工登記查不到（unmatched 已經保證）
+      2. 換掉字尾後的名稱在商工登記**剛好一家**
+      3. 那一家的代表人（或董監事）遮罩姓名與公告上的負責人姓名相符（mask_match）
+    實測 627 家、2,058 筆。負責人對不上的 594 家不對 —— 可能是換了負責人，也可能是別家。
+    """
+    alt: dict[str, str] = {}
+    for nn in unmatched:
+        if nn.endswith("股份有限公司"):
+            alt[nn] = nn[:-6] + "有限公司"
+        elif nn.endswith("有限公司"):
+            alt[nn] = nn[:-4] + "股份有限公司"
+    if not alt:
+        return {}
+    con.execute("CREATE TEMP TABLE alt_want(n VARCHAR)")
+    con.executemany("INSERT INTO alt_want VALUES (?)", [[x] for x in set(alt.values())])
+    rows = con.execute("""
+        SELECT e.name_norm, lpad(e.id, 8, '0'), e.name, e.status, e.established,
+               e.address, coalesce(e.rep_masked, ''),
+               coalesce((SELECT list(d.name_masked) FROM director d WHERE d.id = e.id), [])
+        FROM entity e JOIN alt_want w ON w.n = e.name_norm""").fetchall()
+    by: dict[str, list] = defaultdict(list)
+    for r in rows:
+        by[r[0]].append(r)
+    out: dict[str, dict] = {}
+    for nn, a in alt.items():
+        cand = by.get(a, [])
+        if len(cand) != 1:
+            continue
+        _n, tid, name, status, est, addr, rep, dirs = cand[0]
+        company, principals = unmatched[nn]
+        # 代表人相符，或公告上的負責人在董監事名單裡（換了代表人、人還在，實測多 54 家）
+        if not any(mask_match(m, p) for p in principals if p for m in [rep, *dirs]):
+            continue
+        out[nn] = {"old": company, "now": name, "id": tid, "status": status,
+                   "established": est, "addr": addr, "auto": True}
+    print(f"組織型態變更自動對照　{len(out):,} 家（有限 ↔ 股份有限，代表人姓名相符）")
+    return out
+
+
 _COUNTY = re.compile(r"^(..[縣市])")
 
 
@@ -448,6 +496,10 @@ def main(argv=None) -> int:
         principals[norm_name(c)].update(n)
     facts, addr_users = load_facts(con, {norm_name(c) for c in by_company}, principals)
     renames = load_renames(con)
+    unmatched = {norm_name(c): (c, set(spellings[c]))
+                 for c in by_company if norm_name(c) not in facts and norm_name(c) not in renames}
+    for k, v in auto_renames(con, unmatched).items():
+        renames.setdefault(k, v)
     con.close()
     print(f"商工登記對到　{len(facts):,} 家　"
           f"（{100 * len(facts) / len(by_company):.1f}%）")

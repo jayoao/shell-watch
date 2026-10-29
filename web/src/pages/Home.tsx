@@ -34,14 +34,14 @@
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type {
-  Candidate, Credential, Incident, LinkedCompany, LookupResult, SafetyStaff,
-  SafetyUnits, ViolationRef,
+  Candidate, Credential, Incident, LinkedCompany, ListedHit, LookupResult, QuotaHit,
+  SafetyStaff, SafetyUnits, ViolationRef,
 } from "../types/contracts";
 import sample from "../data/lookup.sample.json";
-import { findBranches, getMeta, getPlainLaw, hashMismatch, lookup } from "../lib/lookup";
+import { findBranches, getExtra, getMeta, getPlainLaw, hashMismatch, lookup } from "../lib/lookup";
 import { DEMO, demoHref, maskOutcome, maskQuery, unmask } from "../lib/demo";
 import { ASK } from "../lib/ask";
-import type { Branches, LookupOutcome, Meta, PlainDict, RegistryHit } from "../lib/lookup";
+import type { Branches, Extra, LookupOutcome, Meta, PlainDict, RegistryHit } from "../lib/lookup";
 import "../styles/home.css";
 
 const DATA = sample as unknown as {
@@ -1031,7 +1031,135 @@ const ICON: Record<string, ReactNode> = {
   minus: <><circle cx="12" cy="12" r="8.5" /><path d="M8 12h8" /></>,
   chat: <><path d="M4 5h16v11H9l-5 4z" /><path d="M8 9.5h8M8 12.5h5" /></>,
   ext: <><path d="M14 4h6v6" /><path d="M20 4l-9 9" /><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" /></>,
+  coin: <><circle cx="12" cy="12" r="8.5" /><path d="M14.5 9.2c-.6-.8-1.5-1.2-2.5-1.2-1.4 0-2.5.8-2.5 2s1.1 1.7 2.5 2 2.5.8 2.5 2-1.1 2-2.5 2c-1 0-1.9-.4-2.5-1.2M12 6.5v11" /></>,
+  aid: <><rect x="3.5" y="7" width="17" height="12" rx="2" /><path d="M9 7V5.5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1V7" /><path d="M12 10.5v5M9.5 13h5" /></>,
+  globe: <><circle cx="12" cy="12" r="8.5" /><path d="M3.5 12h17" /><path d="M12 3.5c2.3 2.4 3.5 5.2 3.5 8.5s-1.2 6.1-3.5 8.5c-2.3-2.4-3.5-5.2-3.5-8.5s1.2-6.1 3.5-8.5z" /></>,
+  access: <><circle cx="12" cy="5" r="1.8" /><path d="M7 9h10M12 9v5l-3 6M12 14l3 6" /></>,
 };
+
+/** extra.json（兩組新資料的設定）。只抓一次。 */
+function useExtra(): Extra | null {
+  const [ex, setEx] = useState<Extra | null>(null);
+  useEffect(() => { void getExtra().then(setEx); }, []);
+  return ex;
+}
+
+/** 在一組分位數裡的位置（0–100）。分位數是 0、5、10…100 百分位。 */
+function pctOf(v: number, q: number[] | undefined): number | null {
+  if (!q || q.length < 2) return null;
+  if (v <= q[0]) return 0;
+  for (let i = 1; i < q.length; i++) {
+    if (v <= q[i]) {
+      const span = q[i] - q[i - 1];
+      const f = span > 0 ? (v - q[i - 1]) / span : 0;
+      return Math.round(((i - 1 + f) / (q.length - 1)) * 100);
+    }
+  }
+  return 100;
+}
+
+/**
+ * 上市櫃公司自行申報的揭露：非主管薪資中位數、職災人數、官網。
+ *
+ * ⚠ 使用者要求（2026-10-29）：「用類似外部連結那樣、圖像化、小小的，不要再多文字」。
+ *   所以跟「在其他網站查」同一種圓角小膠囊，說明全部放 title。
+ * ⚠ 都是**公司自行申報**（公開資訊觀測站），不是主管機關認定 —— title 一定要寫。
+ * ⚠ 官網來自證交所／櫃買中心的基本資料（依統編），不是用搜尋去猜的。
+ */
+function ListedPills({ l, ex }: { l: ListedHit; ex: Extra | null }) {
+  const yr = l.y ? `${l.y} 年度` : "";
+  const p = l.med ? pctOf(l.med, ex?.ls_q) : null;
+  return (
+    <div className="elsewhere listed" aria-label="上市櫃公司自行申報的揭露資料">
+      <span className="ew lsp-m" title={`${l.m}公司，股票代號 ${l.code}`}>{l.m}<b className="num">{l.code}</b></span>
+      {l.med ? (
+        <span className="ew lsp" title={`非擔任主管職務之全時員工薪資中位數 ${l.med.toLocaleString("zh-TW")} 仟元（${yr}，公司自行申報，公開資訊觀測站）`
+          + (p !== null ? `。在所有上市櫃公司中約第 ${p} 百分位。` : "")}>
+          <Ic k="coin" w={1.8} /><span>年薪中位數 <b className="num">{(l.med / 10).toFixed(1)}</b> 萬</span>
+          {p !== null && <span className="meter" aria-hidden="true"><i style={{ width: `${Math.max(4, p)}%` }} /></span>}
+        </span>
+      ) : null}
+      {l.inj !== undefined ? (
+        <span className={l.inj > 0 ? "ew lsp warn" : "ew lsp"}
+          title={`公司自行申報的職業災害人數${l.injr ? `與比率（占員工 ${l.injr}）` : ""}（${yr}，ESG 揭露）。不是主管機關認定。`}>
+          <Ic k="aid" w={1.8} /><span>自報職災 <b className="num">{l.inj.toLocaleString("zh-TW")}</b> 人{l.injr && l.inj > 0 ? `・${l.injr}` : ""}</span>
+        </span>
+      ) : null}
+      {l.w ? (
+        <a className="ew" href={l.w} target="_blank" rel="noopener noreferrer"
+           title={`公司官網（證交所／櫃買中心登錄的網址）`}>
+          <Ic k="globe" w={1.8} /><span>官網</span>
+          <span className="ew-x"><Ic k="ext" w={1.8} /></span>
+        </a>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * 勞動部公告：身障定額進用未足額（pipeline/extra.py）。
+ *
+ * ⚠⚠ 公告名單，不是裁處。未足額要繳差額補助費，不是罰鍰 —— 不可以寫「違法」「被罰」。
+ * 一期一格的小方格：看得出是偶爾一次，還是年年都在名單上。
+ */
+function QuotaCard({ q, ex }: { q: QuotaHit; ex: Extra | null }) {
+  const on = new Set(q.p.map((x) => x[0]));
+  const all: [number, string][] = ex?.dq_all?.length ? ex.dq_all : q.p.map((x, i) => [i, x[0]]);
+  const years = new Map<number, [number, string][]>();
+  for (const a of all) {
+    const y = Math.floor(a[0] / 100);
+    if (!years.has(y)) years.set(y, []);
+    years.get(y)!.push(a);
+  }
+  const last = q.p[0];
+  const onLatest = !!ex?.dq_latest && last?.[0] === ex.dq_latest;
+  // 金展獎（正面）。⚠ 跟未足額並列，不互相抵銷：兩件事都是公告，各自講清楚。
+  const gold = q.g?.length ? (
+    <div className="dq-gold">
+      {q.g.map(([ed, aw], i) => (
+        <span key={i} className="gold-tag" title="勞動部金展獎（進用身心障礙者績優機關）得獎名單">
+          <Ic k="check" w={2} />金展獎 {ed}・{aw}
+        </span>
+      ))}
+    </div>
+  ) : null;
+  if (!q.p.length) {
+    return (
+      <section className="dq good" aria-label="勞動部金展獎">
+        <div className="dq-h"><Ic k="access" w={1.8} /><span>勞動部｜身障進用<b>績優</b></span></div>
+        {gold}
+      </section>
+    );
+  }
+  return (
+    <section className="dq" aria-label="勞動部公告身障定額進用未足額">
+      <div className="dq-h">
+        <Ic k="access" w={1.8} />
+        <span>勞動部公告｜身障定額進用<b>未足額</b></span>
+        <span className="dq-n"><b className="num">{q.p.length}</b> 期</span>
+      </div>
+      {gold}
+      <div className="dq-grid" role="img"
+        aria-label={`民國 ${[...years.keys()][0]} 年起共 ${all.length} 期公告，其中 ${q.p.length} 期在名單上`}>
+        {[...years.entries()].map(([y, ps]) => (
+          <div key={y} className="dq-yr">
+            <span className="num">{y}</span>
+            {ps.map(([k, l]) => <i key={k} className={on.has(l) ? "on" : ""} title={`${l}${on.has(l) ? "：在名單上" : ""}`} />)}
+          </div>
+        ))}
+      </div>
+      {last && (
+        <p className="dq-last">
+          最近一次 {last[0]}：應進用 <b className="num">{last[3]}</b> 人、進用 <b className="num">{last[2]}</b> 人、
+          不足 <b className="num">{last[1]}</b> 人{onLatest ? "（最新一期仍在名單上）" : ""}
+        </p>
+      )}
+      <p className="fineprint">
+        身心障礙者權益保障法第 38 條：員工 67 人以上應進用 1% 身障者。未足額須繳差額補助費（不是罰鍰）。
+      </p>
+    </section>
+  );
+}
 
 /**
  * 在其他網站查這家公司：Google、經濟部商工登記、職場評價。
@@ -2000,6 +2128,7 @@ function Ledger({ hit, pending, allWeak }: {
 function Result({ hit, onPick, meta }: {
   hit: LookupResult; onPick: (n: string) => void; meta?: Meta | null;
 }) {
+  const ex = useExtra();
   const linkedAll = hit.principals.flatMap((p) => p.linked_companies);
   const pendingCount = [
     ...hit.company.own_violations,
@@ -2093,6 +2222,8 @@ function Result({ hit, onPick, meta }: {
           )}
         </dl>
         <Elsewhere name={hit.company.name} taxId={hit.company.tax_id} />
+        {hit.company.listed && <ListedPills l={hit.company.listed} ex={ex} />}
+        {hit.company.quota && <QuotaCard q={hit.company.quota} ex={ex} />}
       </header>
 
       {/* ⚠⚠ res-side-top 與 res-haz 必須包在同一個 grid 格子裡。
@@ -2198,7 +2329,7 @@ function Result({ hit, onPick, meta }: {
             在一個以「資料使用度」為賣點的系統上特別難看。
             新增任何一個資料來源，這一行要一起改（或者乾脆只指向關於資料頁）。 */}
         <p className="fineprint">
-          資料來源：勞動部及其所屬機關開放資料 8 筆、經濟部商工登記公示資料。
+          資料來源：勞動部及其所屬機關開放資料 16 筆、經濟部商工登記公示資料、財政部稅籍登記、上市櫃公司揭露。
           逐項名稱、串接率與已知缺口見 <a href="/about">關於資料</a>。
           本頁僅呈現主管機關已公告之裁處紀錄與其關聯，
           不對任何事業單位或個人作出評價或認定。
@@ -2290,6 +2421,12 @@ function Linked({ c, onPick }: { c: LinkedCompany; onPick?: (n: string) => void 
           {c.tax_id && <span className="num">統編 {c.tax_id}</span>}
           <span>{c.status || "登記狀態不明"}</span>
           <span className="num">裁處 {c.violations.length} 筆</span>
+          {/* ⚠ 關聯公司也要查身障未足額公告（使用者要求「包含去連結之前的公司」）。 */}
+          {c.quota && c.quota.p.length > 0 && (
+            <span className="dq-tag" title={`勞動部公告身障定額進用未足額，最近一次 ${c.quota.p[0]?.[0] ?? ""}`}>
+              身障未足額公告 <b className="num">{c.quota.p.length}</b> 期
+            </span>
+          )}
         </div>
         <ul className="vio-list">
           {vs.map((v, i) => <Violation key={`${v.doc_no}-${i}`} v={v} compact />)}
@@ -2767,6 +2904,7 @@ export default function Home() {
       {!busy && outcome?.kind === "miss"
         && <Miss asked={asked} meta={meta} registry={outcome.registry}
                  also={outcome.also} before={outcome.before}
+                 quota={outcome.quota} listed={outcome.listed}
                  taxQuery={outcome.taxQuery} tooShort={outcome.tooShort}
                  onPick={(n) => { setQ(n); void run(n); }} />}
 
@@ -2940,7 +3078,9 @@ function regEst(y: number): string {
  *   現在第一屏只留答案與一句最關鍵的警語，其餘收進「為什麼」。
  *   警語不是刪掉 —— 刪掉會變成我們在暗示「沒紀錄 = 安全」。
  */
-function Miss({ asked, meta, registry, also, before, onPick, taxQuery, tooShort }: {
+function Miss({ asked, meta, registry, also, before, onPick, taxQuery, tooShort, quota, listed }: {
+  quota?: QuotaHit;
+  listed?: ListedHit;
   taxQuery?: string;
   tooShort?: boolean;
   asked: string;
@@ -2951,6 +3091,7 @@ function Miss({ asked, meta, registry, also, before, onPick, taxQuery, tooShort 
   onPick?: (name: string) => void;
 }) {
   const [why, setWhy] = useState(false);
+  const ex = useExtra();
   const closed = registry && registry.status !== "核准設立"
     && registry.status !== "核准停業" && registry.status !== "營業中"
     && registry.tax !== "active";
@@ -2972,7 +3113,7 @@ function Miss({ asked, meta, registry, also, before, onPick, taxQuery, tooShort 
   }
   return (
     <div className="miss">
-      {registry ? (
+      {registry || quota ? (
         <>
           <h1 className="res-title" style={{ fontSize: 22 }}>
             {asked}
@@ -2982,6 +3123,19 @@ function Miss({ asked, meta, registry, also, before, onPick, taxQuery, tooShort 
               改成三格：每格只有「查了什麼／結果／一行補充」，條件與限制收進「怎麼判斷的？」。
               ⚠ 負責人那一格不可以寫「沒有」——寫「未發現」，因為只抓得到姓名少見的情形。 */}
           <div className="ms-cards">
+            {/* ⚠ 學校、醫院、財團法人這類單位不在商工登記，但會在身障未足額公告上（中原大學）。
+                沒有登記資料時第一格改講公告。 */}
+            {!registry && quota && (
+              <div className="ms-card">
+                <span className="ms-k">勞動部公告</span>
+                <b>{quota.p.length ? "身障未足額" : "金展獎"}</b>
+                <span className="ms-s">
+                  {quota.p.length ? <><b className="num">{quota.p.length}</b> 期{quota.c ? `・${quota.c}` : ""}</>
+                    : "進用身心障礙者績優"}
+                </span>
+              </div>
+            )}
+            {registry && (
             <div className="ms-card">
               {/* ⚠ 商工快照沒有、只在財政部稅籍查得到的（家福、統一星巴克…）標「財政部稅籍」，
                   不可以寫成「商工登記 查得到」—— 那是另一個機關的資料。 */}
@@ -2995,6 +3149,7 @@ function Miss({ asked, meta, registry, also, before, onPick, taxQuery, tooShort 
                 )}
               </span>
             </div>
+            )}
             <div className="ms-card">
               <span className="ms-k">勞動部裁處</span>
               <b className="num">0 筆</b>
@@ -3004,14 +3159,17 @@ function Miss({ asked, meta, registry, also, before, onPick, taxQuery, tooShort 
               <span className="ms-k">負責人關聯</span>
               {/* ⚠ 只在財政部稅籍查得到的，沒有負責人可以比 —— 寫「未發現」等於說查過了。 */}
               <b>{before && before.length > 0 ? `${before.length} 家`
-                : registry.taxOnly ? "無法比對" : "未發現"}</b>
+                : !registry || registry.taxOnly ? "無法比對" : "未發現"}</b>
               <span className="ms-s">
                 {before && before.length > 0 ? "已停業、被裁處過（見下方）"
+                  : !registry ? "不在商工登記，沒有負責人資料"
                   : registry.taxOnly ? "稅籍資料沒有負責人欄位" : "已停業且被裁處過的公司"}
               </span>
             </div>
           </div>
           <Elsewhere name={asked} />
+          {listed && <ListedPills l={listed} ex={ex} />}
+          {quota && <QuotaCard q={quota} ex={ex} />}
           {/* ⚠ 2026-10-29：查「全聯」直接命中一家名稱就叫「全聯」的公司（0 筆），
               而大家要找的全聯實業（62 筆）只排在下面的「字面上像」。名稱很短時，
               把第一個有紀錄的候選拉到這裡一行。 */}
@@ -3153,7 +3311,7 @@ function Miss({ asked, meta, registry, also, before, onPick, taxQuery, tooShort 
         </div>
       )}
 
-      {registry && <Recourse />}
+      {(registry || quota) && <Recourse />}
     </div>
   );
 }

@@ -126,6 +126,8 @@ export interface ViolationRef {
 export interface LinkedCompany {
   tax_id: string;
   name: string;
+  /** ⚠ 選填。勞動部公告身障定額進用未足額（lookup 之後補上）。 */
+  quota?: QuotaHit;
   status: string;              // 登記現況
   established: string | null;
   dissolved: string | null;
@@ -321,6 +323,10 @@ export interface LookupResult {
     renamed_to?: string;
     /** ⚠ 選填。改名前的名稱，而且舊名也有裁處紀錄。 */
     former_names?: string[];
+    /** ⚠ 選填。勞動部公告身障定額進用未足額。 */
+    quota?: QuotaHit;
+    /** ⚠ 選填。上市櫃公司自行申報的薪資、職災、官網。 */
+    listed?: ListedHit;
     own_violations: ViolationRef[];
     /** ⚠ 選填。得獎與驗證。沒有不代表這家公司沒得過獎 ——
      *  只代表在我們涵蓋的四份名單裡沒有正規化後完全相同的名稱。 */
@@ -350,4 +356,44 @@ export interface LookupResult {
     /** ⚠ 選填。上述紀錄裡有幾筆的公告文字提到死亡災害 */
     fatal_count?: number;
   };
+}
+
+/**
+ * 勞動部公告的「身障定額進用不足額義務單位」（pipeline/extra.py → dq/）。
+ *
+ * ⚠⚠ 這是**公告名單**，不是裁處：未足額要繳差額補助費（身權法第 43 條），不是罰鍰。
+ *   畫面上寫「勞動部公告未足額」，不可以寫「違法」「被罰」。
+ * ⚠ 來源只有投保單位名稱，沒有統編 —— 正規化後名稱完全相同才算。
+ */
+export interface QuotaHit {
+  /** 來源寫的名稱 */
+  n: string;
+  /** 縣市 */
+  c: string;
+  /** 私／公 */
+  s: string;
+  /** 各期，新的在前：[期別, 不足人數, 進用人數, 法定人數]。只得過金展獎的單位是空陣列。 */
+  p: [string, number, number, number][];
+  /** 金展獎（進用身心障礙者績優）：[屆別, 獎項別]。正面紀錄。 */
+  g?: [string, string][];
+}
+
+/** 上市櫃公司自行申報的揭露資料（證交所／櫃買中心 OpenAPI → ls/）。⚠ 公司自己報的，不是主管機關認定。 */
+export interface ListedHit {
+  code: string;
+  /** 上市／上櫃 */
+  m: string;
+  n: string;
+  a?: string;
+  t?: string;
+  /** 官網 */
+  w?: string;
+  /** 報告年度（民國） */
+  y?: number;
+  /** 非擔任主管之全時員工薪資中位數（仟元） */
+  med?: number;
+  avg?: number;
+  /** 公司自報職業災害人數、比率 */
+  inj?: number;
+  injr?: string;
 }

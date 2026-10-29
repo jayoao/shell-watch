@@ -1254,3 +1254,39 @@
 /* 改名（現名／舊名）一行 */
 .rn-line { margin: -4px 0 10px; font-size: 14px; color: var(--ink-2); }
 .rn-line b { color: var(--ink); font-weight: 600; }
+
+/* 上市櫃自行申報（ListedPills）：跟「在其他網站查」同一種膠囊 */
+.elsewhere.listed { margin-top: 8px; }
+.ew.lsp, .ew.lsp-m { cursor: help; }
+.ew.lsp-m { gap: 5px; color: var(--ink-2); }
+.ew.lsp-m b { color: var(--ink); font-weight: 600; }
+.ew.lsp b { font-weight: 700; }
+.ew.lsp.warn svg { color: #c2410c; }
+.meter { display: inline-block; width: 38px; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; margin-left: 2px; }
+.meter i { display: block; height: 100%; background: var(--ink-2); border-radius: 3px; }
+
+/* 勞動部公告：身障定額進用未足額（QuotaCard） */
+.dq { margin-top: 14px; border: 1px solid var(--line); border-left: 3px solid #d97706; border-radius: 10px; padding: 12px 14px; }
+.dq-h { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.dq-h svg { width: 18px; height: 18px; color: #d97706; flex: none; }
+.dq-h b { color: #b45309; }
+.dq-n { margin-left: auto; font-size: 13px; color: var(--ink-2); }
+.dq-n b { font-size: 20px; color: var(--ink); margin-right: 2px; }
+.dq-grid { display: flex; flex-direction: column; gap: 3px; margin: 10px 0 8px; }
+.dq-yr { display: flex; align-items: center; gap: 3px; }
+.dq-yr span { width: 30px; font-size: 11px; color: var(--ink-2); }
+.dq-yr i { width: 12px; height: 12px; border-radius: 2px; background: var(--line); display: inline-block; }
+.dq-yr i.on { background: #d97706; }
+.dq-last { font-size: 13.5px; margin: 4px 0 2px; }
+.dq-last b { font-weight: 700; }
+.dq .fineprint { margin-top: 4px; }
+.dq-tag { color: #b45309; border: 1px solid #f0c27b; border-radius: 999px; padding: 0 8px; font-size: 12px; white-space: nowrap; }
+:root[data-theme="neon"] .dq-tag { color: #ffcf6b; border-color: #8a6a2a; }
+:root[data-theme="neon"] .dq-h b { color: #ffcf6b; }
+
+.dq.good { border-left-color: #2f855a; }
+.dq.good .dq-h svg, .dq.good .dq-h b { color: #2f855a; }
+.dq-gold { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.gold-tag { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; color: #2f855a; border: 1px solid #9ae6b4; border-radius: 999px; padding: 1px 9px; }
+.gold-tag svg { width: 13px; height: 13px; }
+:root[data-theme="neon"] .gold-tag { color: #7ee2a8; border-color: #2f6b4a; }

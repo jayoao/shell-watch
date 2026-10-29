@@ -16,8 +16,8 @@
  *   那種 bug 沒有對拍測試會找很久。
  */
 import type {
-  Candidate, Credential, EvidenceKind, Hazard, Incident, LinkedCompany,
-  LookupResult, Principal, SafetyStaff, SafetyUnits, Severity, Succession,
+  Candidate, Credential, EvidenceKind, Hazard, Incident, LinkedCompany, ListedHit,
+  LookupResult, Principal, QuotaHit, SafetyStaff, SafetyUnits, Severity, Succession,
   ViolationRef,
 } from "../types/contracts";
 
@@ -878,6 +878,10 @@ export type LookupOutcome =
   //   不要用猜的取代事實，也不要因為有事實就把候選藏起來。
   //   before = 負責人姓名相符、已停業且被裁處過的另一家公司（見 predecessors）。
   | { kind: "miss"; registry?: RegistryHit; also?: Candidate[]; before?: LinkedCompany[];
+      /** 勞動部公告身障定額進用未足額（名稱完全相同） */
+      quota?: QuotaHit;
+      /** 上市櫃公司自行申報的揭露 */
+      listed?: ListedHit;
       /** 使用者打的是 8 碼統一編號（本站還不能用統編查） */
       taxQuery?: string;
       /** 打不到兩個字 */
@@ -890,7 +894,100 @@ export type LookupOutcome =
  * ⚠ 「查不到」不等於「這家公司沒問題」—— 可能是名稱寫法不同，
  *   也可能是該縣市的資料保存期間較短。UI 一定要把這句話寫出來。
  */
+// ── 兩組新資料（pipeline/extra.py）：身障未足額公告（dq/）、上市櫃揭露（ls/）──────────
+//
+// ⚠ 設定放在 extra.json，不在 meta.json：publish.py 每次重寫 meta，兩邊分開才不會互相蓋掉。
+// ⚠ 每一家只多抓一片小檔（dq 一片約 10 KB、ls 一片約 3 KB），而且只在結果出來之後抓。
+
+export interface Extra {
+  dq_shards?: number;
+  dq_latest?: string;
+  dq_latest_key?: number;
+  dq_first?: string;
+  dq_periods?: number;
+  dq_all?: [number, string][];
+  ls_shards?: number;
+  /** 上市櫃非主管薪資中位數的 0、5、10…100 百分位（仟元），畫小長條用 */
+  ls_q?: number[];
+  ls_year?: number;
+}
+let extraP: Promise<Extra | null> | null = null;
+export function getExtra(): Promise<Extra | null> {
+  if (!extraP) extraP = getJSON<Extra>("extra.json");
+  return extraP;
+}
+const dqCache = new Map<number, Promise<Record<string, QuotaHit> | null>>();
+const lsCache = new Map<number, Promise<Record<string, ListedHit> | null>>();
+
+export async function findQuota(name: string): Promise<QuotaHit | null> {
+  const ex = await getExtra();
+  const n = ex?.dq_shards ?? 0;
+  const key = normName(name);
+  if (!n || !key) return null;
+  const k = fnv1a(key) % n;
+  let p = dqCache.get(k);
+  if (!p) { p = getJSON<Record<string, QuotaHit>>(`dq/${k}.json`); dqCache.set(k, p); }
+  return (await p)?.[key] ?? null;
+}
+
+export async function findListed(name: string): Promise<ListedHit | null> {
+  const ex = await getExtra();
+  const n = ex?.ls_shards ?? 0;
+  const key = normName(name);
+  if (!n || !key) return null;
+  const k = fnv1a(key) % n;
+  let p = lsCache.get(k);
+  if (!p) { p = getJSON<Record<string, ListedHit>>(`ls/${k}.json`); lsCache.set(k, p); }
+  return (await p)?.[key] ?? null;
+}
+
+async function firstHit<T>(names: (string | undefined)[], f: (n: string) => Promise<T | null>): Promise<T | undefined> {
+  for (const n of names) {
+    if (!n) continue;
+    const h = await f(n);
+    if (h) return h;
+  }
+  return undefined;
+}
+
+/**
+ * 結果出來之後補上兩組新資料。
+ *
+ * ⚠ 「包含去連結之前的公司」（2026-10-29 使用者要求）：負責人關聯的公司、
+ *   零裁處新公司的前身（before）、改名前後的名稱，**都要**查身障未足額公告 ——
+ *   換了殼、改了名，公告留在舊名稱上，跟裁處紀錄是一樣的道理。
+ */
+async function enrich(out: LookupOutcome, query: string): Promise<LookupOutcome> {
+  if (!(await getExtra())) return out;
+  const tagLinked = (cs: LinkedCompany[] | undefined) => Promise.all((cs ?? []).map(async (c) => {
+    const q = await findQuota(c.name);
+    if (q) c.quota = q;
+  }));
+  if (out.kind === "hit") {
+    const c = out.result.company;
+    const names = [c.name, c.renamed_to, ...(c.former_names ?? []), out.result.via_rename];
+    const [q, l] = await Promise.all([firstHit(names, findQuota), firstHit(names, findListed)]);
+    if (q) c.quota = q;
+    // ⚠ 上市櫃資料用全名對；兩邊都有統編時統編要一致，不一致就不顯示（同名不同家）。
+    if (l && (!l.t || !c.tax_id || l.t === c.tax_id)) c.listed = l;
+    await Promise.all([
+      ...out.result.principals.map((p) => tagLinked(p.linked_companies)),
+      tagLinked(out.result.successors),
+    ]);
+  } else if (out.kind === "miss" && !out.taxQuery && !out.tooShort) {
+    const [q, l] = await Promise.all([findQuota(query), findListed(query)]);
+    if (q) out.quota = q;
+    if (l) out.listed = l;
+    await tagLinked(out.before);
+  }
+  return out;
+}
+
 export async function lookup(query: string): Promise<LookupOutcome> {
+  return enrich(await lookupCore(query), query);
+}
+
+async function lookupCore(query: string): Promise<LookupOutcome> {
   const meta = await getMeta();
   if (!meta) return { kind: "nodata" };
   const shards = meta.shards || SHARDS_FALLBACK;
