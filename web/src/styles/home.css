@@ -1233,3 +1233,11 @@
 .rc-line { margin: 0; font-size: 14px; line-height: 1.8; }
 .rc-line .linkish { margin-left: 8px; }
 .recourse { padding: 12px 16px; }
+/* 在其他網站查（Elsewhere）。⚠ 刻意不放說明文字，見元件註解。 */
+.elsewhere { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.ew { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px;
+      font-size: 13.5px; color: var(--ink); text-decoration: none; line-height: 1.2; }
+.ew:hover { border-color: var(--ink-2); }
+.ew svg { width: 16px; height: 16px; }
+.ew-x { display: inline-flex; opacity: .55; }
+.ew-x svg { width: 12px; height: 12px; }

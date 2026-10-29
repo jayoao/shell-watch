@@ -1024,7 +1024,46 @@ const ICON: Record<string, ReactNode> = {
   bank: <><path d="M12 3l9 5H3l9-5z" /><path d="M5 10v8M9 10v8M15 10v8M19 10v8" /><path d="M4 20h16" /></>,
   check: <><path d="M20 6.5L9.5 17 4 11.5" /></>,
   minus: <><circle cx="12" cy="12" r="8.5" /><path d="M8 12h8" /></>,
+  chat: <><path d="M4 5h16v11H9l-5 4z" /><path d="M8 9.5h8M8 12.5h5" /></>,
+  ext: <><path d="M14 4h6v6" /><path d="M20 4l-9 9" /><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" /></>,
 };
+
+/**
+ * 在其他網站查這家公司：Google、經濟部商工登記、職場評價。
+ *
+ * ⚠⚠ 只給連結，不抓、不存任何別人的資料（2026-10-29 討論的結論）：
+ *   評價無法查證、也不是公開政府資料，整合進來就違反「不評分」；
+ *   官網用搜尋去猜會對錯公司，那正是本站一路在防的誤讀。由使用者自己看、自己判斷。
+ * ⚠ 點下去公司名稱會送到那個網站。畫面上不再加說明文字（使用者回饋：字已經太多），
+ *   用外部連結圖示表示「離開本站」，完整說明放在 title 與 aria-label。
+ * ⚠ demo 遮罩模式不顯示：連結會帶著真實公司名稱。
+ * ⚠ 商工登記的網址格式 2026-10-29 實測過（公司 cmpyType、商號 busmType）；有統編就用統編查，最準。
+ */
+function Elsewhere({ name, taxId }: { name: string; taxId?: string }) {
+  if (DEMO) return null;
+  const n = name.trim();
+  const qType = /分公司$/.test(n) ? "brCmpyType" : /公司$/.test(n) ? "cmpyType" : "busmType";
+  const links = [
+    { k: "search", label: "Google", site: "Google 搜尋",
+      href: `https://www.google.com/search?q=${encodeURIComponent(n)}` },
+    { k: "bank", label: "商工登記", site: "經濟部商工登記公示資料查詢",
+      href: "https://findbiz.nat.gov.tw/fts/query/QueryList/queryList.do?qryCond="
+        + `${encodeURIComponent(taxId || n)}&infoType=D&qryType=${qType}&isAlive=all` },
+    { k: "chat", label: "職場評價", site: "GoodJob 職場透明化運動",
+      href: `https://www.goodjob.life/search?q=${encodeURIComponent(n)}` },
+  ];
+  return (
+    <nav className="elsewhere" aria-label="在其他網站查這家公司（外部網站，會帶入公司名稱）">
+      {links.map((l) => (
+        <a key={l.k} className="ew" href={l.href} target="_blank" rel="noopener noreferrer"
+           title={`在「${l.site}」查這家公司（外部網站，會帶入公司名稱）`}>
+          <Ic k={l.k} w={1.8} /><span>{l.label}</span>
+          <span className="ew-x"><Ic k="ext" w={1.8} /></span>
+        </a>
+      ))}
+    </nav>
+  );
+}
 
 function Ic({ k, w = 2 }: { k: keyof typeof ICON | string; w?: number }) {
   return (
@@ -2019,6 +2058,7 @@ function Result({ hit, onPick }: {
             </Field>
           )}
         </dl>
+        <Elsewhere name={hit.company.name} taxId={hit.company.tax_id} />
       </header>
 
       {/* ⚠⚠ res-side-top 與 res-haz 必須包在同一個 grid 格子裡。
@@ -2866,6 +2906,7 @@ function Miss({ asked, meta, registry, also, before, onPick }: {
               </span>
             </div>
           </div>
+          <Elsewhere name={asked} />
           {closed && (
             <div className="band" style={{ marginTop: 14 }}>
               <p>
