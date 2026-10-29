@@ -703,6 +703,8 @@ def main(argv=None) -> int:
         # ⚠ 只有 web/public/data/g/ 真的存在時才寫。沒有索引卻宣稱有，
         #   前端會對每一次查不到都發一個 404 請求。
         **({"g_shards": REGISTRY_SHARDS} if (out / "g").is_dir() else {}),
+        # ⚠ 前綴索引（pipeline/registry_prefix.py）。同樣只有目錄真的存在時才寫。
+        **({"rp_shards": 8192} if (out / "rp").is_dir() else {}),
         # ⚠ 資料涵蓋到的最後一個裁處日期（民國 YYY/MM/DD）。
         #   前端用它判斷年度分布的最後一格是不是「部分年度」。
         #   **不要寫死在前端** —— 每次重抓都會往後長，寫死就等著過時。

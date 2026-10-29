@@ -661,22 +661,25 @@ function ShortAsk({ vs }: { vs: ViolationRef[] }) {
  *   申訴人身分保密見勞動檢查法第 33 條第 5 項。不要自己加條文。
  */
 function Recourse() {
+  const [open, setOpen] = useState(false);
   return (
     <section className="recourse">
-      <div className="kicker">如果你在職場遇到勞動權益或安全的問題</div>
-      <ul>
-        <li>
-          <b>勞動部 1955 勞工諮詢申訴專線</b>：24 小時、免付費，可以諮詢，也可以申訴。
-        </li>
-        <li>
-          <b>工資、工時、休假、勞退</b>：可以向工作所在地的縣市政府勞工局（處）申訴。
-        </li>
-        <li>
-          <b>工作場所安全</b>：可以向雇主、主管機關或勞動檢查機構申訴。
-          雇主不得因此解僱、調職或做其他不利的處分（職業安全衛生法第 39 條），
-          勞動檢查機構必須對申訴人的身分保密（勞動檢查法第 33 條）。
-        </li>
-      </ul>
+      <p className="rc-line">
+        遇到勞動權益或安全問題？撥 <b className="num">1955</b> 勞工諮詢申訴專線（24 小時、免付費）
+        <button className="linkish" onClick={() => setOpen((v) => !v)}>
+          {open ? "收合" : "其他申訴管道"}
+        </button>
+      </p>
+      {open && (
+        <ul>
+          <li><b>工資、工時、休假、勞退</b>：向工作所在地的縣市政府勞工局（處）申訴。</li>
+          <li>
+            <b>工作場所安全</b>：可以向雇主、主管機關或勞動檢查機構申訴。
+            雇主不得因此解僱、調職或做其他不利的處分（職業安全衛生法第 39 條），
+            勞動檢查機構必須對申訴人的身分保密（勞動檢查法第 33 條）。
+          </li>
+        </ul>
+      )}
     </section>
   );
 }
@@ -2837,43 +2840,32 @@ function Miss({ asked, meta, registry, also, before, onPick }: {
           <h1 className="res-title" style={{ fontSize: 22 }}>
             {asked}
           </h1>
-          <p className="miss-lead">
-            這家公司在<b>經濟部商工登記</b>查得到，
-            而本站涵蓋的勞動部公告裡<b>沒有它的裁處紀錄</b>。
-          </p>
-          {/* ⚠⚠ 2026-10-29：使用者要的是一張「查過什麼、各得到什麼」的清單。
-              原本只有一句「查得到、沒有紀錄」，沒講負責人那一項到底查了沒有 ——
-              沒有前身區塊的時候，使用者分不出是「查過、沒有」還是「根本沒查」。
-              ⚠ 負責人那一項一定要講明條件與限制：商工登記只公開遮罩後的姓名，
-                所以只抓得到姓名少見的組合。「沒找到」不等於「負責人沒有其他公司」。 */}
-          <ul className="miss-status">
-            <li>
-              <span className="ms-k">經濟部商工登記</span>
-              <span className="ms-v">
-                <b>查得到</b>
-                {registry.status && <>・<span style={{ color: closed ? "var(--fatal)" : undefined }}>{registry.status}</span></>}
-                {regEst(registry.established) ? `・${regEst(registry.established)}` : ""}
+          {/* ⚠⚠ 2026-10-29：使用者要的是「查過什麼、各得到什麼」，一眼看完。
+              第一版是三列清單＋一大段條件說明，使用者回饋「太多文字」。
+              改成三格：每格只有「查了什麼／結果／一行補充」，條件與限制收進「怎麼判斷的？」。
+              ⚠ 負責人那一格不可以寫「沒有」——寫「未發現」，因為只抓得到姓名少見的情形。 */}
+          <div className="ms-cards">
+            <div className="ms-card">
+              <span className="ms-k">商工登記</span>
+              <b>查得到</b>
+              <span className="ms-s">
+                {registry.status && <span style={{ color: closed ? "var(--fatal)" : undefined }}>{registry.status}</span>}
+                {regEst(registry.established) ? `・${regEst(registry.established).replace(/^設立 /, "")}設立` : ""}
               </span>
-            </li>
-            <li>
-              <span className="ms-k">勞動部裁處公告</span>
-              <span className="ms-v"><b>0 筆</b></span>
-            </li>
-            <li>
+            </div>
+            <div className="ms-card">
+              <span className="ms-k">勞動部裁處</span>
+              <b className="num">0 筆</b>
+              <span className="ms-s">民國 100–115 年公告</span>
+            </div>
+            <div className="ms-card">
               <span className="ms-k">負責人關聯</span>
-              <span className="ms-v">
-                {before && before.length > 0
-                  ? <><b>找到 {before.length} 家</b>已停業、被裁處過的公司（見下方）</>
-                  : <><b>沒有找到</b>符合條件的已停業、被裁處過的公司</>}
-                <small className="ms-note">
-                  條件：商工登記代表人的遮罩姓名相同且全台少見、登記在同一縣市、
-                  對方已停業，而且這家設立在對方最後一次被裁處之後。
-                  商工登記只公開遮罩後的姓名，所以這一項只抓得到姓名少見的情形；
-                  沒找到不代表負責人沒有其他公司。
-                </small>
+              <b>{before && before.length > 0 ? `${before.length} 家` : "未發現"}</b>
+              <span className="ms-s">
+                {before && before.length > 0 ? "已停業、被裁處過（見下方）" : "已停業且被裁處過的公司"}
               </span>
-            </li>
-          </ul>
+            </div>
+          </div>
           {closed && (
             <div className="band" style={{ marginTop: 14 }}>
               <p>
@@ -2910,8 +2902,6 @@ function Miss({ asked, meta, registry, also, before, onPick }: {
       <p className="miss-caveat">
         沒有裁處紀錄<b>不等於</b>沒有問題。這一頁只能告訴你主管機關公告過什麼。
       </p>
-
-      {registry && <Recourse />}
 
       {/* ⚠⚠ 簡報第 3 頁那個情況：新公司在資料上是乾淨的，紀錄留在舊公司。
           這一塊是 tools/clean_successor.py 算出來的，只出現在「沒有裁處紀錄」這一頁。
@@ -2967,10 +2957,18 @@ function Miss({ asked, meta, registry, also, before, onPick }: {
       )}
 
       <button className="linkish" onClick={() => setWhy((v) => !v)}>
-        {why ? "收合" : "為什麼？"}
+        {why ? "收合" : registry ? "怎麼判斷的？" : "為什麼？"}
       </button>
       {why && (
         <div className="block" style={{ marginTop: 10 }}>
+          {registry && (
+            <p style={{ marginBottom: 10 }}>
+              <b>負責人關聯</b>：找的是商工登記代表人的遮罩姓名相同、全台少見、登記在同一縣市、
+              已停業而且被裁處過的公司，並且這家設立在對方最後一次被裁處之後。
+              商工登記只公開遮罩後的姓名，所以只抓得到姓名少見的情形 ——
+              「未發現」不代表負責人沒有其他公司。
+            </p>
+          )}
           <p>
             沒有公告，可能是沒有違規，也可能是<b>沒被檢查</b>、還沒公告，
             或是該縣市的公告<b>已經下架</b>。
@@ -2990,6 +2988,8 @@ function Miss({ asked, meta, registry, also, before, onPick }: {
           </p>
         </div>
       )}
+
+      {registry && <Recourse />}
     </div>
   );
 }

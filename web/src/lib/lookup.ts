@@ -139,6 +139,8 @@ export interface Meta {
   coverage_to?: string;
   /** 商工登記存在性索引的分片數。只有 registry.py 跑過才會有。 */
   g_shards?: number;
+  /** 商工登記前綴索引（前三個字）的分片數。只有 registry_prefix.py 跑過才會有。 */
+  rp_shards?: number;
   companies: number;
   violations: number;
   source: string;
@@ -592,6 +594,47 @@ export async function findBranches(name: string): Promise<Branches> {
 }
 
 /**
+ * 商工登記前綴搜尋：名稱以使用者打的字**開頭**的公司（至少三個字）。
+ *
+ * ⚠⚠ 2026-10-29：「保吉生」什麼都查不到。接字尾只救得了「打完整、只少字尾」的情形，
+ *   使用者打到一半就按查詢才是常態。索引見 pipeline/registry_prefix.py：
+ *   前三個字當鍵、一片約 16 KB，只在其他方法都找不到時才抓。
+ * ⚠ 每個前綴底下已經依「營業中優先、資本額大優先」排好，取前面幾個就好。
+ */
+const RP_LEN = 3;
+const RP_LIMIT = 12;
+const rpCache = new Map<number, Promise<Record<string, [string, number][]> | null>>();
+async function registryPrefix(query: string, meta: Meta): Promise<[string, RegistryHit][]> {
+  const q = normName(query);
+  const n = meta.rp_shards ?? 0;
+  if (!n || q.length < RP_LEN) return [];
+  const head = q.slice(0, RP_LEN), tail = q.slice(RP_LEN);
+  const k = fnv1a(head) % n;
+  let p = rpCache.get(k);
+  if (!p) { p = getJSON<Record<string, [string, number][]>>(`rp/${k}.json`); rpCache.set(k, p); }
+  const list = (await p)?.[head] ?? [];
+  const out: [string, RegistryHit][] = [];
+  for (const [rest, packed] of list) {
+    if (!rest.startsWith(tail) || head + rest === q) continue;
+    out.push([head + rest, {
+      status: STATUS_LABEL[Math.floor(packed / 10000)] ?? "",
+      established: packed % 10000,
+    }]);
+    if (out.length >= RP_LIMIT) break;
+  }
+  return out;
+}
+
+/** 首字索引裡「有裁處紀錄」的名稱（正規化）。用來分辨商工登記候選有沒有紀錄，不多抓分片。 */
+async function namesWithRecords(query: string, meta: Meta): Promise<Set<string>> {
+  const q = normName(query);
+  const xs = meta.x_shards ?? 0;
+  if (!xs || !q) return new Set();
+  const bucket = await getPrefix(prefixShard(q[0], xs));
+  return new Set((bucket?.[q[0]] ?? []).map(normName));
+}
+
+/**
  * 使用者沒打組織型態字尾時，接上常見字尾逐一問商工登記。
  *
  * ⚠ 每個字尾各抓一片商工登記索引（每片約 28 KB），只在「什麼都查不到」時才走，
@@ -830,19 +873,43 @@ export async function lookup(query: string): Promise<LookupOutcome> {
     //   這個最常見的情形，兩條路都走不到，畫面還說他可能打錯了。
     //   所以補上：把常見的組織型態字尾接回去，逐一問商工登記。
     // ⚠ 一樣走 choose，不自動跳進去（接字尾是猜的）。
-    const bySuffix = await registryBySuffix(query, meta);
-    const regNames = new Set(bySuffix.map(([n]) => normName(n)));
-    const rest = abbrev.filter((n) => !regNames.has(normName(n)));
-    if (bySuffix.length || rest.length) {
-      const regCands: Candidate[] = bySuffix.map(([name, hit]) => ({
-        name, tax_id: "", status: hit.status,
-        established: hit.established ? String(hit.established) : null,
-        address: null, violation_count: 0,
-      }));
+    // ⚠ 先用前綴（「保吉生」→「保吉生化學股份有限公司」），找不到再接字尾
+    //   （「保吉生化學有限公司」這種打錯字尾的，前綴對不上）。
+    const pref = await registryPrefix(query, meta);
+    const fromReg = pref.length ? pref : await registryBySuffix(query, meta);
+    // ⚠⚠ 商工登記候選裡也可能有**被裁處過**的公司。不分辨的話，畫面會對一家
+    //   有 27 筆紀錄的公司印出「裁處紀錄 0 筆」—— 那是對使用者說謊。
+    //   首字索引本來就列出所有有紀錄的名稱，拿它來分，不必每家多抓一片。
+    const rec = fromReg.length ? await namesWithRecords(query, meta) : new Set<string>();
+    const order: string[] = [];
+    const seen = new Set<string>();
+    // ⚠ 排序：「前綴吻合且有紀錄」→ 簡稱比對（都有紀錄）→「前綴吻合、沒有紀錄」。
+    //   實測「台積電」：前綴吻合的是「台積電梯有限公司」「台積電企業社」⋯⋯（都 0 筆），
+    //   排在前面會把台灣積體電路製造擠到第九個。使用者打品牌簡稱時，要找的通常是
+    //   被公告過、規模大的那一家；打法定名稱的前幾個字時，前綴那一組就在下面接著。
+    const regWith = fromReg.filter(([x]) => rec.has(normName(x))).map(([x]) => x);
+    const regWithout = fromReg.filter(([x]) => !rec.has(normName(x))).map(([x]) => x);
+    for (const n of [...regWith, ...abbrev, ...regWithout]) {
+      const k = normName(n);
+      if (!seen.has(k)) { seen.add(k); order.push(n); }
+    }
+    if (order.length) {
+      const regHit = new Map(fromReg.map(([n, h]) => [normName(n), h] as const));
+      const needDescribe = order.filter((n) => !regHit.has(normName(n)) || rec.has(normName(n)));
+      const described = new Map(
+        (needDescribe.length ? await describe(needDescribe, shards) : []).map((c) => [normName(c.name), c]));
+      const candidates: Candidate[] = order.map((n) => {
+        const d = described.get(normName(n));
+        if (d) return d;
+        const h = regHit.get(normName(n))!;
+        return { name: n, tax_id: "", status: h.status,
+                 established: h.established ? String(h.established) : null,
+                 address: null, violation_count: 0 };
+      });
       return {
         kind: "choose",
         reason: "abbrev",
-        candidates: [...regCands, ...(rest.length ? await describe(rest, shards) : [])],
+        candidates,
         note: `本站沒有名稱正好是「${query.trim()}」的事業單位。`,
       };
     }
