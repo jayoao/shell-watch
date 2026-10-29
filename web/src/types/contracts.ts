@@ -202,6 +202,8 @@ export interface Candidate {
   address: string | null;
   /** 這家公司自己的公開裁處紀錄筆數 */
   violation_count: number;
+  /** 改過名：現在的名稱 */
+  renamed_to?: string;
 }
 
 /**

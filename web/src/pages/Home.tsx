@@ -2820,7 +2820,7 @@ function Choose({ outcome, asked, onPick }: {
              現在清單裡也會有「商工登記查得到、0 筆裁處」的公司（接字尾找到的）。 */
           <p>
             這些是名稱<b>字面上像</b>的事業單位，系統沒有替你決定是哪一家。
-            「裁處紀錄 0 筆」的是在經濟部商工登記查得到、但勞動部公告裡沒有紀錄的公司。
+            「裁處紀錄 0 筆」的是在經濟部商工登記（或財政部稅籍）查得到、但勞動部公告裡沒有紀錄的公司。
             請看名稱全文、統一編號、登記地址或設立年，確認是你要找的那一家再點進去。
           </p>
         ) : cands.length === 1 ? (
@@ -2842,6 +2842,7 @@ function Choose({ outcome, asked, onPick }: {
             <a href={qHref(c.name)}
                onClick={(e) => { if (plainClick(e)) { e.preventDefault(); onPick(c.name); } }}>
               <div className="cand-name">{c.name}</div>
+              {c.renamed_to && <div className="rn-line" style={{ margin: "2px 0 6px" }}>現名 <b>{c.renamed_to}</b></div>}
               <dl className="fields">
                 {c.tax_id && <Field label="統一編號"><span className="num">{c.tax_id}</span></Field>}
                 {c.address && (

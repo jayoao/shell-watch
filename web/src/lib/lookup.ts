@@ -733,6 +733,7 @@ async function describe(names: string[], shards: number): Promise<Candidate[]> {
     established: got[i]?.e ?? null,
     address: got[i]?.a ?? null,
     violation_count: got[i]?.v.length ?? 0,
+    ...(got[i]?.rn ? { renamed_to: got[i]!.rn } : {}),
   }));
   for (const name of rest) {
     out.push({ name, tax_id: "", status: "", established: null,
