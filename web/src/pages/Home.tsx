@@ -33,6 +33,7 @@
  */
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
 import type {
   Candidate, Credential, Incident, LinkedCompany, ListedHit, LookupResult, QuotaHit,
   SafetyStaff, SafetyUnits, ViolationRef,
@@ -2606,6 +2607,18 @@ export default function Home() {
     return () => window.removeEventListener("popstate", onPop);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meta]);
+
+  // ⚠ 2026-10-29 使用者回報：在結果頁點上方的「查詢」（或「職得調查」），網址變回 /
+  //   但畫面還停在上一家公司 —— 網址跟畫面講的不是同一件事。
+  //   NavLink 走的是 react-router 的導航，不會觸發 popstate，所以要另外聽 location。
+  //   （我們自己查詢時用的是 window.history.pushState，不經過 router，不會走到這裡。）
+  const loc = useLocation();
+  useEffect(() => {
+    if (!new URLSearchParams(loc.search).get("q")) {
+      setOutcome(null); setAsked(""); setQ("");
+      window.scrollTo(0, 0);
+    }
+  }, [loc.key, loc.search]);
 
   const hit = outcome?.kind === "hit" ? outcome.result : null;
   /**

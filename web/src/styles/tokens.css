@@ -273,7 +273,7 @@ a:hover { color: var(--ink); }
   gap: 16px; max-width: 1180px; margin: 0 auto;
   padding: 14px 20px 12px; border-bottom: 1px solid var(--rule);
 }
-.sw-nav .brand { font-size: 16px; font-weight: 700; letter-spacing: -.01em; white-space: nowrap; }
+.sw-nav .brand { display: inline-flex; align-items: center; gap: 8px; color: inherit; text-decoration: none; font-size: 16px; font-weight: 700; letter-spacing: -.01em; white-space: nowrap; }
 .sw-nav nav { display: flex; gap: 14px; }
 .sw-nav a {
   font-family: var(--mono); font-size: 12px; letter-spacing: .08em;
@@ -389,3 +389,16 @@ a:hover { color: var(--ink); }
   border-radius: 2px; padding: 20px;
 }
 .sw-muted { color: var(--ink-3); font-size: 14px; }
+
+.sw-nav .brand-mark { width: 26px; height: 26px; flex: none; }
+/* 2026-10-29 加了 LOGO 之後，375px 導覽列多出 16px 橫向捲動。窄螢幕縮小 LOGO 與間距。 */
+@media (max-width: 420px) {
+  .sw-nav { gap: 10px; }
+  .sw-nav .brand { gap: 5px; }
+  .sw-nav .brand-mark { width: 20px; height: 20px; }
+}
+/* 更窄（≤380px）連站名都放不下：只留 LOGO，站名在 aria-label 與頁面標題裡都還在。 */
+@media (max-width: 380px) {
+  .sw-nav .brand-name { display: none; }
+  .sw-nav .brand-mark { width: 24px; height: 24px; }
+}
