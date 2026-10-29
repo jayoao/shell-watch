@@ -397,8 +397,9 @@ a:hover { color: var(--ink); }
   .sw-nav .brand { gap: 5px; }
   .sw-nav .brand-mark { width: 20px; height: 20px; }
 }
-/* 更窄（≤380px）連站名都放不下：只留 LOGO，站名在 aria-label 與頁面標題裡都還在。 */
-@media (max-width: 380px) {
+/* 更窄（≤370px，例如 360、320）連站名都放不下：只留 LOGO，站名在 aria-label 與頁面標題裡都還在。
+   ⚠ 375／390／414 這些最常見的手機寬度要看得到站名，所以門檻不能設到 380。 */
+@media (max-width: 370px) {
   .sw-nav .brand-name { display: none; }
   .sw-nav .brand-mark { width: 24px; height: 24px; }
 }
