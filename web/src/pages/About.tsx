@@ -24,8 +24,8 @@
  *    兩邊不同步的話，報名文件跟網站會講不一樣的話。
  */
 import { useEffect, useState } from "react";
-import { getMeta } from "../lib/lookup";
-import type { Meta } from "../lib/lookup";
+import { getExtra, getMeta } from "../lib/lookup";
+import type { Extra, Meta } from "../lib/lookup";
 import "../styles/about.css";
 
 /** ⚠ 網址一律指向 data.gov.tw 的資料集頁面，不要指向我們實際打的下載端點。
@@ -208,6 +208,8 @@ function n(x: number | undefined): string {
 export default function About() {
   const [meta, setMeta] = useState<Meta | null | undefined>(undefined);
   useEffect(() => { void getMeta().then(setMeta); }, []);
+  const [ex, setEx] = useState<Extra | null>(null);
+  useEffect(() => { void getExtra().then(setEx); }, []);
 
   return (
     <div className="about">
@@ -321,6 +323,20 @@ export default function About() {
               <td className="right num">8,183 家 · 13,172 個場所</td>
               <td>正規化後的法人名稱（名冊含分支與廠區）</td>
             </tr>
+            {ex?.dq_units ? (
+              <tr>
+                <td>身障未足額公告、金展獎</td>
+                <td className="right num">{ex.dq_units.toLocaleString("zh-TW")} 個單位 · {ex.dq_periods} 期</td>
+                <td>正規化後完全相同的名稱（來源沒有統編）</td>
+              </tr>
+            ) : null}
+            {ex?.ls_companies ? (
+              <tr>
+                <td>上市櫃公司揭露</td>
+                <td className="right num">{ex.ls_companies.toLocaleString("zh-TW")} 家</td>
+                <td>公司全名，兩邊都有統一編號時須一致</td>
+              </tr>
+            ) : null}
             <tr>
               <td>地址 → 經緯度</td>
               <td className="right num">23,020 個地址</td>
@@ -336,6 +352,9 @@ export default function About() {
             ? <> 其中 <b className="num">{meta.tax_filled.toLocaleString("zh-TW")}</b> 家在財政部稅籍登記查得到唯一同名的營業人，
                 已補上統一編號（現況顯示「營業中」）；負責人關聯仍只用商工登記。</>
             : null}
+          {" "}改過名的公司（勞動部公告用舊名、商工登記只剩新名）也以改名對照補回：
+          人工逐家查證 44 家、「有限 ↔ 股份有限」組織變更且負責人或董監事姓名相符的 701 家，
+          統編全部回查商工登記。{/* ⚠ 數字取自 2026-10-29 的 publish.py 輸出（改名表、組織型態變更自動對照兩行）。 */}
         </p>
       </section>
 

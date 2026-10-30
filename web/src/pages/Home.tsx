@@ -533,6 +533,12 @@ const FAMILY: [string, string[]][] = [
   ["紀錄與配合檢查", ["出勤紀錄", "妨礙檢查"]],
 ];
 
+/** 公告上的法規簡稱 → 全名（同一部法在不同機關的公告裡寫法不同，不統一就會在長條上變兩列）。 */
+const LAW_ALIAS: Record<string, string> = {
+  "勞基法": "勞動基準法", "職安法": "職業安全衛生法", "性平法": "性別平等工作法",
+  "性工法": "性別平等工作法", "性別工作平等法": "性別平等工作法", "勞退條例": "勞工退休金條例",
+};
+
 function familyOf(topic: string): string {
   for (const [fam, topics] of FAMILY) if (topics.includes(topic)) return fam;
   return "其他";
@@ -703,7 +709,12 @@ function PlainBars({ vs }: { vs: ViolationRef[] }) {
     for (const v of vs) {
       const hs = v.plain || !(v.hazards && v.hazards.length) ? [null] : v.hazards;
       for (const h of hs) {
-        const label = v.plain?.label ?? (h ? (h.phrase ?? h.name) : "其他");
+        // ⚠ 2026-10-30：對不到人話標籤、也沒有危害型態的（工會法、性平法…）原本一律叫「其他」，
+        //   長榮航空 50 筆裡 25 筆是「其他 25」——一半的紀錄只告訴使用者「其他」。
+        //   改成用**法規名稱**當標籤（「工會法」「性別平等工作法」），那是公告上寫的，不是我們猜的。
+        const lawRaw = (v.law.match(/^(.+?(?:法|條例|規則|標準|辦法))/)?.[1] ?? "").trim();
+        const lawName = LAW_ALIAS[lawRaw] ?? lawRaw;
+        const label = v.plain?.label ?? (h ? (h.phrase ?? h.name) : (lawName || "其他"));
         const topic = v.plain?.topic ?? (h ? "職業安全" : "其他");
         const cur = m.get(label)
           ?? { n: 0, fatal: 0, topic, duty: h?.duty ?? "" };
@@ -3392,6 +3403,8 @@ function Coverage({ meta }: { meta: Meta | null | undefined }) {
             <li>9 部法規的<b>公開裁處公告</b>，逐筆附處分字號</li>
             <li>法條翻成人話，看得出被罰的是什麼事</li>
             <li>得獎、驗證、安衛人員備查，標明是<b>哪個場所</b>的</li>
+            <li>身障定額進用<b>未足額公告</b>與金展獎，109–115 年逐期標出</li>
+            <li>上市櫃公司<b>自行申報</b>的薪資中位數與職災人數</li>
           </ul>
         </div>
         <div className="pledge-col is-not">

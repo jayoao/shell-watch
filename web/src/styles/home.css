@@ -827,7 +827,9 @@
    使用者決定要不要帶走資料是在看到筆數的當下。 */
 .block-dl { margin: 6px 0 0; }
 
-.lawg-wrap { margin: 6px 0 0; overflow-x: auto; }
+/* ⚠ 2026-10-30：320px 整頁出現 100px 橫向捲動。元兇是表格裡的 .sr-only（position:absolute）——
+   外層沒有定位的話，它的包含區塊在捲動容器之外，overflow:auto 管不到它。加 position:relative 收住。 */
+.lawg-wrap { margin: 6px 0 0; overflow-x: auto; max-width: 100%; position: relative; }
 .lawg-tab {
   width: 100%; min-width: 520px;
   border-collapse: collapse;
@@ -1081,6 +1083,10 @@
   .linked-ev-h { font-size: 17px; }
   .linked-h { font-size: 19px; }
   .linked .vio { grid-template-columns: 92px minmax(0, 1fr); column-gap: 18px; }
+  /* ⚠⚠ 2026-10-30 全站實測抓到：上面兩條 grid 是給「展開態」的一筆裁處用的（日期在左欄）。
+     收合態那一行（.vio-row）自己已經是一條 flex，套到 grid 之後整顆按鈕被塞進 92／104px 的左欄，
+     法條寬度變成 0 —— 電腦版每一筆都只剩日期和罰鍰，「被罰什麼」整個看不見，標籤還疊在罰鍰上。 */
+  .vio.vio-row, .linked .vio.vio-row { display: block; }
 
   .years-list { grid-template-columns: repeat(3, 1fr); }
   .cov-list { font-size: 14px; }
@@ -1290,3 +1296,10 @@
 .gold-tag { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; color: #2f855a; border: 1px solid #9ae6b4; border-radius: 999px; padding: 1px 9px; }
 .gold-tag svg { width: 13px; height: 13px; }
 :root[data-theme="neon"] .gold-tag { color: #7ee2a8; border-color: #2f6b4a; }
+
+/* 2026-10-30：手機上 11 個年度排不下一行（105–113 一行、114–115 掉到第二行，像兩張圖）。
+   窄螢幕改成平均分欄、縮小間距與字級，一行放得下 12 年以內。 */
+@media (max-width: 480px) {
+  .ydots-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(25px, 1fr)); gap: 8px 2px; }
+  .ydot-y, .ydot-n { font-size: 11px; }
+}

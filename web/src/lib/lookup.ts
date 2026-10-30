@@ -905,6 +905,9 @@ export interface Extra {
   dq_latest_key?: number;
   dq_first?: string;
   dq_periods?: number;
+  dq_units?: number;
+  gold_units?: number;
+  ls_companies?: number;
   dq_all?: [number, string][];
   ls_shards?: number;
   /** 上市櫃非主管薪資中位數的 0、5、10…100 百分位（仟元），畫小長條用 */
