@@ -1065,6 +1065,26 @@ export default function OshaDistrictMap() {
         </MapContainer>
       </div>
 
+      {/* 點位圖層的圖例（2026-10-30 補）：原本只有密度圖層有圖例，
+          評審第一眼看到的是點位圖層，圈裡的數字是什麼、紅點是什麼都要猜。 */}
+      <div
+        hidden={layer !== "points"}
+        style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", maxWidth: 660,
+                 margin: "10px auto 0", fontSize: 12, color: "var(--ink-2)" }}
+      >
+        {([
+          [22, "var(--accent-fill)", 0.72, "圈內數字＝這一帶的事業單位家數（點一下放大）"],
+          [10, "var(--accent-fill)", 0.9, "單一事業單位"],
+          [10, "var(--sev-high)", 0.9, "公告涉及死亡災害"],
+        ] as const).map(([d, c, o, t]) => (
+          <span key={t} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <i style={{ width: d, height: d, borderRadius: "50%", background: c, opacity: o,
+                        border: "1px solid var(--map-label-halo)", display: "inline-block" }} />
+            {t}
+          </span>
+        ))}
+      </div>
+
       {/* 圖例。顏色一旦拿來編碼數值就一定要有圖例，不然深淺只是裝飾。 */}
       <div
         hidden={layer !== "density"}

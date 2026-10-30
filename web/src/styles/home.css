@@ -1303,3 +1303,52 @@
   .ydots-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(25px, 1fr)); gap: 8px 2px; }
   .ydot-y, .ydot-n { font-size: 11px; }
 }
+
+/* ── 職安履歷（Dossier）：結果頁頂端一排 ── */
+.dossier { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 4px 0 14px; }
+.dossier-h { font-size: 12.5px; color: var(--ink-2); margin-right: 4px; white-space: nowrap; }
+.dossier-h b { font-size: 16px; color: var(--ink); }
+.dossier-h span { color: var(--ink-3); }
+.dz { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 8px;
+      border: 1px solid var(--line); font-size: 12.5px; text-decoration: none; color: var(--ink); white-space: nowrap; }
+.dz svg { width: 15px; height: 15px; flex: none; }
+.dz-v { font-weight: 700; }
+.dz.off { color: var(--ink-3); border-style: dashed; background: none; }
+.dz.off .dz-v { font-weight: 400; }
+.dz.on { background: var(--surface); }
+.dz.on.bad svg { color: #c2410c; }
+.dz.on.good svg { color: #2f855a; }
+a.dz.on:hover { border-color: var(--ink-2); }
+:root[data-theme="neon"] .dz.on.bad svg { color: #ff9a5c; }
+:root[data-theme="neon"] .dz.on.good svg { color: #7ee2a8; }
+@media (max-width: 480px) {
+  .dossier { gap: 5px; }
+  .dossier-h { width: 100%; }
+  .dz { padding: 3px 8px; font-size: 12px; }
+}
+
+/* ── 時間軸（Timeline） ── */
+.tl-grid { display: grid; grid-template-columns: minmax(150px, 30%) 1fr; column-gap: 14px; row-gap: 4px; margin-top: 12px; }
+.tl-axis-l { align-self: end; font-size: 11px; color: var(--ink-3); padding-bottom: 3px; text-align: right; }
+.tl-axis { position: relative; height: 18px; border-bottom: 1px solid var(--line); }
+.tl-axis span { position: absolute; bottom: 3px; transform: translateX(-50%); font-size: 11px; color: var(--ink-3); white-space: nowrap; font-family: var(--mono); }
+.tl-name { min-width: 0; padding: 6px 0; border-bottom: 1px solid var(--rule); }
+.tl-name a, .tl-name b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+.tl-meta { display: block; font-size: 11.5px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tl-track { position: relative; border-bottom: 1px solid var(--rule); min-height: 44px; }
+.tl-bar { position: absolute; top: 50%; height: 8px; margin-top: -4px; border-radius: 4px; background: var(--ink-3); opacity: .55; }
+.tl-row.self .tl-bar { background: var(--ink); opacity: .85; }
+.tl-row.self .tl-name b { font-weight: 700; }
+.tl-bar.closed { border-radius: 4px 0 0 4px; }
+.tl-x { position: absolute; top: 50%; transform: translate(3px, -55%); font-style: normal; font-size: 13px; color: var(--ink-2); }
+/* 設立年早於軸線起點：左端不收圓角、淡出，表示「更早就有了」（年份寫在名稱下方） */
+.tl-bar.cut { border-top-left-radius: 0; border-bottom-left-radius: 0; -webkit-mask-image: linear-gradient(90deg, transparent, #000 18px); mask-image: linear-gradient(90deg, transparent, #000 18px); }
+.tl-dot { position: absolute; top: 50%; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; border-radius: 50%;
+          background: var(--fatal); border: 1.5px solid var(--bg); opacity: .9; }
+@media (max-width: 560px) {
+  .tl-grid { grid-template-columns: 1fr; row-gap: 0; }
+  .tl-axis-l { display: none; }
+  .tl-axis { order: 0; }
+  .tl-name { border-bottom: 0; padding: 8px 0 0; }
+  .tl-track { min-height: 26px; }
+}

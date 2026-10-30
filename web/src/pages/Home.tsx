@@ -1047,6 +1047,8 @@ const ICON: Record<string, ReactNode> = {
   aid: <><rect x="3.5" y="7" width="17" height="12" rx="2" /><path d="M9 7V5.5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1V7" /><path d="M12 10.5v5M9.5 13h5" /></>,
   globe: <><circle cx="12" cy="12" r="8.5" /><path d="M3.5 12h17" /><path d="M12 3.5c2.3 2.4 3.5 5.2 3.5 8.5s-1.2 6.1-3.5 8.5c-2.3-2.4-3.5-5.2-3.5-8.5s1.2-6.1 3.5-8.5z" /></>,
   access: <><circle cx="12" cy="5" r="1.8" /><path d="M7 9h10M12 9v5l-3 6M12 14l3 6" /></>,
+  alert: <><path d="M12 3.5l9 16H3l9-16z" /><path d="M12 10v4.5M12 17.3v.2" /></>,
+  award: <><circle cx="12" cy="9" r="5.5" /><path d="M8.5 13.5L7 21l5-2.5 5 2.5-1.5-7.5" /></>,
 };
 
 /** extra.json（兩組新資料的設定）。只抓一次。 */
@@ -2153,6 +2155,33 @@ function Result({ hit, onPick, meta }: {
   //   數字照給（我們不替使用者刪資料），但標籤要把話講完。
   const allWeak = linkedAll.length > 0 && hit.summary.max_independent === 0;
   const after = hit.successors ?? [];
+  // 時間軸與職安履歷用的「有獨立佐證」的關聯公司（跨負責人去重）
+  const strongLinked = (() => {
+    const seen = new Set<string>();
+    return hit.principals.flatMap((p) => p.linked_companies).filter((c) => {
+      if (c.independent === 0 || seen.has(c.name)) return false;
+      seen.add(c.name);
+      return true;
+    });
+  })();
+  const co = hit.company;
+  const tlRows: TLRow[] = [
+    { name: co.name, est: co.established ? parseInt(co.established, 10) || null : null, status: co.status, self: true,
+      dates: co.own_violations.map((v) => rocToYear(v.date)).filter((d): d is number => d !== null) },
+    ...[...strongLinked, ...after].slice(0, 8).map(linkedToRow)
+      .sort((a, b) => (a.est ?? 9999) - (b.est ?? 9999)),
+  ];
+  const dossier: DossierItem[] = [
+    { k: "own", icon: "megaphone", label: "裁處", value: co.own_violations.length ? `${co.own_violations.length} 筆` : null, href: "#sec-own", tone: "bad" },
+    { k: "inc", icon: "alert", label: "重大職災", value: co.incidents?.length ? `${co.incidents.length} 起` : null, href: "#sec-inc", tone: "bad" },
+    { k: "dq", icon: "access", label: "身障公告",
+      value: co.quota?.p.length ? `${co.quota.p.length} 期` : co.quota?.g?.length ? "金展獎" : null,
+      href: "#sec-dq", tone: co.quota?.p.length ? "bad" : "good" },
+    { k: "cr", icon: "award", label: "得獎驗證", value: co.credentials?.length ? `${co.credentials.length} 項` : null, href: "#sec-cr", tone: "good" },
+    { k: "su", icon: "clipboard", label: "安衛備查", value: co.safety?.total ? `${co.safety.total} 處` : null, href: "#sec-su", tone: "good" },
+    { k: "ls", icon: "coin", label: "上市櫃揭露", value: co.listed ? `${co.listed.m}` : null, href: "#sec-ls" },
+    { k: "pl", icon: "link", label: "負責人關聯", value: strongLinked.length + after.length ? `${strongLinked.length + after.length} 家` : null, href: "#sec-tl" },
+  ];
   const nameLinked = linkedAll.length > 0 || after.length > 0;
 
   // ⚠ 標籤一律用口語。「行政救濟尚未終結」對求職者是完全陌生的詞，
@@ -2200,6 +2229,7 @@ function Result({ hit, onPick, meta }: {
             }}>{old}</a> 另有裁處紀錄 →
           </p>
         ))}
+        <Dossier items={dossier} />
         <dl className="fields">
           {hit.company.tax_id && (
             <Field label="統一編號"><span className="num">{hit.company.tax_id}</span></Field>
@@ -2234,8 +2264,8 @@ function Result({ hit, onPick, meta }: {
           )}
         </dl>
         <Elsewhere name={hit.company.name} taxId={hit.company.tax_id} />
-        {hit.company.listed && <ListedPills l={hit.company.listed} ex={ex} />}
-        {hit.company.quota && <QuotaCard q={hit.company.quota} ex={ex} />}
+        {hit.company.listed && <div id="sec-ls"><ListedPills l={hit.company.listed} ex={ex} /></div>}
+        {hit.company.quota && <div id="sec-dq"><QuotaCard q={hit.company.quota} ex={ex} /></div>}
       </header>
 
       {/* ⚠⚠ res-side-top 與 res-haz 必須包在同一個 grid 格子裡。
@@ -2260,9 +2290,9 @@ function Result({ hit, onPick, meta }: {
           <Ledger hit={hit} pending={pendingCount} allWeak={allWeak} />
         </div>
         <div className="res-haz">
-          <Incidents list={hit.company.incidents ?? []} />
-          <Credentials list={hit.company.credentials ?? []} owner={hit.company.name} />
-          <SafetyUnitsBlock su={hit.company.safety} />
+          <div id="sec-inc"><Incidents list={hit.company.incidents ?? []} /></div>
+          <div id="sec-cr"><Credentials list={hit.company.credentials ?? []} owner={hit.company.name} /></div>
+          <div id="sec-su"><SafetyUnitsBlock su={hit.company.safety} /></div>
         </div>
       </div>
 
@@ -2275,6 +2305,7 @@ function Result({ hit, onPick, meta }: {
             2026-09-18 就是這樣噴 "Parsing error: ')' expected"。 */}
         <BranchHint name={hit.company.name} onPick={onPick} />
 
+        <div id="sec-own" />
         {hit.company.own_violations.length > 0 ? (
           <ViolationList
             vs={hit.company.own_violations}
@@ -2289,6 +2320,9 @@ function Result({ hit, onPick, meta }: {
             </p>
           </section>
         )}
+
+        <div id="sec-tl" />
+        <Timeline rows={tlRows} onPick={onPick} />
 
         {hit.principals.map((p) => (
           <section key={p.name} className="block">
@@ -3078,6 +3112,116 @@ function TaxBadge({ tax, status, date }: {
   return null;
 }
 
+/* ══════════════════════════════════════════════════════════════
+   職安履歷：結果頁頂端一排圖示（2026-10-30）
+   ══════════════════════════════════════════════════════════════
+   一眼看出「這一家在幾份資料裡查到東西」。有資料的亮、沒有的灰，點了跳到那一段。
+   ⚠ 灰色的意思是「查過了、這份資料裡沒有」，所以**只放真的查過的資料**。
+     查無頁沒有得獎、職災、安衛的索引，那幾格就不放，不可以畫成灰色 —— 灰色是一個陳述。 */
+interface DossierItem { k: string; icon: string; label: string; value: string | null; href?: string; tone?: "bad" | "good" }
+function Dossier({ items }: { items: DossierItem[] }) {
+  const hits = items.filter((x) => x.value).length;
+  return (
+    <nav className="dossier" aria-label={`職安履歷：${items.length} 份資料裡有 ${hits} 份查到這一家`}>
+      <span className="dossier-h">職安履歷 <b className="num">{hits}</b><span>／{items.length}</span></span>
+      {items.map((x) => {
+        const body = (
+          <>
+            <Ic k={x.icon} w={1.8} />
+            <span className="dz-l">{x.label}</span>
+            <b className="dz-v num">{x.value ?? "—"}</b>
+          </>
+        );
+        const cls = `dz ${x.value ? "on" : "off"}${x.tone ? " " + x.tone : ""}`;
+        return x.value && x.href
+          ? <a key={x.k} className={cls} href={x.href} onClick={(e) => {
+              const el = document.querySelector(x.href!);
+              if (el && plainClick(e)) { e.preventDefault(); el.scrollIntoView({ behavior: "smooth", block: "start" }); }
+            }}>{body}</a>
+          : <span key={x.k} className={cls} title={x.value ? undefined : "查過，這份資料裡沒有這一家"}>{body}</span>;
+      })}
+    </nav>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════
+   時間軸：本公司與負責人姓名相符的公司（2026-10-30）
+   ══════════════════════════════════════════════════════════════
+   「舊公司被罰 → 停業 → 新公司設立、紀錄乾淨」這件事，文字要讀三段，畫出來 3 秒。
+   ⚠⚠ 只畫**有獨立佐證**的連結（independent > 0）與零裁處新公司的前身／後繼。
+     只有姓名相同的那一組不畫 —— 畫在同一張圖上，等於用版面替使用者認定是同一個人。
+   ⚠ 商工公示資料**沒有停業年份**。已停業的公司，實線只畫到「最後一筆公告」，
+     後面接一個 ✕ 表示「之後某個時間停業」，不畫一個我們不知道的年份。 */
+interface TLRow { name: string; est: number | null; status: string; dates: number[]; self?: boolean; n?: number }
+const ACTIVE_STATUS = new Set(["核准設立", "營業中", "核准登記", "核准報備", ""]);
+function rocToYear(d: string): number | null {
+  const m = d.match(/^(\d{2,3})\/(\d{1,2})/);
+  return m ? +m[1] + 1911 + (+m[2] - 1) / 12 : null;
+}
+function Timeline({ rows, onPick }: { rows: TLRow[]; onPick?: (n: string) => void }) {
+  const now = new Date();
+  const end = now.getFullYear() + now.getMonth() / 12 + 0.1;
+  const all = rows.flatMap((r) => [...r.dates, ...(r.est ? [r.est] : [])]);
+  if (rows.length < 2 || !all.length) return null;
+  const start = Math.max(2000, Math.floor(Math.min(...all)) - 1);
+  const x = (y: number) => `${((Math.max(start, Math.min(end, y)) - start) / (end - start)) * 100}%`;
+  const ticks: number[] = [];
+  for (let y = Math.ceil((start - 1911) / 5) * 5; y + 1911 <= end; y += 5) ticks.push(y);
+  return (
+    <section className="block tl" aria-label="時間軸">
+      <h2 className="block-h">時間軸：本頁公司與負責人姓名相符的公司</h2>
+      <p className="block-sub">
+        年份為民國。實線＝設立到現在（或到最後一筆公告）· 紅點＝一筆裁處 · ✕＝之後停業（商工資料沒有停業年份）。
+        只畫有獨立佐證的連結；姓名相同不等於同一人。
+      </p>
+      <div className="tl-grid">
+        <div className="tl-axis-l">民國</div>
+        <div className="tl-axis">
+          {ticks.map((t, k) => (
+            <span key={t} style={{ left: x(t + 1911),
+              transform: k === 0 ? "none" : t + 1911 > end - 1.5 ? "translateX(-100%)" : undefined }}>
+              {t}
+            </span>
+          ))}
+        </div>
+        {rows.map((r, i) => {
+          const active = ACTIVE_STATUS.has(r.status);
+          const last = r.dates.length ? Math.max(...r.dates) : null;
+          const s0 = r.est ?? (r.dates.length ? Math.min(...r.dates) : null);
+          const e0 = active ? end : Math.max(last ?? s0 ?? start, (s0 ?? start) + 0.25);
+          return (
+            <div key={i} className={`tl-row${r.self ? " self" : ""}`} style={{ display: "contents" }}>
+              <div className="tl-name">
+                {r.self || !onPick ? <b>{r.name}</b> : (
+                  <a href={qHref(r.name)} onClick={(e) => { if (plainClick(e)) { e.preventDefault(); onPick(r.name); } }}>{r.name}</a>
+                )}
+                <span className="tl-meta">
+                  {r.self ? "本頁 · " : ""}{r.est ? `設立 ${r.est - 1911}` : "設立年不詳"} · {r.status || "現況不明"} · 裁處 {r.dates.length}
+                </span>
+              </div>
+              <div className="tl-track">
+                {s0 !== null && (
+                  <i className={`tl-bar${active ? "" : " closed"}${r.est !== null && r.est < start ? " cut" : ""}`}
+                     style={{ left: x(s0), width: `calc(${x(e0)} - ${x(s0)})` }} />
+                )}
+                {!active && s0 !== null && <em className="tl-x" style={{ left: x(e0) }}>✕</em>}
+                {r.dates.map((d, j) => <b key={j} className="tl-dot" style={{ left: x(d) }} />)}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function linkedToRow(c: LinkedCompany): TLRow {
+  return {
+    name: c.name, est: c.established ? parseInt(c.established, 10) || null : null,
+    status: c.status, dates: c.violations.map((v) => rocToYear(v.date)).filter((d): d is number => d !== null),
+  };
+}
+
 function regEst(y: number): string {
   return y > 0 ? `設立 西元 ${y} 年` : "";
 }
@@ -3191,9 +3335,19 @@ function Miss({ asked, meta, registry, also, before, onPick, taxQuery, tooShort,
               </span>
             </div>
           </div>
+          {/* ⚠ 查無頁只放真的查過的四份（裁處、身障公告、上市櫃、負責人關聯）。
+              得獎、職災、安衛的索引只收有裁處紀錄的公司，這裡沒查，就不畫灰格。 */}
+          <Dossier items={[
+            { k: "own", icon: "megaphone", label: "裁處", value: null },
+            { k: "dq", icon: "access", label: "身障公告",
+              value: quota?.p.length ? `${quota.p.length} 期` : quota?.g?.length ? "金展獎" : null,
+              href: "#sec-dq", tone: quota?.p.length ? "bad" : "good" },
+            { k: "ls", icon: "coin", label: "上市櫃揭露", value: listed ? listed.m : null, href: "#sec-ls" },
+            { k: "pl", icon: "link", label: "負責人關聯", value: before?.length ? `${before.length} 家` : null, href: "#sec-tl" },
+          ]} />
           <Elsewhere name={asked} />
-          {listed && <ListedPills l={listed} ex={ex} />}
-          {quota && <QuotaCard q={quota} ex={ex} />}
+          {listed && <div id="sec-ls"><ListedPills l={listed} ex={ex} /></div>}
+          {quota && <div id="sec-dq"><QuotaCard q={quota} ex={ex} /></div>}
           {/* ⚠ 2026-10-29：查「全聯」直接命中一家名稱就叫「全聯」的公司（0 筆），
               而大家要找的全聯實業（62 筆）只排在下面的「字面上像」。名稱很短時，
               把第一個有紀錄的候選拉到這裡一行。 */}
@@ -3248,6 +3402,13 @@ function Miss({ asked, meta, registry, also, before, onPick, taxQuery, tooShort,
           ⚠ 第一句一定要先講「上面這家公司本身沒有紀錄、下面是另一家」——
             否則使用者會把舊公司的裁處看成這一家的，那正是這個站一路在防的誤讀。
           ⚠ 措辭不用「換殼」「前身」這類推論，只陳述姓名、縣市與兩個日期。 */}
+      <div id="sec-tl" />
+      {before && before.length > 0 && registry && (
+        <Timeline onPick={onPick} rows={[
+          { name: asked, est: registry.established || null, status: registry.status, dates: [], self: true },
+          ...before.map(linkedToRow).sort((a, b) => (a.est ?? 9999) - (b.est ?? 9999)),
+        ]} />
+      )}
       {before && before.length > 0 && (
         <section className="block" style={{ marginTop: 22 }}>
           <h2 className="block-h">
