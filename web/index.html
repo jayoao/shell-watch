@@ -19,6 +19,8 @@
         if (localStorage.getItem("sw-theme") === "neon") {
           document.documentElement.setAttribute("data-theme", "neon");
         }
+        var fs = localStorage.getItem("sw-fs");
+        if (fs === "l" || fs === "xl") document.documentElement.setAttribute("data-fs", fs);
       } catch (e) { /* 私密視窗或封鎖 cookie：沿用預設 */ }
     </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />

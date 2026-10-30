@@ -293,6 +293,7 @@ export default function About() {
 
       <section className="about-sec">
         <h2 className="about-h">這些資料怎麼串起來</h2>
+        <div className="table-scroll" tabIndex={0} role="region" aria-label="串接結果表（可左右捲動）">
         <table className="join-table">
           <thead>
             <tr><th>串接</th><th className="right">結果</th><th>用什麼鍵</th></tr>
@@ -344,6 +345,7 @@ export default function About() {
             </tr>
           </tbody>
         </table>
+        </div>
         <p className="about-note">
           ⚠ 有 <b>13.6%</b> 的事業單位在商工登記裡查不到統一編號。
           多數是診所、小吃店、工作室這類以商業登記或執業登記存在的單位。

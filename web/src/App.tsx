@@ -71,6 +71,66 @@ function ThemeToggle() {
   );
 }
 
+/* ── 字級 ──────────────────────────────────────────────────
+   2026-10-30 使用者要求：「怕有眼睛不好的」。三段：標準／大／特大。
+   ⚠ 作法是 CSS zoom 放大整個 .sw-shell，不是改 html 的 font-size：
+     全站的字級都寫死 px（幾百處），改 rem 等於重寫；而且只放大字、
+     不放大欄寬，固定寬的格子會被撐破。zoom 是整塊等比放大，版面比例不變。
+   ⚠ 導覽列刻意不放大 —— 手機 375px 放不下。
+   ⚠ 地圖（.leaflet-container）有反向 zoom，見 tokens.css。
+   ⚠ 預設值與第一次繪製前的套用在 index.html 的 inline script，
+     跟主題一樣，避免載入時閃一下。 */
+const FS_KEY = "sw-fs";
+type FsChoice = "m" | "l" | "xl";
+const FS_LEVELS: { v: FsChoice; label: string }[] = [
+  { v: "m", label: "標準字級" },
+  { v: "l", label: "大字級" },
+  { v: "xl", label: "特大字級" },
+];
+
+function readFs(): FsChoice {
+  try {
+    const v = localStorage.getItem(FS_KEY);
+    return v === "l" || v === "xl" ? v : "m";
+  } catch {
+    return "m";
+  }
+}
+
+function FontSizeToggle() {
+  const [fs, setFs] = useState<FsChoice>(readFs);
+  useEffect(() => {
+    const el = document.documentElement;
+    if (fs === "m") el.removeAttribute("data-fs");
+    else el.setAttribute("data-fs", fs);
+    try {
+      localStorage.setItem(FS_KEY, fs);
+    } catch {
+      /* 私密視窗：本次有效，不會被記住 */
+    }
+    // 地圖等用尺寸計算版面的元件需要知道容器變了
+    window.dispatchEvent(new Event("resize"));
+  }, [fs]);
+
+  return (
+    <div className="fs-toggle" role="group" aria-label="文字大小">
+      {FS_LEVELS.map((l) => (
+        <button
+          key={l.v}
+          type="button"
+          className={`fs-${l.v}${fs === l.v ? " on" : ""}`}
+          aria-pressed={fs === l.v}
+          aria-label={l.label}
+          title={l.label}
+          onClick={() => setFs(l.v)}
+        >
+          A
+        </button>
+      ))}
+    </div>
+  );
+}
+
 /**
  * 頁首。設計稿的作法是「報紙的報頭」：粗的刊名、細的分隔線、
  * 右邊一行等寬字的資料規模。不用 logo、不用陰影、不用圓角。
@@ -119,7 +179,10 @@ function Masthead() {
             `${meta.violations.toLocaleString("zh-TW")} 筆公告 · 民國 100–115 年`
           : ""}
       </span>
-      <ThemeToggle />
+      <div className="nav-tools">
+        <FontSizeToggle />
+        <ThemeToggle />
+      </div>
     </header>
   );
 }

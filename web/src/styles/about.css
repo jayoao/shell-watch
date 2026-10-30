@@ -59,6 +59,8 @@
 }
 
 /* 串接率。⚠ 表格是唯一允許橫向捲動的東西。 */
+/* 2026-10-30：特大字級在 320px 會把整頁撐出橫向捲動，所以包一層只讓表格自己捲。 */
+.table-scroll { overflow-x: auto; }
 .join-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .join-table th {
   text-align: left; font-family: var(--mono); font-size: 12px;

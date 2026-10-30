@@ -811,7 +811,7 @@
   text-align: inherit;
 }
 .th-sort:hover { color: var(--ink); }
-.th-arr { font-family: var(--mono); font-size: 9px; opacity: .55; }
+.th-arr { font-family: var(--mono); font-size: 10px; }  /* 2026-10-30：拿掉 opacity（3.77:1 不到 AA）。排序中的欄位靠箭頭方向區分，不靠深淺。 */
 .lawg-tab thead th[aria-sort="ascending"] .th-arr,
 .lawg-tab thead th[aria-sort="descending"] .th-arr { opacity: 1; }
 .lawg-tab thead th[aria-sort="ascending"] .th-sort,
@@ -1087,6 +1087,14 @@
      收合態那一行（.vio-row）自己已經是一條 flex，套到 grid 之後整顆按鈕被塞進 92／104px 的左欄，
      法條寬度變成 0 —— 電腦版每一筆都只剩日期和罰鍰，「被罰什麼」整個看不見，標籤還疊在罰鍰上。 */
   .vio.vio-row, .linked .vio.vio-row { display: block; }
+  /* ⚠ 2026-10-30 字級：放大時桌機的左欄會變窄（特大字級 1280px 只剩約 450px），
+     關聯公司再切成「紀錄＋300px 佐證」兩欄，紀錄欄只剩 115px、法條寬度又變 0。
+     媒體查詢看的是視窗寬、不是左欄寬，所以這裡用容器查詢：左欄窄於 640px 就上下排。 */
+  .res-main { container-type: inline-size; }
+  @container (max-width: 640px) {
+    .linked { display: block; }
+    .linked-ev { margin-top: 14px; }
+  }
 
   .years-list { grid-template-columns: repeat(3, 1fr); }
   .cov-list { font-size: 14px; }
@@ -1272,28 +1280,35 @@
 .meter i { display: block; height: 100%; background: var(--ink-2); border-radius: 3px; }
 
 /* 勞動部公告：身障定額進用未足額（QuotaCard） */
-.dq { margin-top: 14px; border: 1px solid var(--line); border-left: 3px solid #d97706; border-radius: 10px; padding: 12px 14px; }
+.dq { margin-top: 14px; border: 1px solid var(--line); border-left: 3px solid #b45309; border-radius: 10px; padding: 12px 14px; }
 .dq-h { display: flex; align-items: center; gap: 8px; font-size: 14px; }
-.dq-h svg { width: 18px; height: 18px; color: #d97706; flex: none; }
-.dq-h b { color: #b45309; }
+.dq-h svg { width: 18px; height: 18px; color: #b45309; flex: none; }
+.dq-h b { color: #9a4a08; }  /* ⚠ 2026-10-30：#b45309 只有 4.49:1，差一點過不了 AA */
 .dq-n { margin-left: auto; font-size: 13px; color: var(--ink-2); }
 .dq-n b { font-size: 20px; color: var(--ink); margin-right: 2px; }
 .dq-grid { display: flex; flex-direction: column; gap: 3px; margin: 10px 0 8px; }
 .dq-yr { display: flex; align-items: center; gap: 3px; }
 .dq-yr span { width: 30px; font-size: 11px; color: var(--ink-2); }
-.dq-yr i { width: 12px; height: 12px; border-radius: 2px; background: var(--line); display: inline-block; }
-.dq-yr i.on { background: #d97706; }
+.dq-yr i { width: 12px; height: 12px; border-radius: 2px; background: transparent; box-shadow: inset 0 0 0 1.5px var(--rule-2); display: inline-block; }
+/* ⚠ 2026-10-30：空格原本是淺灰實心（對底色 1.33:1，弱視與色盲幾乎分不出有沒有）。
+   改成「空心框 vs 實心橘」—— 靠形狀就分得出來，不靠顏色。 */
+.dq-yr i.on { background: #b45309; box-shadow: none; }
 .dq-last { font-size: 13.5px; margin: 4px 0 2px; }
 .dq-last b { font-weight: 700; }
 .dq .fineprint { margin-top: 4px; }
-.dq-tag { color: #b45309; border: 1px solid #f0c27b; border-radius: 999px; padding: 0 8px; font-size: 12px; white-space: nowrap; }
+.dq-tag { color: #9a4a08; border: 1px solid #f0c27b; border-radius: 999px; padding: 0 8px; font-size: 12px; white-space: nowrap; }
 :root[data-theme="neon"] .dq-tag { color: #ffcf6b; border-color: #8a6a2a; }
 :root[data-theme="neon"] .dq-h b { color: #ffcf6b; }
+:root[data-theme="neon"] .dq-yr i.on { background: #f5a524; }
+:root[data-theme="neon"] .dq { border-left-color: #f5a524; }
+:root[data-theme="neon"] .dq-h svg { color: #f5a524; }
+:root[data-theme="neon"] .dq.good { border-left-color: #7ee2a8; }
+:root[data-theme="neon"] .dq.good .dq-h svg, :root[data-theme="neon"] .dq.good .dq-h b { color: #7ee2a8; }
 
 .dq.good { border-left-color: #2f855a; }
-.dq.good .dq-h svg, .dq.good .dq-h b { color: #2f855a; }
+.dq.good .dq-h svg, .dq.good .dq-h b { color: #276749; }  /* #2f855a 當文字只有 4.06:1 */
 .dq-gold { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.gold-tag { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; color: #2f855a; border: 1px solid #9ae6b4; border-radius: 999px; padding: 1px 9px; }
+.gold-tag { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; color: #276749; border: 1px solid #68b98a; border-radius: 999px; padding: 1px 9px; }
 .gold-tag svg { width: 13px; height: 13px; }
 :root[data-theme="neon"] .gold-tag { color: #7ee2a8; border-color: #2f6b4a; }
 
@@ -1317,7 +1332,7 @@
 .dz.off .dz-v { font-weight: 400; }
 .dz.on { background: var(--surface); }
 .dz.on.bad svg { color: #c2410c; }
-.dz.on.good svg { color: #2f855a; }
+.dz.on.good svg { color: #276749; }
 a.dz.on:hover { border-color: var(--ink-2); }
 :root[data-theme="neon"] .dz.on.bad svg { color: #ff9a5c; }
 :root[data-theme="neon"] .dz.on.good svg { color: #7ee2a8; }
@@ -1336,7 +1351,7 @@ a.dz.on:hover { border-color: var(--ink-2); }
 .tl-name a, .tl-name b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
 .tl-meta { display: block; font-size: 11.5px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tl-track { position: relative; border-bottom: 1px solid var(--rule); min-height: 44px; }
-.tl-bar { position: absolute; top: 50%; height: 8px; margin-top: -4px; border-radius: 4px; background: var(--ink-3); opacity: .55; }
+.tl-bar { position: absolute; top: 50%; height: 8px; margin-top: -4px; border-radius: 4px; background: var(--ink-3); opacity: .8; }  /* .55 對底色只有 2.33:1 */
 .tl-row.self .tl-bar { background: var(--ink); opacity: .85; }
 .tl-row.self .tl-name b { font-weight: 700; }
 .tl-bar.closed { border-radius: 4px 0 0 4px; }
