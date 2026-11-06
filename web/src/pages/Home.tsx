@@ -2952,20 +2952,7 @@ export default function Home() {
         {fresh && <p className="search-warn">⚠ 姓名相同不等於同一人。本站不判定身分。</p>}
       </form>
 
-      {/* ⚠ 換殼示意的精簡版。完整版（時間軸、三步驟）在新手手冊。
-          ⚠ 用**虛構**的甲乙公司：首頁不點名任何一家沒被查詢過的真公司。 */}
-      {fresh && (
-        <section className="home-core" aria-label="為什麼要看負責人">
-          <p className="home-core-h">為什麼要看負責人？公司收掉重開，紀錄就留在舊公司。</p>
-          <div className="home-core-row" role="img"
-               aria-label="示意：甲公司已解散，有 12 筆裁處紀錄；乙公司今年新設立，0 筆。兩家公司的負責人姓名相同。">
-            <div className="hc-box"><p className="hc-h">甲公司 <span>已解散</span></p><p className="hc-n num">12 <span>筆裁處</span></p></div>
-            <div className="hc-mid" aria-hidden="true"><span>同一個負責人姓名</span><i /></div>
-            <div className="hc-box is-new"><p className="hc-h">乙公司 <span>今年新設立</span></p><p className="hc-n num">0 <span>筆裁處</span></p></div>
-          </div>
-          <p className="home-core-p">職得調查會列出同名負責人出現過的其他公司。<Link to="/guide#core">看完整說明 →</Link></p>
-        </section>
-      )}
+      {/* 2026-11-06 使用者：首頁只留搜尋，乾淨就好。換殼示意（甲乙公司）只放在新手手冊 /guide#core。 */}
 
       </div>{/* /.face */}
 
