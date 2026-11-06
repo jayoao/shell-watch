@@ -1369,3 +1369,122 @@ a.dz.on:hover { border-color: var(--ink-2); }
   .tl-name { border-bottom: 0; padding: 8px 0 0; }
   .tl-track { min-height: 26px; }
 }
+
+/* ══ 首頁改版（2026-11-06，設計稿 01_首頁）：Google 式極簡 ══════════════
+   ⚠ 只在 .page.landing（尚未查詢）底下生效；結果頁一個字都不動。
+   ⚠ 顏色一律用 tokens，原本／霓虹兩種配色自動跟著換。
+   ⚠ 舊的 .hero / .dia / .howto / .scenarios / .coverage 樣式還留在上面，
+     新手手冊與結果頁不用它們；首頁已不 render 那些元素。 */
+.page.landing {
+  display: flex; flex-direction: column;
+  min-height: calc(100vh - 74px);
+}
+.landing .face {
+  background: none; border-bottom: 0; margin-inline: 0;
+  padding: 40px 0 24px;
+}
+.landing .home-hero { max-width: 720px; margin: 0 auto; text-align: center; }
+.home-brand {
+  margin: 0; display: inline-flex; align-items: center; gap: 14px;
+  font-family: var(--serif); font-weight: 700; color: var(--ink);
+}
+.home-mark { width: 74px; height: 74px; flex: none; }
+.home-word { font-size: 54px; line-height: 1; letter-spacing: .02em; }
+.home-sub {
+  margin: 14px 0 0; font-family: var(--serif); font-size: 18px; color: var(--ink-2);
+}
+
+/* 搜尋：圓角長條＋兩顆按鈕。label 只給螢幕閱讀器。 */
+.landing .home-search {
+  max-width: 640px; margin: 30px auto 0; position: relative;
+  background: none; border: 0; box-shadow: none; padding: 0;
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 0 12px;
+  animation: none;
+}
+.landing .home-search label {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap;
+}
+.search-ic { display: none; }
+.landing .home-search .search-ic {
+  display: flex; position: absolute; left: 22px; top: 0; height: 56px;
+  align-items: center; color: var(--ink-3); pointer-events: none; z-index: 1;
+}
+.landing .home-search .search-ic svg { width: 20px; height: 20px; }
+.landing .home-search .sw-input {
+  flex: 1 1 100%; height: 56px; box-sizing: border-box;
+  border-radius: 28px; padding: 0 22px 0 54px; font-size: 16px;
+  background: var(--sheet); border: 1px solid var(--rule-2); color: var(--ink);
+}
+.landing .home-search .sw-input:focus { border-color: var(--accent); outline: 2px solid var(--accent-soft); }
+.landing .home-search .sw-btn {
+  margin-top: 26px; font-size: 15px; font-weight: 600; padding: 10px 22px;
+  border-radius: 8px; line-height: 20px; text-decoration: none;
+}
+.landing .home-search .sw-btn.ghost {
+  background: var(--sheet-2); color: var(--ink); border: 1px solid var(--rule); font-weight: 400;
+}
+.landing .home-search .sw-btn { text-align: center; box-sizing: border-box; }
+.landing .home-search .sw-btn.ghost:hover { border-color: var(--rule-2); }
+.landing .home-search .search-note,
+.landing .home-search .search-warn {
+  flex: 1 1 100%; text-align: center; font-size: 13px; margin: 0;
+}
+.landing .home-search .search-note { margin-top: 22px; color: var(--ink-3); }
+.landing .home-search .search-warn { margin-top: 6px; color: var(--fatal-ink); }
+
+/* 換殼示意的精簡卡 */
+.home-core {
+  max-width: 720px; margin: 34px auto 0; box-sizing: border-box; width: 100%;
+  background: var(--sheet); border: 1px solid var(--rule); border-radius: 12px;
+  padding: 18px 20px 16px; text-align: center;
+}
+.home-core-h { margin: 0; font-family: var(--serif); font-size: 16px; font-weight: 700; color: var(--ink); }
+.home-core-row {
+  display: grid; grid-template-columns: 1fr minmax(90px, 200px) 1fr;
+  align-items: center; margin: 16px auto 0; max-width: 640px;
+}
+.hc-box {
+  border: 1px solid var(--rule-2); border-radius: 6px; background: var(--bg);
+  padding: 10px 8px 12px;
+}
+.hc-box.is-new { border-style: dashed; background: none; }
+.hc-h { margin: 0; font-size: 14px; font-weight: 700; color: var(--ink); }
+.hc-h span { font-size: 12px; font-weight: 400; color: var(--ink-3); }
+.hc-n { margin: 6px 0 0; font-size: 24px; font-weight: 700; color: var(--ink); }
+.hc-box.is-new .hc-n { color: var(--ink-3); }
+.hc-n span { font-family: var(--sans, inherit); font-size: 12px; font-weight: 400; color: var(--ink-3); }
+.hc-mid { position: relative; display: flex; flex-direction: column; align-items: stretch; padding: 0 4px; }
+.hc-mid span { font-size: 12px; color: var(--ink); margin-bottom: 4px; white-space: nowrap; }
+.hc-mid i { display: block; height: 1.5px; background: var(--rule-2); position: relative; }
+.hc-mid i::before, .hc-mid i::after {
+  content: ""; position: absolute; top: -3px; width: 7px; height: 7px; border-radius: 50%; background: var(--rule-2);
+}
+.hc-mid i::before { left: -4px; } .hc-mid i::after { right: -4px; }
+.home-core-p { margin: 14px 0 0; font-size: 13px; color: var(--ink-2); }
+.home-core-p a { color: var(--link); margin-left: 4px; }
+
+/* 底部灰條：滿版 */
+.home-foot {
+  margin: auto calc(50% - 50vw) -64px; padding: 20px 40px;
+  background: var(--sheet-2); border-top: 1px solid var(--rule);
+  display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 24px;
+  font-size: 13px; color: var(--ink-3);
+}
+.home-foot-links { display: flex; gap: 22px; }
+.home-foot a { color: var(--ink-3); text-decoration: none; }
+.home-foot a:hover { color: var(--link); text-decoration: underline; }
+
+@media (min-width: 720px) {
+  .landing .face { padding: 120px 0 30px; }
+  .home-mark { width: 96px; height: 96px; }
+  .home-word { font-size: 72px; }
+}
+@media (max-width: 480px) {
+  .home-word { font-size: 42px; }
+  .home-mark { width: 58px; height: 58px; }
+  .home-core-row { grid-template-columns: 1fr 70px 1fr; }
+  .hc-mid span { white-space: normal; font-size: 11px; text-align: center; }
+  .home-foot { padding: 16px 20px; }
+  .landing .home-search .sw-btn + .sw-btn { margin-top: 10px; }
+}

@@ -33,7 +33,8 @@
  */
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
+import BrandMark from "../lib/BrandMark";
 import type {
   Candidate, Credential, Incident, LinkedCompany, ListedHit, LookupResult, QuotaHit,
   SafetyStaff, SafetyUnits, TalentAward, TtqsRow, ViolationRef, WorkRuleHit,
@@ -2875,111 +2876,29 @@ export default function Home() {
           只有 .landing 底下 CSS 才把它變成一條滿版的帶。 */}
       <div className="face">
 
+      {/* ⚠⚠ 2026-11-06 首頁改版（設計稿 01_首頁）：Google 式極簡。
+          首頁只留「LOGO、搜尋框、一張換殼示意卡」；三步驟、適合這樣用、統計數字、
+          這裡有什麼／不做什麼，全部搬到新手手冊（/guide）。
+          ⚠ 換殼示意卡留在首頁：它是這個專題的核心，第一眼就要看得到。
+          ⚠ 仍然是 h1 —— 一頁一個 h1，站名就是首頁的標題。 */}
       {fresh && (
-        <div className="hero">
-          {/* ⚠ 2026-09-18：標題從 <p className="hero-t"> 改成 <h1>，
-              外面那層 .band 也拿掉了 —— 那條 3px 上緣線是結果頁的語彙，
-              壓在門面帶上會多出一條跟誰都沒關係的線。
-              ⚠ 附帶效果：tokens.css 的 `.band > p:first-child`（15px）
-                從此咬不到標題，那個特異度陷阱消失了。但 home.css 的
-                選擇器仍然寫成三段 `.landing .hero .hero-t` ——
-                只要有人把 .band 加回來就會再輸一次，留著成本是零。 */}
-          <h1 className="hero-t">查的是公司，看見的是人</h1>
-            {/* ⚠ 2026-09-15 標語從「面試前，把老闆的名字查一遍」改成這一句。
-                原本那句會讓人預期一個**輸入姓名的框** —— 我們沒有，
-                而且刻意不做（開放人名查詢會讓這個工具從「查公司」
-                變成「查人」，倫理量級不同）。
-
-                文案承諾產品沒有的東西，跟「功能改了文案沒跟上」是同一種謊，
-                只是方向相反。新的標語描述的是真實的機制：
-                輸入的是公司，呈現的軸線是人。 */}
-          <p className="hero-p">
-            勞動部的違法紀錄<b>跟著公司走</b>。公司收掉重開，紀錄就留在舊公司。
-          </p>
-
-          {/* ⚠⚠ 這張圖講的是整個系統唯一難用文字說清楚的事：換殼。
-              用**虛構**的甲乙公司，不用真實案例 —— 首頁是門面，
-              在沒有人查詢過的情況下就在門面上點名一家真公司，
-              跟我們整站在守的那條線不一致。
-              ⚠ 圖裡自帶「姓名相同不等於同一人」。這張圖會被截圖進簡報和影片，
-                警語跟著圖走，才不會在轉載時掉隊。
-              ⚠ 用 HTML+CSS 不用 SVG：中文在 SVG 裡縮放會失控，
-                而且 HTML 的文字螢幕閱讀器讀得到、可以被 Ctrl+F 找到。 */}
-          <div className="dia" role="img"
-               aria-label="示意圖：甲公司從民國 100 年到 114 年累積 12 筆裁處紀錄，之後解散；同一個負責人姓名在 115 年新設立乙公司，0 筆紀錄。姓名相同不等於同一人。">
-            <div className="dia-row" aria-hidden="true">
-              <div className="dia-box">
-                <p className="dia-h">甲公司</p>
-                <p className="dia-s">已解散</p>
-                <p className="dia-n num">12</p>
-                <p className="dia-s">筆裁處紀錄</p>
-              </div>
-              {/* 連線在兩張卡**中間**，不在下面 ——
-                  「同一個負責人」是這張圖的主詞，不是註腳。 */}
-              <div className="dia-mid"><i /></div>
-              <div className="dia-box is-new">
-                <p className="dia-h">乙公司</p>
-                <p className="dia-s">今年新設立</p>
-                <p className="dia-n num">0</p>
-                <p className="dia-s">筆裁處紀錄</p>
-              </div>
-            </div>
-            <p className="dia-cap" aria-hidden="true">同一個負責人姓名</p>
-            {/* ⚠ 時間軸不是裝飾。沒有它，兩張卡只說得出「一家有一家沒有」，
-                說不出先後 ——「紀錄留在舊公司」這句話就少了它的依據。
-                ⚠ 年份跟甲乙公司一樣是**虛構**的示意年：
-                  門面上不點名任何一家沒被查詢過的真公司。 */}
-            <div className="dia-tl" aria-hidden="true">
-              <div className="dia-tl-track">
-                <span className="dia-tl-seg" />
-                <span className="dia-tl-gap"><span>解散</span></span>
-                <span className="dia-tl-seg is-new" />
-              </div>
-              <div className="dia-tl-marks">
-                <div><span className="num">民國 100</span><span className="num">114</span></div>
-                <div />
-                <div><span className="num">115</span><span>今</span></div>
-              </div>
-            </div>
-            <p className="dia-note" aria-hidden="true">
-              ⚠ 姓名相同<b>不等於</b>同一人。本站不判定身分，
-              只呈現這個連結有多少獨立佐證。
-            </p>
-            {/* ⚠⚠ 這四句是把上面那張圖用白話再講一次，給看不懂圖的人。
-                第 2 句原稿是「這兩家公司，登記的負責人**是同一個人**」——
-                那句話直接違反我們整站的紅線，而且它就印在
-                「姓名相同不等於同一人」下面 40px 的地方，**自己打自己**。
-                改成「負責人姓名相同」：陳述我們真的看得到的事實，
-                不做身分認定。
-                ⚠ 這一段 aria-hidden，因為整張 .dia 已經有完整的 aria-label，
-                  不 hidden 的話螢幕閱讀器會把同一件事唸兩次。 */}
-            <ol className="dia-narrate" aria-hidden="true">
-              <li className="n1">
-                <span className="dia-narrate-ic"><Ic k="megaphone" w={1.8} /></span>
-                <span>甲公司在民國 100–114 年間，被公告裁罰 12 次</span>
-              </li>
-              <li className="n2">
-                <span className="dia-narrate-ic"><Ic k="link" w={1.8} /></span>
-                <span>兩家公司登記的<b>負責人姓名相同</b></span>
-              </li>
-              <li className="n3">
-                <span className="dia-narrate-ic"><Ic k="plus" w={1.8} /></span>
-                <span>乙公司今年才新設立，目前 0 筆紀錄</span>
-              </li>
-              <li className="n4">
-                <span className="dia-narrate-ic"><Ic k="arrow" w={1.8} /></span>
-                <span>甲公司先解散，乙公司才成立 —— 紀錄留在了舊公司</span>
-              </li>
-            </ol>
-          </div>
+        <div className="hero home-hero">
+          <h1 className="home-brand" aria-label="職得調查">
+            <BrandMark id="home-lens" className="home-mark" />
+            <span className="home-word">職得調查</span>
+          </h1>
+          <p className="home-sub">查的是公司，看見的是人</p>
         </div>
       )}
 
       <form
-        className="search"
+        className={fresh ? "search home-search" : "search"}
         onSubmit={(e) => { e.preventDefault(); void run(q); }}
       >
         <label className="kicker" htmlFor="q">公司完整名稱</label>
+        {/* 放大鏡只在門面出現（CSS 控制）。⚠ 放在 input 前面、兩個模式都 render，
+            讓 input 在樹裡的位置不變 —— 換模式時不會重新掛載。 */}
+        <span className="search-ic" aria-hidden="true"><Ic k="search" w={2} /></span>
         {/* ⚠ 不要只靠 <form> 的隱含送出（implicit submission）。
             2026-09-15 外部檢視回報「按 Enter 沒反應」，我用兩種自動化
             都無法確定是網站的問題還是工具合成按鍵的問題 ——
@@ -3011,12 +2930,14 @@ export default function Home() {
               if (!busy && q.trim()) void run(q);
             }
           }}
-          placeholder={DEMO ? "例：○○營造有限公司" : "例：台積電、國城營造有限公司"}
+          placeholder={fresh ? "輸入公司完整名稱，例如：○○股份有限公司"
+            : DEMO ? "例：○○營造有限公司" : "例：台積電、國城營造有限公司"}
           autoComplete="off"
         />
         <button className="sw-btn" type="submit" disabled={busy || !q.trim()}>
-          {busy ? "查詢中" : "查詢"}
+          {busy ? "查詢中" : fresh ? "查詢裁處紀錄" : "查詢"}
         </button>
+        {fresh && <Link className="sw-btn ghost" to="/guide">第一次用？看手冊</Link>}
         {/* ⚠ 這句話原本寫「少一個字、用簡稱或商標名都查不到」。
             簡稱查詢與商工登記存在性索引上線之後它就不成立了，
             但它在首頁又擺了一天 —— 功能改了、文案沒跟上，
@@ -3024,66 +2945,26 @@ export default function Home() {
         {fresh && (
           <p className="search-note">
             {/* ⚠ demo：範例公司名也是真名（外部檢視抓到影片裡讀得到），遮罩模式換成遮過的例子。 */}
-            {DEMO ? "打完整的法定名稱最準。只打前兩個字（例如「○○營造」）會列出候選讓你選。"
-              : "打完整的法定名稱最準。打簡稱（例如「台積電」）會列出候選讓你選。"}
+            {DEMO ? "打完整的法定名稱最準；只打前兩個字（例如「○○營造」）會列出候選讓你選。"
+              : "打完整的法定名稱最準；打簡稱（例如「台積電」）會列出候選讓你選。"}
           </p>
         )}
+        {fresh && <p className="search-warn">⚠ 姓名相同不等於同一人。本站不判定身分。</p>}
       </form>
 
+      {/* ⚠ 換殼示意的精簡版。完整版（時間軸、三步驟）在新手手冊。
+          ⚠ 用**虛構**的甲乙公司：首頁不點名任何一家沒被查詢過的真公司。 */}
       {fresh && (
-        <>
-          {/* ⚠⚠ 「怎麼用」刻意放在搜尋框**後面**，設計稿原本放前面。
-              理由是量出來的：放前面時手機 375×812 上查詢鈕底緣在 y=1173，
-              視窗只有 812 —— 要捲 1.4 屏才看得到搜尋框。
-              這是查詢工具，搜尋框不能是捲下去才有的東西。
-              放後面之後它仍然在第一次捲動就看得到，而且「先看到框、
-              再看到三步驟」讀起來也通。 */}
-          <ol className="howto">
-            <li className="howto-step s1">
-              <span className="howto-n"><Ic k="keyboard" w={1.8} /></span>
-              <span className="howto-t">輸入公司名稱</span>
-            </li>
-            <li className="howto-arrow a1" aria-hidden="true">→</li>
-            <li className="howto-step s2">
-              <span className="howto-n"><Ic k="search" w={1.8} /></span>
-              <span className="howto-t">查詢裁處紀錄</span>
-            </li>
-            <li className="howto-arrow a2" aria-hidden="true">→</li>
-            <li className="howto-step s3">
-              <span className="howto-n"><Ic k="doc" w={1.8} /></span>
-              <span className="howto-t">看見完整歷史</span>
-            </li>
-          </ol>
-
-          <section className="scenarios">
-            <div className="kicker" style={{ marginBottom: 10 }}>適合這樣用</div>
-            <ul className="scenario-list">
-              <li className="scenario-item c1">
-                <span className="scenario-ic"><Ic k="bag" w={1.8} /></span>
-                <div>
-                  <p className="scenario-h">投履歷、面試前</p>
-                  <p className="scenario-p">先查這家公司過去有沒有公開的裁處紀錄</p>
-                </div>
-              </li>
-              <li className="scenario-item c2">
-                <span className="scenario-ic"><Ic k="clipboard" w={1.8} /></span>
-                <div>
-                  <p className="scenario-h">簽約、發包前</p>
-                  <p className="scenario-p">看看往來廠商在公告裡出現過幾次</p>
-                </div>
-              </li>
-              {/* ⚠ 原稿是「查查負責人**是不是同一個**」—— 我們不回答那個問題。
-                  改成陳述我們真的會呈現的東西：同名的負責人出現在哪些公司。 */}
-              <li className="scenario-item c3">
-                <span className="scenario-ic"><Ic k="link" w={1.8} /></span>
-                <div>
-                  <p className="scenario-h">公司解散又重開</p>
-                  <p className="scenario-p">看看同名的負責人，還出現在哪些公司的紀錄上</p>
-                </div>
-              </li>
-            </ul>
-          </section>
-        </>
+        <section className="home-core" aria-label="為什麼要看負責人">
+          <p className="home-core-h">為什麼要看負責人？公司收掉重開，紀錄就留在舊公司。</p>
+          <div className="home-core-row" role="img"
+               aria-label="示意：甲公司已解散，有 12 筆裁處紀錄；乙公司今年新設立，0 筆。兩家公司的負責人姓名相同。">
+            <div className="hc-box"><p className="hc-h">甲公司 <span>已解散</span></p><p className="hc-n num">12 <span>筆裁處</span></p></div>
+            <div className="hc-mid" aria-hidden="true"><span>同一個負責人姓名</span><i /></div>
+            <div className="hc-box is-new"><p className="hc-h">乙公司 <span>今年新設立</span></p><p className="hc-n num">0 <span>筆裁處</span></p></div>
+          </div>
+          <p className="home-core-p">職得調查會列出同名負責人出現過的其他公司。<Link to="/guide#core">看完整說明 →</Link></p>
+        </section>
       )}
 
       </div>{/* /.face */}
@@ -3129,7 +3010,16 @@ export default function Home() {
         </div>
       )}
 
-      {fresh && <Coverage meta={meta} />}
+      {fresh && (
+        <footer className="home-foot">
+          <span>資料來自勞動部、經濟部商工登記等公開資料{meta?.coverage_to ? <> · 裁處公告涵蓋至民國 <span className="num">{meta.coverage_to}</span></> : null}</span>
+          <span className="home-foot-links">
+            <Link to="/about">資料來源與已知缺口</Link>
+            <Link to="/guide">新手手冊</Link>
+            <Link to="/about">關於本站</Link>
+          </span>
+        </footer>
+      )}
     </div>
   );
 }
@@ -3651,90 +3541,5 @@ function Miss({ asked, meta, registry, also, before, onPick, taxQuery, tooShort,
 
       {(registry || quota) && <Recourse />}
     </div>
-  );
-}
-
-/**
- * 資料涵蓋範圍。
- *
- * ⚠⚠ 2026-09-15 外部檢視：「首頁在搜尋框下方還有四個數字加四段說明，
- *   那些是關於資料頁的內容，搬過去就好。」他說得對 —— 而那四段裡有一段
- *   是我前一天親手加的（63 萬筆的組成），加的時候只想著誠實，
- *   沒想過位置。**誠實的內容放錯地方，一樣會擋住使用者。**
- *
- * 現在首頁只留四個數字，四段說明全部搬到 /about。
- * 想知道細節的人點一下就到，不想知道的人不用滑過去。
- */
-function Coverage({ meta }: { meta: Meta | null | undefined }) {
-  return (
-    <section className="coverage">
-      <div className="kicker" style={{ marginBottom: 10 }}>資料涵蓋範圍</div>
-      {meta === undefined ? (
-        <p className="kicker">載入資料中…</p>
-      ) : (
-        <dl className="cov-list">
-          <dt className="num">{(meta?.companies ?? 175828).toLocaleString("zh-TW")}</dt>
-          <dd>家事業單位</dd>
-          <dt className="num">{(meta?.violations ?? 629192).toLocaleString("zh-TW")}</dt>
-          <dd>筆公開裁處紀錄</dd>
-          <dt className="num">9</dt>
-          <dd>部法規 · 民國 100–115 年</dd>
-        </dl>
-      )}
-      {/* ⚠ 首頁的三個大數字沒有時間戳就是三個沒有時效的斷言。
-          meta.coverage_to 本來就算好了，只是以前沒印出來。 */}
-      {meta?.coverage_to && (
-        <p className="cov-asof">
-          裁處公告資料涵蓋至民國 <span className="num">{meta.coverage_to}</span>
-        </p>
-      )}
-      {/* ⚠ 「非本站自行蒐集」是這一行的重點，不是裝飾。
-          一個列出真實公司裁處紀錄的網站，最需要先講清楚的就是
-          「這些不是我們認定的，是主管機關公告的」。
-          ⚠ 用官方全名「違反勞動法令事業單位（雇主）查詢系統」，
-            不要寫成「勞動部裁罰檢查系統」——那個系統不叫這個名字。
-          ⚠ 商工登記是**經濟部**的，所以這裡寫「勞動部與經濟部」，
-            不可以整句掛到勞動部頭上。 */}
-      <p className="cov-trust">
-        <span className="cov-trust-ic"><Ic k="bank" w={1.8} /></span>
-        資料來自勞動部「違反勞動法令事業單位（雇主）查詢系統」等公開資料，
-        與經濟部商工登記；非本站自行蒐集或調查。
-      </p>
-      <p className="cov-more">
-        <a href="/about">資料來源、涵蓋範圍與已知缺口 →</a>
-      </p>
-
-      {/* ⚠⚠ 「不會做什麼」跟「會做什麼」一樣重要，而且要在**使用者查詢之前**
-          就講完。查完之後才說「我們不評分」，他已經把數字讀成分數了。
-          ⚠ 這三條跟結果頁上的紅線是同一組，改一邊一定要改另一邊。 */}
-      <div className="pledge">
-        <div className="pledge-col">
-          <div className="pledge-hd">
-            <span className="pledge-ic"><Ic k="check" w={2.2} /></span>
-            <p className="pledge-h">這裡有什麼</p>
-          </div>
-          <ul>
-            <li>9 部法規的<b>公開裁處公告</b>，逐筆附處分字號</li>
-            <li>法條翻成人話，看得出被罰的是什麼事</li>
-            <li>得獎、驗證、安衛人員備查，標明是<b>哪個場所</b>的</li>
-            <li>身障定額進用<b>未足額公告</b>與金展獎，109–115 年逐期標出</li>
-            <li>上市櫃公司<b>自行申報</b>的薪資中位數與職災人數</li>
-          </ul>
-        </div>
-        <div className="pledge-col is-not">
-          <div className="pledge-hd">
-            {/* ⚠ 用「減號」不用「叉」。叉是錯誤／失敗的符號；
-                這一欄講的是我們**選擇不做**的事，那是自我約束不是錯誤。 */}
-            <span className="pledge-ic"><Ic k="minus" w={2.2} /></span>
-            <p className="pledge-h">這裡不做什麼</p>
-          </div>
-          <ul>
-            <li><b>不評分、不排名</b>，不說哪家公司比較危險</li>
-            <li><b>不判定身分</b>，公開資料裡沒有身分證字號</li>
-            <li>不提供人名查詢 —— 輸入的只能是公司</li>
-          </ul>
-        </div>
-      </div>
-    </section>
   );
 }

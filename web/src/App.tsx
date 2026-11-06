@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, NavLink, Link } from "react-router-dom";
 import Home from "./pages/Home";
 import { getMeta } from "./lib/lookup";
 import type { Meta } from "./lib/lookup";
+import BrandMark from "./lib/BrandMark";
 
 /**
  * 地圖頁用 lazy 載入，不要靜態 import。
@@ -16,6 +17,9 @@ const OshaDistrictMap = lazy(() => import("./pages/OshaDistrictMap"));
 
 /** 關於資料。純文字，很小，但沒有理由讓查詢頁載它。 */
 const About = lazy(() => import("./pages/About"));
+
+/** 新手手冊（2026-11-06）。教第一次用的人怎麼查；首頁拿掉的長說明都搬到這裡。 */
+const Guide = lazy(() => import("./pages/Guide"));
 
 /* ── 配色切換 ──────────────────────────────────────────────────
    兩個選項，不是三個：
@@ -135,24 +139,6 @@ function FontSizeToggle() {
  * 頁首。設計稿的作法是「報紙的報頭」：粗的刊名、細的分隔線、
  * 右邊一行等寬字的資料規模。不用 logo、不用陰影、不用圓角。
  */
-/**
- * 站名旁的 LOGO（2026-10-29 定稿：C1「X 光」）。原檔在 public/logo.svg。
- * 墨色跟著主題（currentColor），鏡片底色跟著頁面底色，只有人是橘色。
- */
-function BrandMark() {
-  return (
-    <svg className="brand-mark" viewBox="0 0 120 120" aria-hidden="true">
-<defs><clipPath id="brand-lens"><circle cx="64" cy="64" r="24"/></clipPath></defs>
-<rect x="12" y="18" width="56" height="90" rx="3" fill="none" stroke="currentColor" strokeWidth="6"/>
-<path d="M12 18 L40 6 L68 18" fill="none" stroke="currentColor" strokeWidth="6" strokeLinejoin="round"/><rect x="22" y="30" width="8" height="8" rx="1" fill="currentColor"/><rect x="36" y="30" width="8" height="8" rx="1" fill="currentColor"/><rect x="50" y="30" width="8" height="8" rx="1" fill="currentColor"/><rect x="22" y="45" width="8" height="8" rx="1" fill="currentColor"/><rect x="36" y="45" width="8" height="8" rx="1" fill="currentColor"/><rect x="50" y="45" width="8" height="8" rx="1" fill="currentColor"/><rect x="22" y="60" width="8" height="8" rx="1" fill="currentColor"/><rect x="36" y="60" width="8" height="8" rx="1" fill="currentColor"/><rect x="50" y="60" width="8" height="8" rx="1" fill="currentColor"/><rect x="22" y="75" width="8" height="8" rx="1" fill="currentColor"/><rect x="36" y="75" width="8" height="8" rx="1" fill="currentColor"/><rect x="50" y="75" width="8" height="8" rx="1" fill="currentColor"/><rect x="22" y="90" width="8" height="8" rx="1" fill="currentColor"/><rect x="36" y="90" width="8" height="8" rx="1" fill="currentColor"/><rect x="50" y="90" width="8" height="8" rx="1" fill="currentColor"/>
-<circle cx="64" cy="64" r="24" fill="var(--bg)"/>
-<g clipPath="url(#brand-lens)"><path d="M68 18 V108" stroke="currentColor" strokeWidth="2" strokeDasharray="3 3" opacity=".45"/><circle cx="64" cy="60" r="7.5" fill="#E0661A"/><path d="M49.75 80.25 C49.75 70.5 56.5 68.4 64 68.4 C71.5 68.4 78.25 70.5 78.25 80.25 Z" fill="#E0661A"/></g>
-<circle cx="64" cy="64" r="24" fill="none" stroke="currentColor" strokeWidth="8"/>
-<path d="M82 82 L106 106" stroke="currentColor" strokeWidth="12" strokeLinecap="round"/>
-    </svg>
-  );
-}
-
 function Masthead() {
   const [meta, setMeta] = useState<Meta | null | undefined>(undefined);
   useEffect(() => { void getMeta().then(setMeta); }, []);
@@ -169,6 +155,9 @@ function Masthead() {
         </NavLink>
         <NavLink to="/about" className={({ isActive }) => (isActive ? "on" : "")}>
           關於資料
+        </NavLink>
+        <NavLink to="/guide" className={({ isActive }) => (isActive ? "on" : "")}>
+          新手手冊
         </NavLink>
       </nav>
       {/* ⚠ 資料規模只在桌機顯示（CSS 控制）。375px 放不下，
@@ -197,11 +186,12 @@ export default function App() {
             <Route path="/" element={<Home />} />
             <Route path="/osha" element={<OshaDistrictMap />} />
             <Route path="/about" element={<About />} />
+            <Route path="/guide" element={<Guide />} />
             {/* ⚠ 2026-10-29：打錯網址原本是一整片空白。 */}
             <Route path="*" element={
               <div style={{ padding: "48px 0" }}>
                 <h1 className="res-title" style={{ fontSize: 22 }}>找不到這一頁</h1>
-                <p><a href="/">回到查詢</a>{" · "}<a href="/osha">職安地圖</a>{" · "}<a href="/about">關於資料</a></p>
+                <p><a href="/">回到查詢</a>{" · "}<a href="/osha">職安地圖</a>{" · "}<a href="/about">關於資料</a>{" · "}<a href="/guide">新手手冊</a></p>
               </div>} />
           </Routes>
         </Suspense>
