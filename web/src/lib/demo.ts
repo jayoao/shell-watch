@@ -31,11 +31,14 @@ export const DEMO: boolean = (() => {
 
 const REAL = new Map<string, string>();      // 遮罩後 → 原名
 
+/* ⚠ 2026-11-06 決賽前加嚴（只影響 ?demo=1）：
+   原本人名留頭尾字（「吳○茂」）、地址留到路名，與 pipeline/export.py 同規則。
+   外部檢視指出：在投影幕上「路名＋產業＋設立年＋筆數」幾分鐘就能在商工登記反查出公司，
+   再查出負責人全名；頁面又註明「罕見姓名」，頭尾字等於提示。
+   所以 demo 模式：人名整個遮掉、地址只留到鄉鎮市區。簡報上的去識別化樣本仍是舊規則（那是解析示意）。 */
 export function maskPerson(n: string): string {
   const s = n.trim();
-  if (s.length <= 1) return s;
-  if (s.length === 2) return s[0] + "○";
-  return s[0] + "○".repeat(s.length - 2) + s[s.length - 1];
+  return s.length <= 1 ? s : "○".repeat(s.length);
 }
 
 export function maskCompany(n: string): string {
@@ -43,10 +46,9 @@ export function maskCompany(n: string): string {
   return s.length > 2 ? "○".repeat(2) + s.slice(2) : s;
 }
 
+/** 地址只留到鄉鎮市區（「新北市淡水區○○○」）。前 3 個字是縣市，從第 4 個字找第一個區鄉鎮市。 */
 export function maskAddr(a: string): string {
   if (!a) return a;
-  const m = /[路街道]/.exec(a);
-  if (m) return a.slice(0, m.index + 1) + "○○○";
   const m2 = /[區鄉鎮市]/.exec(a.slice(3));
   return m2 ? a.slice(0, 3 + m2.index + 1) + "○○○" : "○○○";
 }
@@ -123,7 +125,7 @@ function rewrite(o: Any, rules: [string, string][]): Any {
   if (typeof o === "string") {
     let s = o;
     for (const [a, b] of rules) if (s.includes(a)) s = s.split(a).join(b);
-    return s.replace(ADDR, "$1○○○");
+    return s.replace(ADDR, (_m, p1: string) => maskAddr(p1));
   }
   if (Array.isArray(o)) return o.map((x) => rewrite(x, rules));
   if (o && typeof o === "object") {
@@ -148,7 +150,9 @@ export function maskOutcome<T>(out: T): T {
   // ⚠ 臺／台兩種寫法都要換。來源資料兩種都有。
   for (const a of addrs) for (const v of new Set([a, a.replace(/臺/g, "台"), a.replace(/台/g, "臺")]))
     rules.push([v, maskAddr(v)]);
-  for (const o of orgs) { rules.push([o, maskQuery(o)]); }
+  // ⚠ 公司名也一樣（實測漏過：公司是「台灣電力…」，TTQS 名冊寫「臺灣電力…訓練所」）。
+  for (const o of orgs) for (const v of new Set([o, o.replace(/臺/g, "台"), o.replace(/台/g, "臺")]))
+    rules.push([v, v === o ? maskQuery(o) : maskCompany(v)]);
   for (const p of people) rules.push([p, maskPerson(p)]);
   // ⚠ 長的先換。不然「○○工程行」裡的人名片段會先被換掉，公司名就對不上了。
   rules.sort((x, y) => y[0].length - x[0].length);

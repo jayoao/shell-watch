@@ -36,13 +36,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import type {
   Candidate, Credential, Incident, LinkedCompany, ListedHit, LookupResult, QuotaHit,
-  SafetyStaff, SafetyUnits, ViolationRef,
+  SafetyStaff, SafetyUnits, TalentAward, TtqsRow, ViolationRef, WorkRuleHit,
 } from "../types/contracts";
 import sample from "../data/lookup.sample.json";
-import { findBranches, getExtra, getMeta, getPlainLaw, hashMismatch, lookup } from "../lib/lookup";
-import { DEMO, demoHref, maskOutcome, maskQuery, unmask } from "../lib/demo";
+import { findBranches, getExtra, getMeta, getMore, getPlainLaw, hashMismatch, lookup } from "../lib/lookup";
+import { DEMO, demoHref, maskCompany, maskOutcome, maskQuery, unmask } from "../lib/demo";
 import { ASK } from "../lib/ask";
-import type { Branches, Extra, LookupOutcome, Meta, PlainDict, RegistryHit } from "../lib/lookup";
+import type { Branches, Extra, LookupOutcome, Meta, More, PlainDict, RegistryHit } from "../lib/lookup";
 import "../styles/home.css";
 
 const DATA = sample as unknown as {
@@ -1049,7 +1049,16 @@ const ICON: Record<string, ReactNode> = {
   access: <><circle cx="12" cy="5" r="1.8" /><path d="M7 9h10M12 9v5l-3 6M12 14l3 6" /></>,
   alert: <><path d="M12 3.5l9 16H3l9-16z" /><path d="M12 10v4.5M12 17.3v.2" /></>,
   award: <><circle cx="12" cy="9" r="5.5" /><path d="M8.5 13.5L7 21l5-2.5 5 2.5-1.5-7.5" /></>,
+  grad: <><path d="M2.5 9.5L12 5l9.5 4.5L12 14z" /><path d="M6.5 11.5v4.5c1.5 1.6 3.4 2.4 5.5 2.4s4-.8 5.5-2.4v-4.5" /><path d="M21.5 9.5v5" /></>,
+  rules: <><rect x="5" y="3" width="14" height="18" rx="1.5" /><path d="M8.5 8h7M8.5 11.5h7M8.5 15h3.5" /><circle cx="15.5" cy="16.5" r="1.8" /></>,
 };
+
+/** more.json（2026-10-30 新增四份勞動部資料的設定）。只抓一次。 */
+function useMore(): More | null {
+  const [mo, setMo] = useState<More | null>(null);
+  useEffect(() => { void getMore().then(setMo); }, []);
+  return mo;
+}
 
 /** extra.json（兩組新資料的設定）。只抓一次。 */
 function useExtra(): Extra | null {
@@ -1085,7 +1094,8 @@ function ListedPills({ l, ex }: { l: ListedHit; ex: Extra | null }) {
   const p = l.med ? pctOf(l.med, ex?.ls_q) : null;
   return (
     <div className="elsewhere listed" aria-label="上市櫃公司自行申報的揭露資料">
-      <span className="ew lsp-m" title={`${l.m}公司，股票代號 ${l.code}`}>{l.m}<b className="num">{l.code}</b></span>
+      {/* ⚠ demo：股票代號一查就知道是哪一家，遮罩等於白做。 */}
+      <span className="ew lsp-m" title={DEMO ? `${l.m}公司` : `${l.m}公司，股票代號 ${l.code}`}>{l.m}{DEMO ? null : <b className="num">{l.code}</b>}</span>
       {l.med ? (
         <span className="ew lsp" title={`非擔任主管職務之全時員工薪資中位數 ${l.med.toLocaleString("zh-TW")} 仟元（${yr}，公司自行申報，公開資訊觀測站）`
           + (p !== null ? `。在所有上市櫃公司中約第 ${p} 百分位。` : "")}>
@@ -1906,8 +1916,144 @@ function rocDate(n: number): string {
   return t.length === 7 ? `${t.slice(0, 3)}/${t.slice(3, 5)}/${t.slice(5, 7)}` : "";
 }
 
+/** 民國 YYYMMDD，096 年以前的開頭 0 可能被吃掉（960101）→「096/01/01」。 */
+function rocDateP(n: number): string {
+  const t = String(n).padStart(7, "0");
+  return n ? `${t.slice(0, 3)}/${t.slice(3, 5)}/${t.slice(5, 7)}` : "";
+}
+/** 西元 YYYYMMDD →「2026/10/16」 */
+function adDate(s: string): string {
+  return /^\d{8}$/.test(s) ? `${s.slice(0, 4)}/${s.slice(4, 6)}/${s.slice(6, 8)}` : s;
+}
+const TTQS_RANK: Record<string, number> = { 金牌: 4, 銀牌: 3, 銅牌: 2, 通過: 1, 合格: 1 };
+/** 職安履歷那一格要顯示的字：有 TTQS 顯示最高牌等，否則顯示得獎次數。 */
+function talentValue(tq?: TtqsRow[], aw?: TalentAward[]): string | null {
+  if (tq?.length) {
+    const best = [...tq].sort((a, b) => (TTQS_RANK[b[3]] ?? 0) - (TTQS_RANK[a[3]] ?? 0))[0][3];
+    return `TTQS ${best}`;
+  }
+  return aw?.length ? `${aw.length} 獎` : null;
+}
+
 /**
- * 安衛人員備查 —— 職安履歷裡**唯一的事前訊號**。
+ * 人才培訓（2026-10-30 新增）：TTQS 效期內評核（41723）＋ 國家人才發展獎（21214）＋ 國家訓練品質獎（6617）。
+ *
+ * 為什麼在職安履歷裡：本組是「職安視覺化防災**及素養提升**組」，
+ * 雇主有沒有投資員工的訓練，就是素養提升那一半。
+ * ⚠ 但它評的是**訓練制度**，不是職業安全衛生 —— 標題與說明都照實寫，
+ *   不可以講成「安全認證」。
+ * ⚠ TTQS 只用統一編號對（名單上同一統編常是分支或訓練所，原始名稱照樣顯示）；
+ *   獎項只接受名稱完全相同。沒有這一塊不代表沒有訓練，所以沒有「無」的狀態。
+ */
+function TalentBlock({ tq, aw, mo }: { tq?: TtqsRow[]; aw?: TalentAward[]; mo: More | null }) {
+  const [open, setOpen] = useState(false);
+  if (!tq?.length && !aw?.length) return null;
+  const TQ_SHOW = 6;
+  const tqShown = open ? tq ?? [] : (tq ?? []).slice(0, TQ_SHOW);
+  return (
+    <section className="side-block">
+      <h2 className="side-h">人才培訓</h2>
+      {tq?.length ? (
+        <>
+          <p className="su-sum">
+            TTQS 人才發展品質評核：<b>{tq.length}</b> 個單位在有效期內
+            {mo?.tq_label ? `（${mo.tq_label}名單）` : ""}
+          </p>
+          <ul className="su-list">
+            {tqShown.map((r) => (
+              <li key={r[0] + r[2] + r[4]}>
+                <span className="su-unit">{DEMO ? maskCompany(r[0]) : r[0]}</span>
+                <span className="tq-lv">{r[3]}</span>
+                <span className="su-staff">{r[2]}{r[1] && r[1] !== "-" ? ` · ${r[1]}` : ""}</span>
+                <span className="su-date num">有效至 {adDate(r[4])}</span>
+              </li>
+            ))}
+          </ul>
+          {tq.length > TQ_SHOW && (
+            <button className="linkish" onClick={() => setOpen((v) => !v)}>
+              {open ? "收合" : `展開全部 ${tq.length} 個`}
+            </button>
+          )}
+        </>
+      ) : null}
+      {aw?.length ? (
+        <>
+          <p className="su-sum">得獎</p>
+          <ul className="su-list">
+            {aw.map((a) => (
+              <li key={a.join("|")}>
+                <span className="su-unit">{DEMO ? maskCompany(a[2]) : a[2]}</span>
+                <span className="su-staff">
+                  {a[3] === "ntda" ? "國家人才發展獎" : "國家訓練品質獎"}{"\u3000"}{a[1]}
+                </span>
+                <span className="su-date num">{a[0] - 1911} 年</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
+      <div style={{ marginTop: 10 }}>
+        <Caveat className="side-p" label="這是什麼？"
+                lead={<>⚠ 評的是<b>人才培訓制度</b>，不是職業安全衛生。</>}>
+          TTQS（人才發展品質管理系統）是勞動部勞動力發展署對事業單位訓練制度的評核，
+          這裡只列評核有效期內的單位，依<b>統一編號</b>比對，牌等照原始資料。
+          國家人才發展獎、國家訓練品質獎是勞動力發展署頒發的獎項，
+          只接受名稱完全相同。沒有這一塊，不代表這家公司沒有辦訓練。
+        </Caveat>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * 安全衛生工作守則備查（2026-10-30 新增，勞動部職安署 6685）—— 跟安衛人員備查同一類的**事前訊號**。
+ *
+ * 職業安全衛生法第 34 條：雇主應會同勞工代表訂定適合其需要之安全衛生工作守則，
+ * 報經勞動檢查機構備查。安衛人員備查是「有沒有人在管」，這一份是「有沒有寫下規矩」。
+ * ⚠⚠ 跟 SafetyUnitsBlock 同一條：**沒有「無」這個狀態**，沒有紀錄整塊不渲染。
+ * ⚠ 名冊是場所級的，原始全名照樣顯示，不收斂成整家公司。
+ */
+function WorkRuleBlock({ wr }: { wr?: WorkRuleHit }) {
+  const [open, setOpen] = useState(false);
+  if (!wr) return null;
+  return (
+    <section className="side-block">
+      <h2 className="side-h">安全衛生工作守則備查</h2>
+      <p className="su-sum">
+        名冊上有 <b>{wr.n}</b> 個場所
+        {wr.o ? "（含公司本身）" : "（都是分支或廠區，沒有公司本身那一筆）"}，
+        最近一次備查 <span className="num">{rocDateP(wr.l)}</span>
+      </p>
+      <button className="linkish" onClick={() => setOpen((v) => !v)}>
+        {open ? "收合" : `展開${wr.s.length < wr.n ? ` ${wr.s.length} / ${wr.n}` : ""}`}
+      </button>
+      {open && (
+        <ul className="su-list">
+          {wr.s.map(([unit, filed]) => (
+            <li key={unit}>
+              <span className="su-unit">{unit}</span>
+              <span className="su-date num">{rocDateP(filed)}</span>
+            </li>
+          ))}
+          {wr.s.length < wr.n && (
+            <li className="fineprint">只顯示最近備查的 {wr.s.length} 個，這家公司共有 {wr.n} 個場所的紀錄。</li>
+          )}
+        </ul>
+      )}
+      <div style={{ marginTop: 10 }}>
+        <Caveat className="side-p" label="這份名冊是什麼？"
+                lead={<>⚠ 這份名冊<b>只記錄有報備的單位</b>，沒有紀錄不代表沒有訂工作守則。</>}>
+          資料來自勞動部職業安全衛生署「工作守則備查名冊」。職業安全衛生法第 34 條要求雇主
+          會同勞工代表訂定安全衛生工作守則，<b>報經勞動檢查機構備查</b>。
+          日期是最近一次備查的登錄日期；備查代表有報備，不代表守則內容經過審查或確實執行。
+        </Caveat>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * 安衛人員備查 —— 職安履歷的**事前訊號**（2026-10-30 起另有工作守則備查 WorkRuleBlock）。
  *
  * 違規、職災、得獎、驗證講的都是已經發生的事。這一塊講的是
  * 「這家公司有沒有把職安法要求的安全衛生管理人員設上」。
@@ -2142,6 +2288,7 @@ function Ledger({ hit, pending, allWeak }: {
 function Result({ hit, onPick, meta }: {
   hit: LookupResult; onPick: (n: string) => void; meta?: Meta | null;
 }) {
+  const mo = useMore();
   const ex = useExtra();
   const linkedAll = hit.principals.flatMap((p) => p.linked_companies);
   const pendingCount = [
@@ -2178,7 +2325,9 @@ function Result({ hit, onPick, meta }: {
       value: co.quota?.p.length ? `${co.quota.p.length} 期` : co.quota?.g?.length ? "金展獎" : null,
       href: "#sec-dq", tone: co.quota?.p.length ? "bad" : "good" },
     { k: "cr", icon: "award", label: "得獎驗證", value: co.credentials?.length ? `${co.credentials.length} 項` : null, href: "#sec-cr", tone: "good" },
+    { k: "tr", icon: "grad", label: "人才培訓", value: talentValue(co.ttqs, co.talent_awards), href: "#sec-tr", tone: "good" },
     { k: "su", icon: "clipboard", label: "安衛備查", value: co.safety?.total ? `${co.safety.total} 處` : null, href: "#sec-su", tone: "good" },
+    { k: "wr", icon: "rules", label: "工作守則", value: co.workrule ? `${co.workrule.n} 處` : null, href: "#sec-wr", tone: "good" },
     { k: "ls", icon: "coin", label: "上市櫃揭露", value: co.listed ? `${co.listed.m}` : null, href: "#sec-ls" },
     { k: "pl", icon: "link", label: "負責人關聯", value: strongLinked.length + after.length ? `${strongLinked.length + after.length} 家` : null, href: "#sec-tl" },
   ];
@@ -2292,7 +2441,9 @@ function Result({ hit, onPick, meta }: {
         <div className="res-haz">
           <div id="sec-inc"><Incidents list={hit.company.incidents ?? []} /></div>
           <div id="sec-cr"><Credentials list={hit.company.credentials ?? []} owner={hit.company.name} /></div>
+          <div id="sec-tr"><TalentBlock tq={hit.company.ttqs} aw={hit.company.talent_awards} mo={mo} /></div>
           <div id="sec-su"><SafetyUnitsBlock su={hit.company.safety} /></div>
+          <div id="sec-wr"><WorkRuleBlock wr={hit.company.workrule} /></div>
         </div>
       </div>
 
@@ -2375,7 +2526,7 @@ function Result({ hit, onPick, meta }: {
             在一個以「資料使用度」為賣點的系統上特別難看。
             新增任何一個資料來源，這一行要一起改（或者乾脆只指向關於資料頁）。 */}
         <p className="fineprint">
-          資料來源：勞動部及其所屬機關開放資料 16 筆、經濟部商工登記公示資料、財政部稅籍登記、上市櫃公司揭露。
+          資料來源：勞動部及其所屬機關開放資料 20 筆、經濟部商工登記公示資料、財政部稅籍登記、上市櫃公司揭露。
           逐項名稱、串接率與已知缺口見 <a href="/about">關於資料</a>。
           本頁僅呈現主管機關已公告之裁處紀錄與其關聯，
           不對任何事業單位或個人作出評價或認定。
@@ -2860,7 +3011,7 @@ export default function Home() {
               if (!busy && q.trim()) void run(q);
             }
           }}
-          placeholder="例：台積電、國城營造有限公司"
+          placeholder={DEMO ? "例：○○營造有限公司" : "例：台積電、國城營造有限公司"}
           autoComplete="off"
         />
         <button className="sw-btn" type="submit" disabled={busy || !q.trim()}>
@@ -2872,7 +3023,9 @@ export default function Home() {
             是這個專案最容易累積的一種謊。改文案要跟功能同一筆 commit。 */}
         {fresh && (
           <p className="search-note">
-            打完整的法定名稱最準。打簡稱（例如「台積電」）會列出候選讓你選。
+            {/* ⚠ demo：範例公司名也是真名（外部檢視抓到影片裡讀得到），遮罩模式換成遮過的例子。 */}
+            {DEMO ? "打完整的法定名稱最準。只打前兩個字（例如「○○營造」）會列出候選讓你選。"
+              : "打完整的法定名稱最準。打簡稱（例如「台積電」）會列出候選讓你選。"}
           </p>
         )}
       </form>

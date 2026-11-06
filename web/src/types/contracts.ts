@@ -327,6 +327,12 @@ export interface LookupResult {
     quota?: QuotaHit;
     /** ⚠ 選填。上市櫃公司自行申報的薪資、職災、官網。 */
     listed?: ListedHit;
+    /** ⚠ 選填（2026-10-30）。工作守則備查（6685）。只能顯示「有」，不能顯示「無」。 */
+    workrule?: WorkRuleHit;
+    /** ⚠ 選填（2026-10-30）。人才發展獎項（21214 國家人才發展獎、6617 國家訓練品質獎）。 */
+    talent_awards?: TalentAward[];
+    /** ⚠ 選填（2026-10-30）。TTQS 效期內評核（41723），**只用統編對**。 */
+    ttqs?: TtqsRow[];
     own_violations: ViolationRef[];
     /** ⚠ 選填。得獎與驗證。沒有不代表這家公司沒得過獎 ——
      *  只代表在我們涵蓋的四份名單裡沒有正規化後完全相同的名稱。 */
@@ -377,6 +383,29 @@ export interface QuotaHit {
   /** 金展獎（進用身心障礙者績優）：[屆別, 獎項別]。正面紀錄。 */
   g?: [string, string][];
 }
+
+/**
+ * 工作守則備查名冊（勞動部職安署，data.gov.tw 6685）→ pv/ 的 w。
+ * 職業安全衛生法第 34 條：雇主應會同勞工代表訂定安全衛生工作守則，報勞動檢查機構備查。
+ * ⚠ 只能顯示「有」：小單位、或名冊沒收到、或我們沒對上，都會沒有這一塊。
+ * ⚠ 名冊是場所級的（「○○公司台中分公司」），原始全名一定要照樣顯示。
+ */
+export interface WorkRuleHit {
+  /** 場所數 */
+  n: number;
+  /** 最近一次備查的登錄日期，民國 YYYMMDD（096 年以前開頭的 0 會被吃掉，顯示時補回） */
+  l: number;
+  /** 1 = 名冊上有公司本身那一筆 */
+  o: 0 | 1;
+  /** 最近的場所，最多 20 個：[原始全名, 登錄日期] */
+  s: [string, number][];
+}
+
+/** 人才發展獎項：[西元年, 獎項別, 原始得獎單位名稱, 來源]。ntda＝國家人才發展獎（21214）、ntqa＝國家訓練品質獎（6617） */
+export type TalentAward = [number, string, string, "ntda" | "ntqa"];
+
+/** TTQS 效期內單位（勞發署，data.gov.tw 41723）：[原始單位名稱, 評核範圍, 版本, 牌等, 評核有效日期 YYYYMMDD] */
+export type TtqsRow = [string, string, string, string, string];
 
 /** 上市櫃公司自行申報的揭露資料（證交所／櫃買中心 OpenAPI → ls/）。⚠ 公司自己報的，不是主管機關認定。 */
 export interface ListedHit {

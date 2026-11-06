@@ -17,7 +17,7 @@
  */
 import type {
   Candidate, Credential, EvidenceKind, Hazard, Incident, LinkedCompany, ListedHit,
-  LookupResult, Principal, QuotaHit, SafetyStaff, SafetyUnits, Severity, Succession,
+  LookupResult, Principal, QuotaHit, SafetyStaff, TalentAward, TtqsRow, WorkRuleHit, SafetyUnits, Severity, Succession,
   ViolationRef,
 } from "../types/contracts";
 
@@ -944,6 +944,56 @@ export async function findListed(name: string): Promise<ListedHit | null> {
   return (await p)?.[key] ?? null;
 }
 
+/* ── 2026-10-30 新增四份勞動部資料（pipeline/more.py → pv/、tq/、more.json）── */
+export interface More {
+  generated_at?: string;
+  pv_shards?: number;
+  tq_shards?: number;
+  wr_rows?: number;
+  wr_units?: number;
+  wr_companies?: number;
+  wr_sites?: number;
+  /** 網站上的公司有幾家對得上（獎項用名稱、TTQS 用統編） */
+  aw_companies?: number;
+  tq_companies?: number;
+  aw_ntda?: number;
+  aw_ntqa?: number;
+  aw_units?: number;
+  tq_rows?: number;
+  tq_units?: number;
+  /** TTQS 名單的期別，例如「115年10月」 */
+  tq_label?: string;
+}
+interface PvHit { w?: WorkRuleHit; a?: TalentAward[] }
+let moreP: Promise<More | null> | null = null;
+export function getMore(): Promise<More | null> {
+  if (!moreP) moreP = getJSON<More>("more.json");
+  return moreP;
+}
+const pvCache = new Map<number, Promise<Record<string, PvHit> | null>>();
+const tqCache = new Map<number, Promise<Record<string, TtqsRow[]> | null>>();
+export async function findPv(name: string): Promise<PvHit | null> {
+  const mo = await getMore();
+  const n = mo?.pv_shards ?? 0;
+  const key = normName(name);
+  if (!n || !key) return null;
+  const k = fnv1a(key) % n;
+  let p = pvCache.get(k);
+  if (!p) { p = getJSON<Record<string, PvHit>>(`pv/${k}.json`); pvCache.set(k, p); }
+  return (await p)?.[key] ?? null;
+}
+/** ⚠ TTQS 只用統編對，不用名稱。 */
+export async function findTtqs(tax: string): Promise<TtqsRow[] | null> {
+  const mo = await getMore();
+  const n = mo?.tq_shards ?? 0;
+  const key = tax8(tax);
+  if (!n || !/^\d{8}$/.test(key)) return null;
+  const k = fnv1a(key) % n;
+  let p = tqCache.get(k);
+  if (!p) { p = getJSON<Record<string, TtqsRow[]>>(`tq/${k}.json`); tqCache.set(k, p); }
+  return (await p)?.[key] ?? null;
+}
+
 async function firstHit<T>(names: (string | undefined)[], f: (n: string) => Promise<T | null>): Promise<T | undefined> {
   for (const n of names) {
     if (!n) continue;
@@ -961,6 +1011,14 @@ async function firstHit<T>(names: (string | undefined)[], f: (n: string) => Prom
  *   換了殼、改了名，公告留在舊名稱上，跟裁處紀錄是一樣的道理。
  */
 async function enrich(out: LookupOutcome, query: string): Promise<LookupOutcome> {
+  // 2026-10-30：四份新資料只掛在查到的公司本身（工作守則用名稱，TTQS 只用統編）。
+  if (out.kind === "hit" && (await getMore())) {
+    const c = out.result.company;
+    const [pv, tq] = await Promise.all([findPv(c.name), c.tax_id ? findTtqs(c.tax_id) : Promise.resolve(null)]);
+    if (pv?.w) c.workrule = pv.w;
+    if (pv?.a?.length) c.talent_awards = pv.a;
+    if (tq?.length) c.ttqs = tq;
+  }
   if (!(await getExtra())) return out;
   const tagLinked = (cs: LinkedCompany[] | undefined) => Promise.all((cs ?? []).map(async (c) => {
     const q = await findQuota(c.name);

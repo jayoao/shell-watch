@@ -723,6 +723,8 @@
    一定要能折行，不然手機上會撐出橫向捲軸。 */
 .su-unit { font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; flex: 1 1 100%; }
 .su-list li.fineprint { display: block; }
+/* 人才培訓：TTQS 牌等（2026-10-30）。顏色不分牌等 —— 金銀銅是來源的分級，我們不再加一層好壞色。 */
+.tq-lv { font-size: 12px; font-weight: 700; border: 1px solid var(--rule-2); border-radius: 999px; padding: 0 8px; white-space: nowrap; }
 
 /* ── 鍵盤焦點 ─────────────────────────────── */
 /* ⚠⚠ 2026-09-15 外部檢視抓到輸入框有 `outline: none`。

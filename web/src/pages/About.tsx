@@ -24,8 +24,8 @@
  *    兩邊不同步的話，報名文件跟網站會講不一樣的話。
  */
 import { useEffect, useState } from "react";
-import { getExtra, getMeta } from "../lib/lookup";
-import type { Extra, Meta } from "../lib/lookup";
+import { getExtra, getMeta, getMore } from "../lib/lookup";
+import type { Extra, Meta, More } from "../lib/lookup";
 import "../styles/about.css";
 
 /** ⚠ 網址一律指向 data.gov.tw 的資料集頁面，不要指向我們實際打的下載端點。
@@ -77,12 +77,37 @@ const MOL = [
     use: "進用身心障礙者績優機關（構）。身障未足額公告的正面那一半 —— 只收負面就成了黑名單。"
        + "只有單位名稱，名稱完全相同才比對。",
   },
+  // 2026-10-30 新增三筆「人才培訓」。本組是「職安視覺化防災**及素養提升**組」，
+  //   雇主有沒有投資員工的訓練就是素養提升那一半。⚠ 評的是訓練制度，不是職安，畫面上照實寫。
+  {
+    id: "41723",
+    name: "TTQS效期內單位名單",
+    use: "職安履歷的「人才培訓」面：勞動力發展署對事業單位訓練制度的評核（牌等、有效日期）。"
+       + "這幾份裡少數有統一編號的，只用統編比對。⚠ 評的是訓練制度，不是職業安全衛生。",
+  },
+  {
+    id: "21214",
+    name: "NTDA得獎名單（國家人才發展獎）",
+    use: "同上，獎項。2015 年起逐年一份。只有單位名稱，名稱完全相同才比對。",
+  },
+  {
+    id: "6617",
+    name: "國家訓練品質獎",
+    use: "同上，較早年度（民國 100、102 年）的獎項。只有單位名稱，名稱完全相同才比對。",
+  },
+  {
+    id: "6685",
+    name: "工作守則備查名冊",
+    use: "職安履歷的「事前」面之二。職業安全衛生法第 34 條要求雇主會同勞工代表訂定"
+       + "安全衛生工作守則，報勞動檢查機構備查。跟安衛人員備查一樣只能顯示「有」："
+       + "沒有紀錄不代表沒有訂。名冊是場所級的，顯示原始全名。",
+  },
   {
     id: "6686",
     name: "安衛單位(人員)備查名冊",
-    use: "職安履歷的「事前」面。⚠ 其餘七份講的都是已經發生的事（違規、職災、"
-       + "得獎、驗證），這一份講的是事業單位有沒有依法向勞動檢查機構報備"
-       + "安全衛生管理人員。它是本站唯一的事前訊號。",
+    use: "職安履歷的「事前」面。⚠ 違規、職災、得獎、驗證講的都是已經發生的事，"
+       + "這一份（與工作守則備查）講的是事業單位有沒有依法向勞動檢查機構報備"
+       + "安全衛生管理人員。",
   },
   // 2026-10-29 新增。⚠ 每一年是一個獨立的資料集，所以算 7 筆（編號照 data.gov.tw）。
   //   ⚠ 這是**公告名單**不是裁處：未足額要繳差額補助費（身權法第 43 條），不是罰鍰。
@@ -210,6 +235,8 @@ export default function About() {
   useEffect(() => { void getMeta().then(setMeta); }, []);
   const [ex, setEx] = useState<Extra | null>(null);
   useEffect(() => { void getExtra().then(setEx); }, []);
+  const [mo, setMo] = useState<More | null>(null);
+  useEffect(() => { void getMore().then(setMo); }, []);
 
   return (
     <div className="about">
@@ -301,7 +328,7 @@ export default function About() {
           <tbody>
             <tr>
               <td>裁處公告 → 商工登記</td>
-              <td className="right num">152,421 家（86.4%）</td>
+              <td className="right num">153,166 家（86.9%）</td>
               <td>正規化後的公司名稱</td>
             </tr>
             {/* ⚠ 家數一律是「正規化後去重」的數字。2026-09-17 之前這裡寫 403，
@@ -324,6 +351,27 @@ export default function About() {
               <td className="right num">8,183 家 · 13,172 個場所</td>
               <td>正規化後的法人名稱（名冊含分支與廠區）</td>
             </tr>
+            {mo?.wr_companies ? (
+              <tr>
+                <td>裁處公告 → 工作守則備查</td>
+                <td className="right num">{mo.wr_companies.toLocaleString("zh-TW")} 家 · {(mo.wr_sites ?? 0).toLocaleString("zh-TW")} 個場所</td>
+                <td>正規化後的法人名稱（名冊含分支與廠區）</td>
+              </tr>
+            ) : null}
+            {mo?.tq_companies ? (
+              <tr>
+                <td>裁處公告 → TTQS 評核</td>
+                <td className="right num">{mo.tq_companies.toLocaleString("zh-TW")} 家</td>
+                <td>統一編號（只用統編，不用名稱）</td>
+              </tr>
+            ) : null}
+            {mo?.aw_companies ? (
+              <tr>
+                <td>裁處公告 → 人才發展獎項</td>
+                <td className="right num">{mo.aw_companies.toLocaleString("zh-TW")} 家</td>
+                <td>正規化後完全相同的名稱，不做模糊比對</td>
+              </tr>
+            ) : null}
             {ex?.dq_units ? (
               <tr>
                 <td>身障未足額公告、金展獎</td>
@@ -347,16 +395,19 @@ export default function About() {
         </table>
         </div>
         <p className="about-note">
-          ⚠ 有 <b>13.6%</b> 的事業單位在商工登記裡查不到統一編號。
+          ⚠ 有 <b>13.1%</b> 的事業單位在商工登記裡查不到統一編號（這是改名對照補回之後的數字）。
           多數是診所、小吃店、工作室這類以商業登記或執業登記存在的單位。
-          它們的裁處紀錄照常顯示，只是沒有統編與登記地址可以佐證。
           {meta?.tax_filled
             ? <> 其中 <b className="num">{meta.tax_filled.toLocaleString("zh-TW")}</b> 家在財政部稅籍登記查得到唯一同名的營業人，
-                已補上統一編號（現況顯示「營業中」）；負責人關聯仍只用商工登記。</>
+                已補上統一編號（現況顯示「營業中」）；負責人關聯仍只用商工登記。
+                補完之後仍查不到統編的是 <b>11.6%</b>（20,515 家），</>
             : null}
+          它們的裁處紀錄照常顯示，只是沒有統編與登記地址可以佐證。
           {" "}改過名的公司（勞動部公告用舊名、商工登記只剩新名）也以改名對照補回：
           人工逐家查證 44 家、「有限 ↔ 股份有限」組織變更且負責人或董監事姓名相符的 701 家，
-          統編全部回查商工登記。{/* ⚠ 數字取自 2026-10-29 的 publish.py 輸出（改名表、組織型態變更自動對照兩行）。 */}
+          統編全部回查商工登記。{/* ⚠ 數字取自 2026-10-29 的 publish.py 輸出（版本 20261029T202940，決賽凍結版）：
+              176,268 家中無統編 20,515、稅籍補 2,587、商工登記對上 153,166（含改名 745）。
+              2026-10-30 前這裡寫 152,421／86.4%／13.6%，是加改名對照之前的數字。 */}
         </p>
       </section>
 
