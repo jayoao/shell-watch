@@ -3092,7 +3092,7 @@ export default function Home() {
       {busy && (
         <div className="loading">
           <p className="loading-h">正在下載這家公司的資料分片</p>
-          <p className="kicker">約 14 KB · 本站不記錄你查了誰</p>
+          <p className="kicker">壓縮後約 50 KB · 本站不記錄你查了誰</p>
           <div className="skels">
             <div className="skel" style={{ height: 22, width: "86%" }} />
             <div className="skel" style={{ height: 11, width: "54%" }} />

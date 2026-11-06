@@ -10,7 +10,7 @@ import type { Meta } from "./lib/lookup";
  * ⚠ 這一頁會把 leaflet、react-leaflet 與 osha_district.json（90 KB）
  *   一起拉進來。靜態 import 的話這些全部進主 bundle，
  *   **查詢頁（本專題的主產品）會為了一張它不需要的地圖多載一百多 KB**。
- *   查詢頁一次查詢才下載 14 KB，主 bundle 卻胖成這樣就本末倒置了。
+ *   查詢頁一次查詢才下載約 50 KB（壓縮後），主 bundle 卻胖成這樣就本末倒置了。
  */
 const OshaDistrictMap = lazy(() => import("./pages/OshaDistrictMap"));
 
